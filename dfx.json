@@ -6,12 +6,8 @@
       "type": "rust"
     },
     "icp_prototype_frontend": {
-      "dependencies": [
-        "icp_prototype_backend"
-      ],
-      "source": [
-        "src/icp_prototype_frontend/assets"
-      ],
+      "dependencies": ["icp_prototype_backend"],
+      "source": ["src/icp_prototype_frontend/assets"],
       "type": "assets"
     }
   },
