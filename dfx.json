@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "icp_prototype_backend": {
+      "candid": "src/icp_prototype_backend/icp_prototype_backend.did",
+      "package": "icp_prototype_backend",
+      "type": "rust"
+    },
+    "icp_prototype_frontend": {
+      "dependencies": [
+        "icp_prototype_backend"
+      ],
+      "source": [
+        "src/icp_prototype_frontend/assets"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
