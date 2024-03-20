@@ -6,11 +6,18 @@ use std::cell::RefCell;
 
 mod types;
 
-use types::Response;
+use types::{Operation, QueryBlocksQueryRequest, Response, Timestamp};
 
 thread_local! {
+    // TODO: volatile
+    static LIST_OF_SUBACCOUNTS: RefCell<Vec<AccountIdentifier>> = RefCell::default();
+
+    // TODO: change to stable memory
+    static LAST_SUBACCOUNT_NONCE: RefCell<u64> = RefCell::default();
+    static LAST_BLOCK: RefCell<u64> = RefCell::default();
     static INTERVAL_IN_SECONDS: RefCell<u64> = RefCell::default();
     static TIMERS: RefCell<ic_cdk_timers::TimerId> = RefCell::default();
+    static TRANSACTIONS: RefCell<Vec<StoredTransactions>> = RefCell::default();
 }
 
 #[derive(CandidType, Deserialize, Serialize)]
@@ -19,11 +26,20 @@ struct Error {
 }
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
-struct QueryBlocksQueryRequest {
-    start: u64,
-    length: u64,
+struct AccountIdentifier {
+    hash: [u8; 28],
 }
 
+#[derive(CandidType, Deserialize, Serialize, Clone)]
+struct StoredTransactions {
+    index: u64,
+    memo: u64,
+    icrc1_memo: Option<Vec<u8>>,
+    operation: Option<Operation>,
+    created_at_time: Timestamp,
+}
+
+// TODO: change to stable memory not constant added from init
 const LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 
 async fn call_query_blocks() {

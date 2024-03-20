@@ -2,6 +2,12 @@ use candid::{CandidType, Deserialize};
 use serde::Serialize;
 use std::collections::HashMap;
 
+#[derive(CandidType, Deserialize, Serialize, Clone)]
+pub struct QueryBlocksQueryRequest {
+    pub start: u64,
+    pub length: u64,
+}
+
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct Response {
     pub certificate: Option<Vec<u8>>,
