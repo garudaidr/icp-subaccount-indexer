@@ -4,6 +4,7 @@ use ic_cdk_macros::*;
 use serde::Serialize;
 use std::cell::RefCell;
 
+mod memory;
 mod types;
 
 use types::{Operation, QueryBlocksQueryRequest, Response, Timestamp};
