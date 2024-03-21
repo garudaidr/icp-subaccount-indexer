@@ -1,6 +1,6 @@
 use candid::{CandidType, Deserialize};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct QueryBlocksQueryRequest {
@@ -107,3 +107,36 @@ pub enum CallbackError {
         error_code: u64,
     },
 }
+
+#[derive(CandidType, Deserialize, Serialize, Clone)]
+pub struct StoredTransactions {
+    pub index: u64,
+    pub memo: u64,
+    pub icrc1_memo: Option<Vec<u8>>,
+    pub operation: Option<Operation>,
+    pub created_at_time: Timestamp,
+}
+
+use ic_stable_structures::{
+    memory_manager::VirtualMemory,
+    storable::{Bound, Storable},
+    DefaultMemoryImpl,
+};
+
+const MAX_VALUE_SIZE: u32 = 100;
+impl Storable for StoredTransactions {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+pub type Memory = VirtualMemory<DefaultMemoryImpl>;

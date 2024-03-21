@@ -7,18 +7,12 @@ use std::cell::RefCell;
 mod memory;
 mod types;
 
-use types::{Operation, QueryBlocksQueryRequest, Response, Timestamp};
+use memory::INTERVAL_IN_SECONDS;
+use types::{QueryBlocksQueryRequest, Response};
 
 thread_local! {
-    // TODO: volatile
     static LIST_OF_SUBACCOUNTS: RefCell<Vec<AccountIdentifier>> = RefCell::default();
-
-    // TODO: change to stable memory
-    static LAST_SUBACCOUNT_NONCE: RefCell<u64> = RefCell::default();
-    static LAST_BLOCK: RefCell<u64> = RefCell::default();
-    static INTERVAL_IN_SECONDS: RefCell<u64> = RefCell::default();
     static TIMERS: RefCell<ic_cdk_timers::TimerId> = RefCell::default();
-    static TRANSACTIONS: RefCell<Vec<StoredTransactions>> = RefCell::default();
 }
 
 #[derive(CandidType, Deserialize, Serialize)]
@@ -29,15 +23,6 @@ struct Error {
 #[derive(CandidType, Deserialize, Serialize, Clone)]
 struct AccountIdentifier {
     hash: [u8; 28],
-}
-
-#[derive(CandidType, Deserialize, Serialize, Clone)]
-struct StoredTransactions {
-    index: u64,
-    memo: u64,
-    icrc1_memo: Option<Vec<u8>>,
-    operation: Option<Operation>,
-    created_at_time: Timestamp,
 }
 
 // TODO: change to stable memory not constant added from init
@@ -61,7 +46,7 @@ async fn call_query_blocks() {
 async fn init() {
     let seconds = 15;
     INTERVAL_IN_SECONDS.with(|interval_ref| {
-        interval_ref.replace(seconds);
+        let _ = interval_ref.borrow_mut().set(seconds);
     });
 
     let interval = std::time::Duration::from_secs(seconds);
@@ -77,7 +62,7 @@ async fn init() {
 
 #[query]
 fn get_interval() -> Result<u64, Error> {
-    INTERVAL_IN_SECONDS.with(|interval_ref| Ok(interval_ref.borrow().clone()))
+    INTERVAL_IN_SECONDS.with(|interval_ref| Ok(*interval_ref.borrow().get()))
 }
 
 #[update]
@@ -97,7 +82,7 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
     });
 
     INTERVAL_IN_SECONDS.with(|seconds_ref| {
-        seconds_ref.replace(seconds);
+        let _ = seconds_ref.borrow_mut().set(seconds);
     });
 
     Ok(seconds)

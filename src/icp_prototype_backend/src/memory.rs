@@ -1,27 +1,41 @@
-use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
+use ic_stable_structures::memory_manager::{MemoryId, MemoryManager};
 use ic_stable_structures::DefaultMemoryImpl;
+use ic_stable_structures::{StableCell, StableVec};
 use std::cell::RefCell;
 
-// A memory for upgrades, where data from the heap can be serialized/deserialized.
-const UPGRADES: MemoryId = MemoryId::new(0);
+use crate::types::{Memory, StoredTransactions};
 
-// A memory for the StableBTreeMap we're using. A new memory should be created for
-// every additional stable structure.
-const STABLE_BTREE: MemoryId = MemoryId::new(1);
-
-pub type Memory = VirtualMemory<DefaultMemoryImpl>;
+const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(0);
+const LAST_BLOCK_MEMORY: MemoryId = MemoryId::new(1);
+const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(2);
+const TIMERS_MEMORY: MemoryId = MemoryId::new(3);
+const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
 
 thread_local! {
-    // The memory manager is used for simulating multiple memories. Given a `MemoryId` it can
-    // return a memory that can be used by stable structures.
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
-}
 
-pub fn get_upgrades_memory() -> Memory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(UPGRADES))
-}
-
-pub fn get_stable_btree_memory() -> Memory {
-    MEMORY_MANAGER.with(|m| m.borrow().get(STABLE_BTREE))
+    static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LAST_SUBACCOUNT_NONCE_MEMORY)),
+            0
+        ).expect("Initializing LAST_SUBACCOUNT_NONCE StableCell failed")
+    );
+    static LAST_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(LAST_BLOCK_MEMORY)),
+            0
+        ).expect("Initializing LAST_BLOCK StableCell failed")
+    );
+    pub static INTERVAL_IN_SECONDS: RefCell<StableCell<u64, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(INTERVAL_IN_SECONDS_MEMORY)),
+            0
+        ).expect("Initializing INTERVAL_IN_SECONDS StableCell failed")
+    );
+    static TRANSACTIONS: RefCell<StableVec<StoredTransactions, Memory>> = RefCell::new(
+        StableVec::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTIONS_MEMORY))
+        ).expect("Initializing TRANSACTIONS StableVec failed")
+    );
 }
