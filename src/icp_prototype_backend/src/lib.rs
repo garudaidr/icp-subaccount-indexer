@@ -57,7 +57,7 @@ async fn init() {
         timers_ref.replace(timer_id);
     });
 
-    // TODO: reconstruct LIST_OF_SUBACCOUNTS using LAST_SUBACCOUNT_NONCE 
+    // reconstruct LIST_OF_SUBACCOUNTS using LAST_SUBACCOUNT_NONCE 
     let nonce: u32 = get_nonce();
     let account = ic_cdk::caller();
     for i in 0..nonce {
@@ -97,6 +97,7 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
     Ok(seconds)
 }
 
+#[query]
 fn get_nonce() -> u32 {
     memory::LAST_SUBACCOUNT_NONCE.with(|p| *p.borrow().get())
 }
@@ -118,11 +119,25 @@ fn account_id() -> String {
     let nonce = increment_nonce();
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
+    LIST_OF_SUBACCOUNTS.with(|list_ref| {
+        list_ref.borrow_mut().push(subaccountid);
+    });
     to_hex_string(subaccountid.to_address())
 }
 
-// Enable Candid export
-ic_cdk::export_candid!();
+
+#[query]
+fn get_subaccountid(index: u32) -> Result<String, Error> {
+    LIST_OF_SUBACCOUNTS.with(|list_ref| {
+        let list = list_ref.borrow();
+        if index as usize >= list.len() {
+            return Err(Error {
+                message: "Index out of bounds".to_string(),
+            });
+        }
+        Ok(to_hex_string(list[index as usize].to_address()))
+    })
+}
 
 #[cfg(test)]
 mod tests {
@@ -148,3 +163,6 @@ mod tests {
     //     assert_eq!(hex.len(), 64);
     // }
 }
+
+// Enable Candid export
+ic_cdk::export_candid!();
