@@ -1,6 +1,10 @@
 type Error = record { message : text };
 type Result = variant { Ok : nat64; Err : Error };
+type Result_1 = variant { Ok : text; Err : Error };
 service : () -> {
+  account_id : () -> (text);
   get_interval : () -> (Result) query;
+  get_nonce : () -> (nat32) query;
+  get_subaccountid : (nat32) -> (Result_1) query;
   set_interval : (nat64) -> (Result);
 }
