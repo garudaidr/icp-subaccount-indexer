@@ -10,7 +10,7 @@ mod account_identifier;
 
 use account_identifier::{ AccountIdentifier, Subaccount, to_hex_string};
 
-use memory::INTERVAL_IN_SECONDS;
+use memory::{INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE};
 use types::{QueryBlocksQueryRequest, Response};
 
 thread_local! {
@@ -57,11 +57,24 @@ async fn init() {
         timers_ref.replace(timer_id);
     });
 
-    // reconstruct LIST_OF_SUBACCOUNTS using LAST_SUBACCOUNT_NONCE 
-    let nonce: u32 = get_nonce();
+    let nonce: u32 = LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get() as u32);
+    
     let account = ic_cdk::caller();
     for i in 0..nonce {
-        let subaccount = convert_to_subaccount(i);     
+        let subaccount = convert_to_subaccount(i);
+        let account_id = AccountIdentifier::new(account, Some(subaccount));
+        LIST_OF_SUBACCOUNTS.with(|list_ref| {
+            list_ref.borrow_mut().push(account_id);
+        });
+    }
+}
+
+#[ic_cdk::post_upgrade]
+async fn post_upgrade() {
+    let nonce: u32 = LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get() as u32);
+    let account = ic_cdk::caller();
+    for i in 0..nonce {
+        let subaccount = convert_to_subaccount(i);
         let account_id = AccountIdentifier::new(account, Some(subaccount));
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             list_ref.borrow_mut().push(account_id);
@@ -98,12 +111,22 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
 }
 
 #[query]
-fn get_nonce() -> u32 {
-    memory::LAST_SUBACCOUNT_NONCE.with(|p| *p.borrow().get())
+fn get_nonce() -> Result<u32, Error> {
+    ic_cdk::println!("running get_nonce...");
+    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| Ok(*nonce_ref.borrow().get()))
 }
 
 fn increment_nonce() -> u32 {
-    get_nonce() + 1
+    // get_nonce() + 1
+    match get_nonce() {
+        Ok(nonce) => {
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(nonce + 1);
+            });
+            nonce + 1
+        }
+        Err(_) => 0,
+    }
 }
 
 fn convert_to_subaccount(nonce: u32) -> Subaccount {
@@ -128,15 +151,20 @@ fn account_id() -> String {
 
 #[query]
 fn get_subaccountid(index: u32) -> Result<String, Error> {
-    LIST_OF_SUBACCOUNTS.with(|list_ref| {
-        let list = list_ref.borrow();
-        if index as usize >= list.len() {
+    LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+        let subaccounts_borrow = subaccounts.borrow();
+        if index as usize >= subaccounts_borrow.len() {
             return Err(Error {
                 message: "Index out of bounds".to_string(),
             });
         }
-        Ok(to_hex_string(list[index as usize].to_address()))
+        Ok(to_hex_string(subaccounts_borrow[index as usize].to_address()))
     })
+}
+
+#[query]
+fn get_subaccount_count() -> u32 {
+    LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().len() as u32)
 }
 
 #[cfg(test)]
