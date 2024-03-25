@@ -8,7 +8,7 @@ use hex;
 #[serde(transparent)]
 pub struct Subaccount(pub [u8; 32]);
 
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, Copy, Eq)]
 pub struct AccountIdentifier {
     hash: [u8; 28],
 }
