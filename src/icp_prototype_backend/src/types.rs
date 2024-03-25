@@ -1,4 +1,4 @@
-use candid::{CandidType, Deserialize};
+use candid::{CandidType, Deserialize, Principal};
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
@@ -117,6 +117,11 @@ pub struct StoredTransactions {
     pub created_at_time: Timestamp,
 }
 
+#[derive(CandidType, Deserialize, Serialize, Clone, Default)]
+pub struct StoredPrincipal {
+    pub principal: Option<Principal>,
+}
+
 use ic_stable_structures::{
     memory_manager::VirtualMemory,
     storable::{Bound, Storable},
@@ -125,6 +130,21 @@ use ic_stable_structures::{
 
 const MAX_VALUE_SIZE: u32 = 100;
 impl Storable for StoredTransactions {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+impl Storable for StoredPrincipal {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
     }
