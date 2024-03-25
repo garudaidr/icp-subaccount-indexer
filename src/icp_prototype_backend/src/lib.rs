@@ -6,6 +6,9 @@ use std::cell::RefCell;
 
 mod memory;
 mod types;
+mod account_identifier;
+
+use account_identifier::{ AccountIdentifier, Subaccount, to_hex_string};
 
 use memory::INTERVAL_IN_SECONDS;
 use types::{QueryBlocksQueryRequest, Response};
@@ -18,11 +21,6 @@ thread_local! {
 #[derive(CandidType, Deserialize, Serialize)]
 struct Error {
     message: String,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Clone)]
-struct AccountIdentifier {
-    hash: [u8; 28],
 }
 
 // TODO: change to stable memory not constant added from init
@@ -58,6 +56,17 @@ async fn init() {
     TIMERS.with(|timers_ref| {
         timers_ref.replace(timer_id);
     });
+
+    // TODO: reconstruct LIST_OF_SUBACCOUNTS using LAST_SUBACCOUNT_NONCE 
+    let nonce: u32 = get_nonce();
+    let account = ic_cdk::caller();
+    for i in 0..nonce {
+        let subaccount = convert_to_subaccount(i);     
+        let account_id = AccountIdentifier::new(account, Some(subaccount));
+        LIST_OF_SUBACCOUNTS.with(|list_ref| {
+            list_ref.borrow_mut().push(account_id);
+        });
+    }
 }
 
 #[query]
@@ -88,5 +97,54 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
     Ok(seconds)
 }
 
+fn get_nonce() -> u32 {
+    memory::LAST_SUBACCOUNT_NONCE.with(|p| *p.borrow().get())
+}
+
+fn increment_nonce() -> u32 {
+    get_nonce() + 1
+}
+
+fn convert_to_subaccount(nonce: u32) -> Subaccount {
+    let mut subaccount = Subaccount([0; 32]);
+    let nonce_bytes = nonce.to_be_bytes(); // Converts u32 to an array of 4 bytes
+    subaccount.0[32 - nonce_bytes.len()..].copy_from_slice(&nonce_bytes); // Aligns the bytes at the end of the array
+    subaccount
+}
+
+#[update]
+fn account_id() -> String {
+    let account = ic_cdk::caller();
+    let nonce = increment_nonce();
+    let subaccount = convert_to_subaccount(nonce);
+    let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
+    to_hex_string(subaccountid.to_address())
+}
+
 // Enable Candid export
 ic_cdk::export_candid!();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_increment_nonce() {
+        let nonce = increment_nonce();
+        assert_eq!(nonce, 1);
+    }
+
+    #[test]
+    fn test_convert_to_subaccount() {
+        let nonce = 1;
+        let subaccount = convert_to_subaccount(nonce);
+        assert_eq!(subaccount.0[28..32], [0, 0, 0, 1]);
+    }
+
+    // #[test]
+    // fn test_account_id() {
+    //     let account_id = account_id();
+    //     let hex = to_hex_string(account_id.to_address());
+    //     assert_eq!(hex.len(), 64);
+    // }
+}
