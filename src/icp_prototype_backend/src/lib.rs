@@ -48,10 +48,16 @@ async fn call_query_blocks() {
 }
 
 #[ic_cdk::init]
-async fn init() {
-    let seconds = 15;
+async fn init(seconds: u64, ledger_principal: String) {
+    let principal = Principal::from_text(&ledger_principal).expect("Invalid principal");
+
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
+    });
+
+    PRINCIPAL.with(|principal_ref| {
+        let stored_principal = StoredPrincipal::new(principal);
+        let _ = principal_ref.borrow_mut().set(stored_principal);
     });
 
     let interval = std::time::Duration::from_secs(seconds);

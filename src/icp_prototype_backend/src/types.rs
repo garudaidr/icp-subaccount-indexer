@@ -123,11 +123,7 @@ pub struct StoredPrincipal {
 }
 
 impl StoredPrincipal {
-    pub fn new() -> Self {
-        Self { principal: None }
-    }
-
-    pub fn set_principal(&self, principal: Principal) -> Self {
+    pub fn new(principal: Principal) -> Self {
         Self {
             principal: Some(principal),
         }

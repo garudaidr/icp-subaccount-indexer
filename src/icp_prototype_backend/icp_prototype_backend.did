@@ -1,6 +1,6 @@
 type Error = record { message : text };
 type Result = variant { Ok : nat64; Err : Error };
-service : () -> {
+service : (nat64, text) -> {
   get_interval : () -> (Result) query;
   set_interval : (nat64) -> (Result);
 }
