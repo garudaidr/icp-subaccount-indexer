@@ -117,6 +117,18 @@ pub struct StoredTransactions {
     pub created_at_time: Timestamp,
 }
 
+impl StoredTransactions {
+    pub fn new(index: u64, transaction: Transaction) -> Self {
+        Self {
+            index,
+            memo: transaction.memo,
+            icrc1_memo: transaction.icrc1_memo,
+            operation: transaction.operation,
+            created_at_time: transaction.created_at_time,
+        }
+    }
+}
+
 #[derive(CandidType, Deserialize, Serialize, Clone, Default)]
 pub struct StoredPrincipal {
     principal: Option<Principal>,

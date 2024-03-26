@@ -9,7 +9,6 @@ const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
 const LAST_BLOCK_MEMORY: MemoryId = MemoryId::new(2);
 const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(3);
-const TIMERS_MEMORY: MemoryId = MemoryId::new(4);
 const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(5);
 
 thread_local! {
@@ -22,7 +21,7 @@ thread_local! {
             StoredPrincipal::default() // TODO: add to init function
         ).expect("Initializing PRINCIPAL StableCell failed")
     );
-    pub static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
+    static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(LAST_SUBACCOUNT_NONCE_MEMORY)),
             0
@@ -40,7 +39,7 @@ thread_local! {
             5 // Default is 5 seconds
         ).expect("Initializing INTERVAL_IN_SECONDS StableCell failed")
     );
-    static TRANSACTIONS: RefCell<StableVec<StoredTransactions, Memory>> = RefCell::new(
+    pub static TRANSACTIONS: RefCell<StableVec<StoredTransactions, Memory>> = RefCell::new(
         StableVec::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTIONS_MEMORY))
         ).expect("Initializing TRANSACTIONS StableVec failed")
