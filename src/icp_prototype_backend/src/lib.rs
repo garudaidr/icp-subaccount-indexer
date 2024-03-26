@@ -23,6 +23,12 @@ struct Error {
     message: String,
 }
 
+#[derive(CandidType, Deserialize, Serialize)]
+struct InitArgs {
+    seconds: Option<u64>,
+    nonce: Option<u32>,
+}
+
 // TODO: change to stable memory not constant added from init
 const LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 
@@ -41,13 +47,16 @@ async fn call_query_blocks() {
 }
 
 #[ic_cdk::init]
-async fn init() {
-    let seconds = 15;
+async fn init(args: InitArgs) {
     INTERVAL_IN_SECONDS.with(|interval_ref| {
-        let _ = interval_ref.borrow_mut().set(seconds);
+        let _ = interval_ref.borrow_mut().set(args.seconds.unwrap_or(15));
     });
 
-    let interval = std::time::Duration::from_secs(seconds);
+    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+        let _ = nonce_ref.borrow_mut().set(args.nonce.unwrap_or(0));
+    });
+
+    let interval = std::time::Duration::from_secs(args.seconds.unwrap_or(15));
     ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
     let timer_id = ic_cdk_timers::set_timer_interval(interval, || {
         ic_cdk::spawn(call_query_blocks());
@@ -57,8 +66,11 @@ async fn init() {
         timers_ref.replace(timer_id);
     });
 
-    let nonce: u32 = LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get() as u32);
-    
+    reconstruct_subaccounts();
+}
+
+fn reconstruct_subaccounts() {
+    let nonce: u32 = get_nonce();
     let account = ic_cdk::caller();
     for i in 0..nonce {
         let subaccount = convert_to_subaccount(i);
@@ -71,15 +83,8 @@ async fn init() {
 
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
-    let nonce: u32 = LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get() as u32);
-    let account = ic_cdk::caller();
-    for i in 0..nonce {
-        let subaccount = convert_to_subaccount(i);
-        let account_id = AccountIdentifier::new(account, Some(subaccount));
-        LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            list_ref.borrow_mut().push(account_id);
-        });
-    }
+    ic_cdk::println!("running post_upgrade...");
+    reconstruct_subaccounts();
 }
 
 #[query]
@@ -111,22 +116,12 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
 }
 
 #[query]
-fn get_nonce() -> Result<u32, Error> {
-    ic_cdk::println!("running get_nonce...");
-    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| Ok(*nonce_ref.borrow().get()))
+fn get_nonce() -> u32 {
+    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
 }
 
 fn increment_nonce() -> u32 {
-    // get_nonce() + 1
-    match get_nonce() {
-        Ok(nonce) => {
-            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
-                let _ = nonce_ref.borrow_mut().set(nonce + 1);
-            });
-            nonce + 1
-        }
-        Err(_) => 0,
-    }
+    get_nonce() + 1
 }
 
 fn convert_to_subaccount(nonce: u32) -> Subaccount {
