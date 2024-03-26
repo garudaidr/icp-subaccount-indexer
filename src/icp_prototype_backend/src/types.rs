@@ -119,7 +119,23 @@ pub struct StoredTransactions {
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Default)]
 pub struct StoredPrincipal {
-    pub principal: Option<Principal>,
+    principal: Option<Principal>,
+}
+
+impl StoredPrincipal {
+    pub fn new() -> Self {
+        Self { principal: None }
+    }
+
+    pub fn set_principal(&self, principal: Principal) -> Self {
+        Self {
+            principal: Some(principal),
+        }
+    }
+
+    pub fn get_principal(&self) -> Option<Principal> {
+        self.principal
+    }
 }
 
 use ic_stable_structures::{
