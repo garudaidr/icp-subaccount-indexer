@@ -1,4 +1,4 @@
-use candid::{CandidType, Deserialize, Principal};
+use candid::{CandidType, Deserialize};
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use std::cell::RefCell;
 mod memory;
 mod types;
 
-use memory::INTERVAL_IN_SECONDS;
+use memory::{INTERVAL_IN_SECONDS, PRINCIPAL};
 use types::{QueryBlocksQueryRequest, Response};
 
 thread_local! {
@@ -25,11 +25,16 @@ struct AccountIdentifier {
     hash: [u8; 28],
 }
 
-// TODO: change to stable memory not constant added from init
-const LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-
 async fn call_query_blocks() {
-    let ledger_principal = Principal::from_text(LEDGER_CANISTER_ID).expect("Invalid principal");
+    let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    if ledger_principal.get_principal().is_none() {
+        ic_cdk::println!("Principal is not set");
+        return;
+    }
+
+    let ledger_principal = ledger_principal.get_principal().unwrap();
+
     let req = QueryBlocksQueryRequest {
         start: 0,
         length: 100,

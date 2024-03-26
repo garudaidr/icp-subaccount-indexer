@@ -16,19 +16,19 @@ thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
 
-    static PRINCIPAL: RefCell<StableCell<StoredPrincipal, Memory>> = RefCell::new(
+    pub static PRINCIPAL: RefCell<StableCell<StoredPrincipal, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(PRINCIPAL_MEMORY)),
             StoredPrincipal::default() // TODO: add to init function
         ).expect("Initializing PRINCIPAL StableCell failed")
     );
-    static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
+    pub static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(LAST_SUBACCOUNT_NONCE_MEMORY)),
             0
         ).expect("Initializing LAST_SUBACCOUNT_NONCE StableCell failed")
     );
-    static LAST_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
+    pub static LAST_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(LAST_BLOCK_MEMORY)),
             0
@@ -37,7 +37,7 @@ thread_local! {
     pub static INTERVAL_IN_SECONDS: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(INTERVAL_IN_SECONDS_MEMORY)),
-            0
+            5 // Default is 5 seconds
         ).expect("Initializing INTERVAL_IN_SECONDS StableCell failed")
     );
     static TRANSACTIONS: RefCell<StableVec<StoredTransactions, Memory>> = RefCell::new(
