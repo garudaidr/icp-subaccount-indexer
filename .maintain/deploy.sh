@@ -25,4 +25,4 @@ dfx deploy --specified-id ryjl3-tyaaa-aaaaa-aaaba-cai icp_ledger_canister --argu
     }
   })
 "
-dfx deploy icp_prototype_backend --argument "(15 : nat64, \"ryjl3-tyaaa-aaaaa-aaaba-cai\")"
+dfx deploy icp_prototype_backend --argument "(15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\")"
