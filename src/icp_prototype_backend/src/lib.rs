@@ -169,7 +169,11 @@ async fn call_query_blocks() {
                     let mut transactions = transactions_ref.borrow_mut();
                     let transaction =
                         StoredTransactions::new(block_count, block.transaction.clone());
-                    let _ = transactions.insert(block_count, transaction);
+                    if !transactions.contains_key(&block_count) {
+                        // Filter keys that exist
+                        ic_cdk::println!("Inserting transaction");
+                        let _ = transactions.insert(block_count, transaction);
+                    }
                 });
             }
         });
