@@ -186,7 +186,7 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String) {
 
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
-    let account = ic_cdk::caller();
+    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
