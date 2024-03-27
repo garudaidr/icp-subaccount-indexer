@@ -1,4 +1,5 @@
-use candid::{CandidType, Deserialize};
+use candid::{CandidType, Deserialize, Principal};
+use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
@@ -117,6 +118,35 @@ pub struct StoredTransactions {
     pub created_at_time: Timestamp,
 }
 
+impl StoredTransactions {
+    pub fn new(index: u64, transaction: Transaction) -> Self {
+        Self {
+            index,
+            memo: transaction.memo,
+            icrc1_memo: transaction.icrc1_memo,
+            operation: transaction.operation,
+            created_at_time: transaction.created_at_time,
+        }
+    }
+}
+
+#[derive(CandidType, Deserialize, Serialize, Clone, Default)]
+pub struct StoredPrincipal {
+    principal: Option<Principal>,
+}
+
+impl StoredPrincipal {
+    pub fn new(principal: Principal) -> Self {
+        Self {
+            principal: Some(principal),
+        }
+    }
+
+    pub fn get_principal(&self) -> Option<Principal> {
+        self.principal
+    }
+}
+
 use ic_stable_structures::{
     memory_manager::VirtualMemory,
     storable::{Bound, Storable},
@@ -139,4 +169,26 @@ impl Storable for StoredTransactions {
     };
 }
 
+impl Storable for StoredPrincipal {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
+
+pub trait TimerManagerTrait {
+    fn set_timer(&self, interval: std::time::Duration) -> TimerId;
+    fn clear_timer(&self, timer_id: TimerId);
+}
+
+pub struct TimerManager;

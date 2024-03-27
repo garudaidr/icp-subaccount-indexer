@@ -1,8 +1,8 @@
 use candid::{CandidType, Principal};
-use serde::{Serialize, Deserialize};
-use sha2::{Digest, Sha224};
 use crc32fast::Hasher;
 use hex;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha224};
 
 #[derive(CandidType, Deserialize, Clone, Hash, Debug, PartialEq, Eq, Copy)]
 #[serde(transparent)]
