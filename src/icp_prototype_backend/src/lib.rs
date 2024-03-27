@@ -17,7 +17,7 @@ use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
 use types::{
     Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait
+    TimerManager, TimerManagerTrait,
 };
 
 thread_local! {
@@ -30,7 +30,7 @@ struct Error {
     message: String,
 }
 
-// TODO: change to stable memory not constant added from init
+// TODO: remove after testing
 const CUSTODIAN_PRINCIPAL_ID: &str =
     "lvwvg-vchlg-pkyl5-hjj4h-ddnro-w5dqq-rvrew-ujp46-7mzgf-ea4ns-2qe";
 
@@ -41,12 +41,11 @@ fn hash_to_u64(hash: &[u8; 32]) -> u64 {
 }
 
 fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
-
     match vec_to_check.len() {
         32 => {
             let slice = &vec_to_check[..];
             let array_ref: Option<&[u8; 32]> = slice.try_into().ok();
-        
+
             ic_cdk::println!("got here #1");
 
             match array_ref {
@@ -57,25 +56,22 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
                     // LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().contains_key(&hash_key))
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
-                       
+
                         ic_cdk::println!("hash_key: {}", hash_key);
                         match subaccounts_borrow.get(&hash_key) {
                             Some(_) => true,
                             None => false,
                         }
                     })
-                    
                 }
                 None => false,
             }
-        },
+        }
         other => {
             ic_cdk::println!("vec_to_check len: {}", other);
             false
         }
     }
-
-    
 }
 
 #[update]
@@ -170,11 +166,10 @@ async fn call_query_blocks() {
 
             if subaccount_exist {
                 TRANSACTIONS.with(|transactions_ref| {
-                    let transactions = transactions_ref.borrow_mut();
+                    let mut transactions = transactions_ref.borrow_mut();
                     let transaction =
                         StoredTransactions::new(block_count, block.transaction.clone());
-                    // transactions.set(block_count, &transaction);
-                    let _ = transactions.push(&transaction);
+                    let _ = transactions.insert(block_count, transaction);
                 });
             }
         });
@@ -367,9 +362,13 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
         let mut result = Vec::new();
-        let start = if transactions_borrow.len() > 100 { transactions_borrow.len() - 100 } else { 0 };
+        let start = if transactions_borrow.len() > 100 {
+            transactions_borrow.len() - 100
+        } else {
+            0
+        };
         for i in start..transactions_borrow.len() {
-            result.push(transactions_borrow.get(i).clone());
+            result.push(transactions_borrow.get(&i).clone());
         }
         result
     })

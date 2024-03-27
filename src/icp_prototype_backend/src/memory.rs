@@ -1,6 +1,6 @@
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager};
 use ic_stable_structures::DefaultMemoryImpl;
-use ic_stable_structures::{StableCell, StableVec};
+use ic_stable_structures::{StableBTreeMap, StableCell};
 use std::cell::RefCell;
 
 use crate::types::{Memory, StoredPrincipal, StoredTransactions};
@@ -40,9 +40,9 @@ thread_local! {
             5 // Default is 5 seconds
         ).expect("Initializing INTERVAL_IN_SECONDS StableCell failed")
     );
-    pub static TRANSACTIONS: RefCell<StableVec<StoredTransactions, Memory>> = RefCell::new(
-        StableVec::init(
+    pub static TRANSACTIONS: RefCell<StableBTreeMap<u64, StoredTransactions, Memory>> = RefCell::new(
+        StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTIONS_MEMORY))
-        ).expect("Initializing TRANSACTIONS StableVec failed")
+        )
     );
 }

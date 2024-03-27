@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::types::*;
     use crate::*;
 
     impl TimerManagerTrait for TimerManager {
@@ -13,9 +13,9 @@ mod tests {
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
     fn setup() {
-        let hash = [1u8; 28];
+        let hash = [1u8; 32];
         let hash_u64 = hash_to_u64(&hash);
-        let account_identifier = AccountIdentifier { hash };
+        let account_identifier = AccountIdentifier { hash: [1u8; 28] }; // Force a compatible hash.
 
         // Insert the test hash into LIST_OF_SUBACCOUNTS.
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
@@ -37,7 +37,7 @@ mod tests {
         setup();
 
         // Test hash that matches the setup.
-        let test_hash = vec![1u8; 28];
+        let test_hash = vec![1u8; 32];
         assert!(
             includes_hash(&test_hash),
             "includes_hash should return true for a hash present in the list"
@@ -51,7 +51,7 @@ mod tests {
         setup();
 
         // Test hash that does not match any in the setup.
-        let test_hash = vec![2u8; 28];
+        let test_hash = vec![2u8; 32];
         assert!(
             !includes_hash(&test_hash),
             "includes_hash should return false for a hash not present in the list"
@@ -65,7 +65,7 @@ mod tests {
         setup();
 
         // Test hash with an invalid length.
-        let test_hash = vec![1u8; 27];
+        let test_hash = vec![1u8; 31];
         assert!(
             !includes_hash(&test_hash),
             "includes_hash should return false for a hash with an incorrect length"
