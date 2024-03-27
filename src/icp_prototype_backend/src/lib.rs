@@ -135,6 +135,9 @@ fn convert_to_subaccount(nonce: u32) -> Subaccount {
 fn account_id() -> String {
     let account = ic_cdk::caller();
     let nonce = increment_nonce();
+    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+        let _ = nonce_ref.borrow_mut().set(nonce);
+    });
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
