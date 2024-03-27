@@ -1,12 +1,50 @@
+type Approve = record {
+  fee : E8s;
+  from : vec nat8;
+  allowance_e8s : int64;
+  allowance : E8s;
+  expected_allowance : opt E8s;
+  expires_at : opt Timestamp;
+  spender : vec nat8;
+};
+type Burn = record { from : vec nat8; amount : E8s; spender : opt vec nat8 };
+type E8s = record { e8s : nat64 };
 type Error = record { message : text };
+type Mint = record { to : vec nat8; amount : E8s };
+type Operation = variant {
+  Approve : Approve;
+  Burn : Burn;
+  Mint : Mint;
+  Transfer : Transfer;
+};
 type Result = variant { Ok : nat64; Err : Error };
 type Result_1 = variant { Ok : text; Err : Error };
+type StoredTransactions = record {
+  memo : nat64;
+  icrc1_memo : opt vec nat8;
+  operation : opt Operation;
+  index : nat64;
+  created_at_time : Timestamp;
+};
+type Timestamp = record { timestamp_nanos : nat64 };
+type Transfer = record {
+  to : vec nat8;
+  fee : E8s;
+  from : vec nat8;
+  amount : E8s;
+  spender : opt vec nat8;
+};
 service : (nat64, nat32, text) -> {
   account_id : () -> (text);
+  clear_transactions : (nat32) -> ();
   get_interval : () -> (Result) query;
+  get_last_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;
   get_subaccount_count : () -> (nat32) query;
   get_subaccountid : (nat32) -> (Result_1) query;
+  get_transactions_count : () -> (nat32) query;
+  list_transactions : () -> (vec opt StoredTransactions) query;
   set_interval : (nat64) -> (Result);
+  set_last_block : (nat64) -> ();
   test_hashing : (nat32) -> (text) query;
 }

@@ -16,8 +16,8 @@ use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
 use types::{
-    E8s, Mint, Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait, Timestamp, Transaction,
+    Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
+    TimerManager, TimerManagerTrait
 };
 
 thread_local! {
@@ -34,28 +34,64 @@ struct Error {
 const CUSTODIAN_PRINCIPAL_ID: &str =
     "lvwvg-vchlg-pkyl5-hjj4h-ddnro-w5dqq-rvrew-ujp46-7mzgf-ea4ns-2qe";
 
-fn hash_to_u64(hash: &[u8; 28]) -> u64 {
+fn hash_to_u64(hash: &[u8; 32]) -> u64 {
     let mut hasher = DefaultHasher::new();
     hash.hash(&mut hasher);
     hasher.finish()
 }
 
 fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
-    if vec_to_check.len() != 28 {
-        return false;
+
+    match vec_to_check.len() {
+        32 => {
+            let slice = &vec_to_check[..];
+            let array_ref: Option<&[u8; 32]> = slice.try_into().ok();
+        
+            ic_cdk::println!("got here #1");
+
+            match array_ref {
+                Some(array_ref) => {
+                    ic_cdk::println!("got here #2");
+                    let hash_key = hash_to_u64(array_ref);
+                    ic_cdk::println!("got here #3");
+                    // LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().contains_key(&hash_key))
+                    LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+                        let subaccounts_borrow = subaccounts.borrow();
+                       
+                        ic_cdk::println!("hash_key: {}", hash_key);
+                        match subaccounts_borrow.get(&hash_key) {
+                            Some(_) => true,
+                            None => false,
+                        }
+                    })
+                    
+                }
+                None => false,
+            }
+        },
+        other => {
+            ic_cdk::println!("vec_to_check len: {}", other);
+            false
+        }
     }
 
-    let hash_slice = vec_to_check.as_slice();
-    let hash_to_check: &[u8; 28] = match hash_slice.try_into() {
-        Ok(arr) => arr,
-        Err(_) => return false,
-    };
+    
+}
 
-    let hash_key = hash_to_u64(hash_to_check);
-    LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().contains_key(&hash_key))
+#[update]
+async fn set_last_block(block: u64) {
+    LAST_BLOCK.with(|last_block_ref| {
+        let _ = last_block_ref.borrow_mut().set(block);
+    });
+}
+
+#[query]
+fn get_last_block() -> u64 {
+    LAST_BLOCK.with(|last_block_ref| *last_block_ref.borrow().get())
 }
 
 async fn call_query_blocks() {
+    ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
     let last_block = LAST_BLOCK.with(|last_block_ref| last_block_ref.borrow().get().clone());
@@ -83,11 +119,16 @@ async fn call_query_blocks() {
         }
     };
 
+    ic_cdk::println!("Response: {:?}", response);
+
     let mut block_count = last_block;
     response.blocks.iter().for_each(|block| {
         block.transaction.operation.as_ref().map(|operation| {
+            ic_cdk::println!("Operation: {:?}", operation);
+
             let subaccount_exist = match operation {
                 Operation::Approve(data) => {
+                    ic_cdk::println!("Approve detected");
                     let from = data.from.clone();
                     if includes_hash(&from) {
                         true
@@ -97,6 +138,7 @@ async fn call_query_blocks() {
                     }
                 }
                 Operation::Burn(data) => {
+                    ic_cdk::println!("Burn detected");
                     let from = data.from.clone();
                     if includes_hash(&from) {
                         true
@@ -108,15 +150,14 @@ async fn call_query_blocks() {
                     }
                 }
                 Operation::Mint(data) => {
+                    ic_cdk::println!("Mint detected");
                     let to = data.to.clone();
                     includes_hash(&to)
                 }
                 Operation::Transfer(data) => {
-                    let from = data.from.clone();
+                    ic_cdk::println!("Transfer detected");
                     let to = data.to.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else if includes_hash(&to) {
+                    if includes_hash(&to) {
                         true
                     } else {
                         match &data.spender {
@@ -132,7 +173,8 @@ async fn call_query_blocks() {
                     let transactions = transactions_ref.borrow_mut();
                     let transaction =
                         StoredTransactions::new(block_count, block.transaction.clone());
-                    transactions.set(block_count, &transaction);
+                    // transactions.set(block_count, &transaction);
+                    let _ = transactions.push(&transaction);
                 });
             }
         });
@@ -186,13 +228,13 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String) {
 
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
-    let account = ic_cdk::caller();
+    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
         let subaccount = convert_to_subaccount(i);
         let account_id = AccountIdentifier::new(account, Some(subaccount));
-        let account_id_hash = hash_to_u64(&account_id.hash);
+        let account_id_hash = hash_to_u64(&account_id.to_address());
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             list_ref.borrow_mut().insert(account_id_hash, account_id);
         });
@@ -252,7 +294,7 @@ fn account_id() -> String {
 
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-    let account_id_hash = hash_to_u64(&subaccountid.hash);
+    let account_id_hash = hash_to_u64(&subaccountid.to_address());
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
         list_ref.borrow_mut().insert(account_id_hash, subaccountid);
     });
@@ -269,7 +311,7 @@ fn test_hashing(nonce: u32) -> String {
     let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-    let account_id_hash = hash_to_u64(&subaccountid.hash);
+    let account_id_hash = hash_to_u64(&subaccountid.to_address());
     ic_cdk::println!("account_id_hash: {}", account_id_hash);
     ic_cdk::println!(
         "subaccountid: {:?}",
@@ -296,7 +338,7 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
         let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
         let subaccount = convert_to_subaccount(nonce);
         let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-        let account_id_hash = hash_to_u64(&subaccountid.hash);
+        let account_id_hash = hash_to_u64(&subaccountid.to_address());
 
         ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
 
@@ -313,6 +355,29 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
 #[query]
 fn get_subaccount_count() -> u32 {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().len() as u32)
+}
+
+#[query]
+fn get_transactions_count() -> u32 {
+    TRANSACTIONS.with(|transactions_ref| transactions_ref.borrow().len() as u32)
+}
+
+#[query]
+fn list_transactions() -> Vec<Option<StoredTransactions>> {
+    TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+        let mut result = Vec::new();
+        let start = if transactions_borrow.len() > 100 { transactions_borrow.len() - 100 } else { 0 };
+        for i in start..transactions_borrow.len() {
+            result.push(transactions_borrow.get(i).clone());
+        }
+        result
+    })
+}
+
+#[update]
+fn clear_transactions(length: u32) {
+    ic_cdk::println!("Clearing transactions by length: {}", length);
 }
 
 // Enable Candid export

@@ -118,6 +118,13 @@ pub struct StoredTransactions {
     pub created_at_time: Timestamp,
 }
 
+// #[derive(CandidType, Deserialize, Serialize, Clone)]
+// pub struct PrunedTransactions {
+//     pub index: u64,
+//     pub memo: u64,
+//     pub operation: Option<Operation>,
+// }
+
 impl StoredTransactions {
     pub fn new(index: u64, transaction: Transaction) -> Self {
         Self {
@@ -153,7 +160,7 @@ use ic_stable_structures::{
     DefaultMemoryImpl,
 };
 
-const MAX_VALUE_SIZE: u32 = 100;
+const MAX_VALUE_SIZE: u32 = 500;
 impl Storable for StoredTransactions {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
         Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
