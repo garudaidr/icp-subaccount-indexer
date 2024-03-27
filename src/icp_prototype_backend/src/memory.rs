@@ -21,7 +21,8 @@ thread_local! {
             StoredPrincipal::default() // TODO: add to init function
         ).expect("Initializing PRINCIPAL StableCell failed")
     );
-    static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u64, Memory>> = RefCell::new(
+    // u32 - upper limit is 4,294,967,295
+    pub static LAST_SUBACCOUNT_NONCE: RefCell<StableCell<u32, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(LAST_SUBACCOUNT_NONCE_MEMORY)),
             0

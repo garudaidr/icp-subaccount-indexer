@@ -167,4 +167,24 @@ mod tests {
 
         assert_eq!(stored_principal.get_principal(), Some(principal));
     }
+
+    // #[test]
+    // fn test_increment_nonce() {
+    //     let nonce = increment_nonce();
+    //     assert_eq!(nonce, 1);
+    // }
+
+    #[test]
+    fn test_convert_to_subaccount() {
+        let nonce = 1;
+        let subaccount = convert_to_subaccount(nonce);
+        assert_eq!(subaccount.0[28..32], [0, 0, 0, 1]);
+    }
+
+    // #[test]
+    // fn test_account_id() {
+    //     let account_id = account_id();
+    //     let hex = to_hex_string(account_id.to_address());
+    //     assert_eq!(hex.len(), 64);
+    // }
 }

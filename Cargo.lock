@@ -334,12 +334,15 @@ name = "icp_prototype_backend"
 version = "0.1.0"
 dependencies = [
  "candid",
+ "crc32fast",
+ "hex",
  "ic-cdk",
  "ic-cdk-macros",
  "ic-cdk-timers",
  "ic-stable-structures",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
