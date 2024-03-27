@@ -36,6 +36,7 @@ type Transfer = record {
 };
 service : (nat64, nat32, text) -> {
   account_id : () -> (text);
+  clear_transactions : (nat32) -> ();
   get_interval : () -> (Result) query;
   get_last_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;

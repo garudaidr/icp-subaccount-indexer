@@ -16,8 +16,8 @@ use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
 use types::{
-    E8s, Mint, Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait, Timestamp, Transaction,
+    Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
+    TimerManager, TimerManagerTrait
 };
 
 thread_local! {
@@ -57,7 +57,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
                     // LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().contains_key(&hash_key))
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
-                        ic_cdk::println!("got here #4");
+                       
                         ic_cdk::println!("hash_key: {}", hash_key);
                         match subaccounts_borrow.get(&hash_key) {
                             Some(_) => true,
@@ -373,6 +373,11 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
         }
         result
     })
+}
+
+#[update]
+fn clear_transactions(length: u32) {
+    ic_cdk::println!("Clearing transactions by length: {}", length);
 }
 
 // Enable Candid export
