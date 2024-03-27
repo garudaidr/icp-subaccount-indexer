@@ -1,23 +1,28 @@
 use candid::{CandidType, Deserialize, Principal};
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
+use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 
 mod memory;
+mod tests;
 mod types;
 
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, PRINCIPAL, TRANSACTIONS};
-use types::{Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions};
+use types::{
+    E8s, Mint, Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
+    TimerManager, TimerManagerTrait, Timestamp, Transaction,
+};
 
 thread_local! {
     static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, AccountIdentifier>> = RefCell::default();
-    static TIMERS: RefCell<ic_cdk_timers::TimerId> = RefCell::default();
+    static TIMERS: RefCell<TimerId> = RefCell::default();
 }
 
-#[derive(CandidType, Deserialize, Serialize)]
+#[derive(Debug, CandidType, Deserialize, Serialize)]
 struct Error {
     message: String,
 }
@@ -135,8 +140,23 @@ async fn call_query_blocks() {
     let _ = LAST_BLOCK.with(|last_block_ref| last_block_ref.borrow_mut().set(block_count));
 }
 
+#[cfg(not(test))]
+impl TimerManagerTrait for TimerManager {
+    fn set_timer(&self, interval: std::time::Duration) -> TimerId {
+        ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
+        ic_cdk_timers::set_timer_interval(interval, || {
+            ic_cdk::spawn(call_query_blocks());
+        })
+    }
+
+    fn clear_timer(&self, timer_id: TimerId) {
+        ic_cdk_timers::clear_timer(timer_id);
+    }
+}
+
 #[ic_cdk::init]
 async fn init(seconds: u64, ledger_principal: String) {
+    let timer_manager = TimerManager;
     let principal = Principal::from_text(&ledger_principal).expect("Invalid principal");
 
     INTERVAL_IN_SECONDS.with(|interval_ref| {
@@ -149,10 +169,7 @@ async fn init(seconds: u64, ledger_principal: String) {
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
-    let timer_id = ic_cdk_timers::set_timer_interval(interval, || {
-        ic_cdk::spawn(call_query_blocks());
-    });
+    let timer_id = timer_manager.set_timer(interval);
 
     TIMERS.with(|timers_ref| {
         timers_ref.replace(timer_id);
@@ -166,16 +183,14 @@ fn get_interval() -> Result<u64, Error> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
+    let timer_manager = TimerManager;
     TIMERS.with(|timers_ref| {
-        let timer_id = timers_ref.borrow().clone();
-        ic_cdk_timers::clear_timer(timer_id);
+        timer_manager.clear_timer(timers_ref.borrow().clone());
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
-    let new_timer_id = ic_cdk_timers::set_timer_interval(interval, || {
-        ic_cdk::spawn(call_query_blocks());
-    });
+    let new_timer_id = timer_manager.set_timer(interval);
+
     TIMERS.with(|timers_ref| {
         timers_ref.replace(new_timer_id);
     });

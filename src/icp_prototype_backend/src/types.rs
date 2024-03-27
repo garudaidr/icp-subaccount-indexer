@@ -1,4 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
+use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
@@ -184,3 +185,10 @@ impl Storable for StoredPrincipal {
 }
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
+
+pub trait TimerManagerTrait {
+    fn set_timer(&self, interval: std::time::Duration) -> TimerId;
+    fn clear_timer(&self, timer_id: TimerId);
+}
+
+pub struct TimerManager;
