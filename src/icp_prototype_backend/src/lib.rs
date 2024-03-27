@@ -3,6 +3,8 @@ use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use serde::Serialize;
 use std::cell::RefCell;
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 
 mod memory;
 mod types;
@@ -14,7 +16,7 @@ use memory::{INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE};
 use types::{QueryBlocksQueryRequest, Response};
 
 thread_local! {
-    static LIST_OF_SUBACCOUNTS: RefCell<Vec<AccountIdentifier>> = RefCell::default();
+    static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, AccountIdentifier>> = RefCell::default();
     static TIMERS: RefCell<ic_cdk_timers::TimerId> = RefCell::default();
 }
 
@@ -29,8 +31,15 @@ struct InitArgs {
     nonce: Option<u32>,
 }
 
+fn hash_to_u64(hash: &[u8; 28]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    hash.hash(&mut hasher);
+    hasher.finish()
+}
+
 // TODO: change to stable memory not constant added from init
 const LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
+const CUSTODIAN_PRINCIPAL_ID: &str = "lvwvg-vchlg-pkyl5-hjj4h-ddnro-w5dqq-rvrew-ujp46-7mzgf-ea4ns-2qe";
 
 async fn call_query_blocks() {
     let ledger_principal = Principal::from_text(LEDGER_CANISTER_ID).expect("Invalid principal");
@@ -72,11 +81,14 @@ async fn init(args: InitArgs) {
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
     let account = ic_cdk::caller();
+    ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
+        ic_cdk::println!("nonce: {}", i);
         let subaccount = convert_to_subaccount(i);
         let account_id = AccountIdentifier::new(account, Some(subaccount));
+        let account_id_hash = hash_to_u64(&account_id.hash);
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            list_ref.borrow_mut().push(account_id);
+            list_ref.borrow_mut().insert(account_id_hash, account_id);
         });
     }
 }
@@ -120,10 +132,6 @@ fn get_nonce() -> u32 {
     LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
 }
 
-fn increment_nonce() -> u32 {
-    get_nonce() + 1
-}
-
 fn convert_to_subaccount(nonce: u32) -> Subaccount {
     let mut subaccount = Subaccount([0; 32]);
     let nonce_bytes = nonce.to_be_bytes(); // Converts u32 to an array of 4 bytes
@@ -133,31 +141,68 @@ fn convert_to_subaccount(nonce: u32) -> Subaccount {
 
 #[update]
 fn account_id() -> String {
-    let account = ic_cdk::caller();
-    let nonce = increment_nonce();
-    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
-        let _ = nonce_ref.borrow_mut().set(nonce);
-    });
+    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+    ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
+
+    let nonce = get_nonce();
+    
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
+    let account_id_hash = hash_to_u64(&subaccountid.hash);
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
-        list_ref.borrow_mut().push(subaccountid);
+        list_ref.borrow_mut().insert(account_id_hash, subaccountid);
     });
+
+    LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+        let _ = nonce_ref.borrow_mut().set(nonce + 1);
+    });
+
     to_hex_string(subaccountid.to_address())
 }
 
+#[query]
+fn test_hashing(nonce: u32) -> String {
+    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+    let subaccount = convert_to_subaccount(nonce);
+    let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
+    let account_id_hash = hash_to_u64(&subaccountid.hash);
+    ic_cdk::println!("account_id_hash: {}", account_id_hash);
+    ic_cdk::println!("subaccountid: {:?}", to_hex_string(subaccountid.to_address()));
+    to_hex_string(subaccountid.to_address())
+}
 
 #[query]
-fn get_subaccountid(index: u32) -> Result<String, Error> {
+fn get_subaccountid(nonce: u32) -> Result<String, Error> {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
-        if index as usize >= subaccounts_borrow.len() {
+        
+        for (key, value) in subaccounts_borrow.iter() {
+            ic_cdk::println!("key: {}, value: {}", key, to_hex_string(value.to_address()) );
+        }
+           
+        if nonce as usize >= subaccounts_borrow.len() {
             return Err(Error {
                 message: "Index out of bounds".to_string(),
             });
         }
-        Ok(to_hex_string(subaccounts_borrow[index as usize].to_address()))
+        // recreate key<u4> from index
+        let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+        let subaccount = convert_to_subaccount(nonce);
+        let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
+        let account_id_hash = hash_to_u64(&subaccountid.hash);
+
+        ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
+
+        // get the account id from the list       
+        match subaccounts_borrow.get(&account_id_hash) {
+            Some(account_id) => Ok(to_hex_string(account_id.to_address())),
+            None => Err(Error {
+                message: "Account not found".to_string(),
+            }),
+        }
+        
     })
+
 }
 
 #[query]
@@ -169,11 +214,11 @@ fn get_subaccount_count() -> u32 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_increment_nonce() {
-        let nonce = increment_nonce();
-        assert_eq!(nonce, 1);
-    }
+    // #[test]
+    // fn test_increment_nonce() {
+    //     let nonce = increment_nonce();
+    //     assert_eq!(nonce, 1);
+    // }
 
     #[test]
     fn test_convert_to_subaccount() {

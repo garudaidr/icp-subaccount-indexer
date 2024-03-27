@@ -14,4 +14,5 @@ service : (args: InitArgs) -> {
   set_interval : (nat64) -> (Result);
   get_subaccount_count: () -> (nat32) query;
   get_nonce: () -> (nat32) query;
+  test_hashing: (nat32) -> (text) query;
 }

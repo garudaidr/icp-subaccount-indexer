@@ -10,7 +10,7 @@ pub struct Subaccount(pub [u8; 32]);
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, Copy, Eq)]
 pub struct AccountIdentifier {
-    hash: [u8; 28],
+    pub hash: [u8; 28],
 }
 
 const SUB_ACCOUNT_ZERO: Subaccount = Subaccount([0; 32]);
