@@ -379,20 +379,39 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
 }
 
 #[update]
-fn clear_transactions(to_hash: String) -> Result<String, Error> {
-    // Stub implementation - Return a success message
-    Ok(format!("{{\"message\": \"Transactions cleared up to: {}\"}}", to_hash))
+fn clear_transactions(block_cutoff_count: u64) -> Result<Vec<Option<StoredTransactions>>, Error> {
+    TRANSACTIONS.with(|transactions_ref| {
+        // Collect keys that are less than the cutoff
+        let mut transactions_borrow = transactions_ref.borrow_mut();
+        let keys_to_remove: Vec<u64> = transactions_borrow
+            .range(..block_cutoff_count)
+            .map(|(k, _)| k)
+            .collect();
+
+        // Remove elements with those keys
+        for key in keys_to_remove {
+            transactions_borrow.remove(&key);
+        }
+
+        Ok(list_transactions())
+    })
 }
 
 #[update]
 fn refund(subaccount_id: String, hash: String) -> Result<String, Error> {
-    Ok(format!("{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}", hash, subaccount_id))
+    Ok(format!(
+        "{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}",
+        hash, subaccount_id
+    ))
 }
 
 #[update]
 fn sweep_user_vault(to_hash: String) -> Result<String, Error> {
     // Stub implementation - Return a success message
-    Ok(format!("{{\"message\": \"Sweeped user vault up to hash: {}\"}}", to_hash))
+    Ok(format!(
+        "{{\"message\": \"Sweeped user vault up to hash: {}\"}}",
+        to_hash
+    ))
 }
 
 #[query]

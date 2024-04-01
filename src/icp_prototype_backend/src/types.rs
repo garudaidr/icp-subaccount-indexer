@@ -109,7 +109,7 @@ pub enum CallbackError {
     },
 }
 
-#[derive(CandidType, Deserialize, Serialize, Clone)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct StoredTransactions {
     pub index: u64,
     pub memo: u64,
