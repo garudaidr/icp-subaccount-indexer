@@ -285,7 +285,7 @@ fn convert_to_subaccount(nonce: u32) -> Subaccount {
 }
 
 #[update]
-fn account_id() -> String {
+fn add_subaccount() -> String {
     let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
 
@@ -379,8 +379,26 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
 }
 
 #[update]
-fn clear_transactions(length: u32) {
-    ic_cdk::println!("Clearing transactions by length: {}", length);
+fn clear_transactions(to_hash: String) -> Result<String, Error> {
+    // Stub implementation - Return a success message
+    Ok(format!("{{\"message\": \"Transactions cleared up to: {}\"}}", to_hash))
+}
+
+#[update]
+fn refund(subaccount_id: String, hash: String) -> Result<String, Error> {
+    Ok(format!("{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}", hash, subaccount_id))
+}
+
+#[update]
+fn sweep_user_vault(to_hash: String) -> Result<String, Error> {
+    // Stub implementation - Return a success message
+    Ok(format!("{{\"message\": \"Sweeped user vault up to hash: {}\"}}", to_hash))
+}
+
+#[query]
+fn canister_status() -> Result<String, Error> {
+    // Stub implementation - Return a placeholder JSON response
+    Ok(format!("{{\"message\": \"Canister is operational\"}}"))
 }
 
 // Enable Candid export
