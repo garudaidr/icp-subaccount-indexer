@@ -38,7 +38,7 @@ type Transfer = record {
 service : (nat64, nat32, text) -> {
   add_subaccount : () -> (text);
   canister_status : () -> (Result) query;
-  clear_transactions : (nat64) -> (Result_1);
+  clear_transactions : (opt nat64, opt Timestamp) -> (Result_1);
   get_interval : () -> (Result_2) query;
   get_last_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;

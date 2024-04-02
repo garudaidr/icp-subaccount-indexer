@@ -17,7 +17,7 @@ use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
 use types::{
     Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait,
+    TimerManager, TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
@@ -379,12 +379,29 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
 }
 
 #[update]
-fn clear_transactions(block_cutoff_count: u64) -> Result<Vec<Option<StoredTransactions>>, Error> {
+fn clear_transactions(
+    up_to_count: Option<u64>,
+    up_to_timestamp: Option<Timestamp>,
+) -> Result<Vec<Option<StoredTransactions>>, Error> {
+    // Get Data
+    let up_to_count = match up_to_count {
+        Some(count) => count,
+        None => 0,
+    };
+    let up_to_timestamp = match up_to_timestamp {
+        Some(timestamp) => timestamp,
+        None => Timestamp::from_nanos(0),
+    };
+
     TRANSACTIONS.with(|transactions_ref| {
         // Collect keys that are less than the cutoff
         let mut transactions_borrow = transactions_ref.borrow_mut();
         let keys_to_remove: Vec<u64> = transactions_borrow
-            .range(..block_cutoff_count)
+            .range(..up_to_count)
+            .filter(|transaction| {
+                up_to_timestamp.timestamp_nanos != 0 // If timestamp is not set, don't filter
+                    && transaction.1.created_at_time.timestamp_nanos <= up_to_timestamp.timestamp_nanos
+            })
             .map(|(k, _)| k)
             .collect();
 
