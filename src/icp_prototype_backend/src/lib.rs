@@ -381,11 +381,16 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
 #[update]
 fn clear_transactions(
     up_to_count: Option<u64>,
+    up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<Option<StoredTransactions>>, Error> {
     // Get Data
     let up_to_count = match up_to_count {
         Some(count) => count,
+        None => 0,
+    };
+    let up_to_index = match up_to_index {
+        Some(index) => index,
         None => 0,
     };
     let up_to_timestamp = match up_to_timestamp {
@@ -400,8 +405,10 @@ fn clear_transactions(
             .iter()
             .filter(|transaction| {
                 // If up_to_count is set then remove transactions with a count less than up_to_count
+                // If up_to_index is set then remove transactions with a index less than up_to_index
                 // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
                 (up_to_count != 0 && transaction.0 < up_to_count)
+                    || (up_to_index != 0 && transaction.1.index < up_to_index)
                     || (up_to_timestamp.timestamp_nanos != 0
                         && transaction.1.created_at_time.timestamp_nanos
                             <= up_to_timestamp.timestamp_nanos)
