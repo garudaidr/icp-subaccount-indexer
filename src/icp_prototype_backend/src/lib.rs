@@ -399,8 +399,8 @@ fn clear_transactions(
         let keys_to_remove: Vec<u64> = transactions_borrow
             .range(..up_to_count)
             .filter(|transaction| {
-                up_to_timestamp.timestamp_nanos != 0 // If timestamp is not set, don't filter
-                    && transaction.1.created_at_time.timestamp_nanos <= up_to_timestamp.timestamp_nanos
+                up_to_timestamp.timestamp_nanos == 0 // If timestamp is not set, don't filter
+                    || transaction.1.created_at_time.timestamp_nanos <= up_to_timestamp.timestamp_nanos
             })
             .map(|(k, _)| k)
             .collect();
