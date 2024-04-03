@@ -410,7 +410,16 @@ fn clear_transactions(
             transactions_borrow.remove(&key);
         }
 
-        Ok(list_transactions())
+        let mut result = Vec::new();
+        let start = if transactions_borrow.len() > 100 {
+            transactions_borrow.len() - 100
+        } else {
+            0
+        };
+        for i in start..transactions_borrow.len() {
+            result.push(transactions_borrow.get(&i).clone());
+        }
+        Ok(result)
     })
 }
 

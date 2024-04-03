@@ -189,68 +189,81 @@ mod tests {
     // }
 
     // Utility function to populate transactions for testing
-    fn populate_transactions(count: usize) {
-        // Your logic here to populate `TRANSACTIONS` with `count` transactions
+    fn populate_transactions(count: u64, timestamp_nanos: Option<u64>) {
+        let timestamp_nanos = match timestamp_nanos {
+            Some(count) => count,
+            None => 1000,
+        };
+        TRANSACTIONS.with(|transactions_ref| {
+            let mut transactions_borrow = transactions_ref.borrow_mut();
+            for i in 0..count {
+                transactions_borrow.insert(
+                    i,
+                    StoredTransactions::new(
+                        i,
+                        Transaction {
+                            memo: i,
+                            icrc1_memo: None,
+                            operation: None,
+                            created_at_time: Timestamp { timestamp_nanos },
+                        },
+                    ),
+                );
+            }
+        });
     }
 
     #[test]
     fn list_transactions_with_less_than_100_transactions() {
-        populate_transactions(50); // Assuming this populates 50 transactions
-        
+        populate_transactions(50, None); // Assuming this populates 50 transactions
+
         let transactions = list_transactions();
         assert_eq!(transactions.len(), 50);
-        // Further checks can be added here to verify the order and content of transactions
     }
 
     #[test]
     fn list_transactions_with_more_than_100_transactions() {
-        populate_transactions(150); // Assuming this populates 150 transactions
-        
+        populate_transactions(150, None); // Assuming this populates 150 transactions
+
         let transactions = list_transactions();
         assert_eq!(transactions.len(), 100);
-        // Further checks can be added here to verify the order and content of the last 100 transactions
     }
 
     #[test]
     fn clear_transactions_with_specific_count() {
-        populate_transactions(100);
-        
+        populate_transactions(100, None);
+
         let cleared = clear_transactions(Some(50), None).unwrap();
-        assert_eq!(cleared.len(), 50); // Assuming the remaining transactions are returned
-        // Additional assertions to check the specific transactions that should remain
+        assert_eq!(cleared.len(), 50);
     }
 
     #[test]
     fn clear_transactions_with_specific_timestamp() {
-        // Populate transactions with timestamps that allow differentiation
-        // You'll need a way to specify or mock timestamps for this test
-        
-        let specific_timestamp = Timestamp::from_nanos(100000); // Example timestamp
-        // Assuming transactions are populated with varying timestamps
-        
+        let specific_timestamp = Timestamp::from_nanos(100000);
+
         let cleared = clear_transactions(None, Some(specific_timestamp)).unwrap();
-        // Assertions to check that transactions up to the specific timestamp are removed
+        assert_eq!(cleared.len(), 0);
     }
 
     #[test]
     fn clear_transactions_with_none_parameters() {
-        populate_transactions(100);
-        
+        populate_transactions(100, None);
+
         let cleared = clear_transactions(None, None).unwrap();
         assert_eq!(cleared.len(), 100); // Assuming no transactions are removed
     }
 
     #[test]
     fn clear_transactions_edge_cases() {
-        populate_transactions(10);
-        
+        populate_transactions(10, None);
+
         // Edge case 1: up_to_count is larger than the total transactions
         let cleared = clear_transactions(Some(50), None).unwrap();
         assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
 
         // Edge case 2: up_to_timestamp is before any stored transaction
         let early_timestamp = Timestamp::from_nanos(1); // Example early timestamp
-        populate_transactions(10); // Repopulate transactions after they were all cleared
+        populate_transactions(10, None); // Repopulate transactions after they were all cleared
         let cleared = clear_transactions(None, Some(early_timestamp)).unwrap();
         assert_eq!(cleared.len(), 10); // Assuming no transactions are removed because all are after the timestamp
     }
