@@ -239,7 +239,21 @@ mod tests {
 
     #[test]
     fn clear_transactions_with_specific_timestamp() {
-        let specific_timestamp = Timestamp::from_nanos(100000);
+        let nanos = 100000;
+
+        let specific_timestamp = Timestamp::from_nanos(nanos);
+        populate_transactions(100, None);
+
+        let cleared = clear_transactions(None, Some(specific_timestamp)).unwrap();
+        assert_eq!(cleared.len(), 0);
+    }
+
+    #[test]
+    fn clear_transactions_with_similar_timestamp() {
+        let nanos = 100000;
+
+        let specific_timestamp = Timestamp::from_nanos(nanos);
+        populate_transactions(100, Some(nanos));
 
         let cleared = clear_transactions(None, Some(specific_timestamp)).unwrap();
         assert_eq!(cleared.len(), 0);

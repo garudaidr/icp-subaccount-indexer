@@ -397,10 +397,14 @@ fn clear_transactions(
         // Collect keys that are less than the cutoff
         let mut transactions_borrow = transactions_ref.borrow_mut();
         let keys_to_remove: Vec<u64> = transactions_borrow
-            .range(..up_to_count)
+            .iter()
             .filter(|transaction| {
-                up_to_timestamp.timestamp_nanos == 0 // If timestamp is not set, don't filter
-                    || transaction.1.created_at_time.timestamp_nanos <= up_to_timestamp.timestamp_nanos
+                // If up_to_count is set then remove transactions with a count less than up_to_count
+                // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
+                (up_to_count != 0 && transaction.0 < up_to_count)
+                    || (up_to_timestamp.timestamp_nanos != 0
+                        && transaction.1.created_at_time.timestamp_nanos
+                            <= up_to_timestamp.timestamp_nanos)
             })
             .map(|(k, _)| k)
             .collect();
