@@ -37,6 +37,11 @@ pub struct Transaction {
 pub struct Timestamp {
     pub timestamp_nanos: u64,
 }
+impl Timestamp {
+    pub fn from_nanos(timestamp_nanos: u64) -> Self {
+        Self { timestamp_nanos }
+    }
+}
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum Operation {
@@ -109,7 +114,7 @@ pub enum CallbackError {
     },
 }
 
-#[derive(CandidType, Deserialize, Serialize, Clone)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct StoredTransactions {
     pub index: u64,
     pub memo: u64,

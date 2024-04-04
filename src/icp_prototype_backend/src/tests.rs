@@ -187,4 +187,160 @@ mod tests {
     //     let hex = to_hex_string(account_id.to_address());
     //     assert_eq!(hex.len(), 64);
     // }
+
+    // Utility function to populate transactions for testing
+    fn populate_transactions(count: u64, timestamp_nanos: Option<u64>) {
+        let timestamp_nanos = match timestamp_nanos {
+            Some(count) => count,
+            None => 1000,
+        };
+        TRANSACTIONS.with(|transactions_ref| {
+            let mut transactions_borrow = transactions_ref.borrow_mut();
+            for i in 0..count {
+                transactions_borrow.insert(
+                    i,
+                    StoredTransactions::new(
+                        i,
+                        Transaction {
+                            memo: i,
+                            icrc1_memo: None,
+                            operation: None,
+                            created_at_time: Timestamp { timestamp_nanos },
+                        },
+                    ),
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn list_transactions_with_less_than_100_transactions() {
+        populate_transactions(50, None); // Assuming this populates 50 transactions
+
+        let transactions = list_transactions();
+        assert_eq!(transactions.len(), 50);
+    }
+
+    #[test]
+    fn list_transactions_with_more_than_100_transactions() {
+        populate_transactions(150, None); // Assuming this populates 150 transactions
+
+        let transactions = list_transactions();
+        assert_eq!(transactions.len(), 100);
+    }
+
+    #[test]
+    fn clear_transactions_with_specific_count() {
+        populate_transactions(100, None);
+
+        let cleared = clear_transactions(Some(50), None, None).unwrap();
+        assert_eq!(cleared.len(), 50);
+    }
+
+    #[test]
+    fn clear_transactions_with_specific_timestamp() {
+        let nanos = 100000;
+
+        let specific_timestamp = Timestamp::from_nanos(nanos);
+        populate_transactions(100, None);
+
+        let cleared = clear_transactions(None, None, Some(specific_timestamp)).unwrap();
+        assert_eq!(cleared.len(), 0);
+    }
+
+    #[test]
+    fn clear_transactions_with_similar_timestamp() {
+        let nanos = 100000;
+
+        let specific_timestamp = Timestamp::from_nanos(nanos);
+        populate_transactions(100, Some(nanos));
+
+        let cleared = clear_transactions(None, None, Some(specific_timestamp)).unwrap();
+        assert_eq!(cleared.len(), 0);
+    }
+
+    #[test]
+    fn clear_transactions_with_none_parameters() {
+        populate_transactions(100, None);
+
+        let cleared = clear_transactions(None, None, None).unwrap();
+        assert_eq!(cleared.len(), 100); // Assuming no transactions are removed
+    }
+
+    #[test]
+    fn clear_transactions_with_specific_index() {
+        // Assuming each transaction has a unique index
+        populate_transactions(100, None);
+
+        // Clear transactions up to a specific index, excluding transactions with a higher index
+        let cleared = clear_transactions(None, Some(50), None).unwrap();
+        assert_eq!(
+            cleared.len(),
+            50,
+            "Expected 50 transactions to remain after clearing up to index 50"
+        );
+    }
+
+    #[test]
+    fn clear_transactions_with_multiple_criteria() {
+        populate_transactions(100, Some(50000)); // Populate 100 transactions, all with the same timestamp for simplicity
+
+        // Clear transactions with a count less than 80 and a timestamp less than 60000 nanoseconds
+        let cleared =
+            clear_transactions(Some(80), None, Some(Timestamp::from_nanos(60000))).unwrap();
+        // This assumes that the criteria are combined with an OR logic, not AND
+        assert_eq!(
+            cleared.len(),
+            0,
+            "Expected 0 transactions to remain after applying multiple clear criteria"
+        );
+    }
+
+    #[test]
+    fn clear_transactions_at_exact_timestamp() {
+        populate_transactions(100, Some(100000)); // Populate transactions with a specific timestamp
+
+        // Clear transactions with a timestamp exactly equal to one of the transactions' timestamps
+        let cleared = clear_transactions(None, None, Some(Timestamp::from_nanos(100000))).unwrap();
+        // Depending on implementation, this may remove all transactions if they're considered "up to and including" the given timestamp
+        assert!(
+            cleared.is_empty(),
+            "Expected all transactions to be cleared with a timestamp exactly matching the filter"
+        );
+    }
+
+    #[test]
+    fn clear_transactions_edge_cases() {
+        populate_transactions(10, None);
+
+        // Edge case 1: up_to_count is larger than the total transactions
+        let cleared = clear_transactions(Some(50), None, None).unwrap();
+        assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
+
+        // Edge case 2: up_to_timestamp is before any stored transaction
+        let early_timestamp = Timestamp::from_nanos(1); // Example early timestamp
+        populate_transactions(10, None); // Repopulate transactions after they were all cleared
+        let cleared = clear_transactions(None, None, Some(early_timestamp)).unwrap();
+        assert_eq!(cleared.len(), 10); // Assuming no transactions are removed because all are after the timestamp
+    }
+
+    #[test]
+    fn stress_test_for_large_number_of_transactions() {
+        let large_number = 10_000; // Example large number of transactions
+        populate_transactions(large_number, None);
+
+        let transactions = list_transactions();
+        assert_eq!(
+            transactions.len(),
+            100,
+            "Expected to list only the last 100 transactions from a large dataset"
+        );
+
+        let cleared = clear_transactions(Some(large_number / 2), None, None).unwrap();
+        // Expecting half of the transactions to be cleared and only up to 100 of the remaining half to be returned
+        assert!(
+            cleared.len() <= 100,
+            "Expected a maximum of 100 transactions to be returned after clearing a large number"
+        );
+    }
 }

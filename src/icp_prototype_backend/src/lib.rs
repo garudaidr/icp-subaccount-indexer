@@ -17,7 +17,7 @@ use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
 use types::{
     Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait,
+    TimerManager, TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
@@ -379,20 +379,76 @@ fn list_transactions() -> Vec<Option<StoredTransactions>> {
 }
 
 #[update]
-fn clear_transactions(to_hash: String) -> Result<String, Error> {
-    // Stub implementation - Return a success message
-    Ok(format!("{{\"message\": \"Transactions cleared up to: {}\"}}", to_hash))
+fn clear_transactions(
+    up_to_count: Option<u64>,
+    up_to_index: Option<u64>,
+    up_to_timestamp: Option<Timestamp>,
+) -> Result<Vec<Option<StoredTransactions>>, Error> {
+    // Get Data
+    let up_to_count = match up_to_count {
+        Some(count) => count,
+        None => 0,
+    };
+    let up_to_index = match up_to_index {
+        Some(index) => index,
+        None => 0,
+    };
+    let up_to_timestamp = match up_to_timestamp {
+        Some(timestamp) => timestamp,
+        None => Timestamp::from_nanos(0),
+    };
+
+    TRANSACTIONS.with(|transactions_ref| {
+        // Collect keys that are less than the cutoff
+        let mut transactions_borrow = transactions_ref.borrow_mut();
+        let keys_to_remove: Vec<u64> = transactions_borrow
+            .iter()
+            .filter(|transaction| {
+                // If up_to_count is set then remove transactions with a count less than up_to_count
+                // If up_to_index is set then remove transactions with a index less than up_to_index
+                // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
+                (up_to_count != 0 && transaction.0 < up_to_count)
+                    || (up_to_index != 0 && transaction.1.index < up_to_index)
+                    || (up_to_timestamp.timestamp_nanos != 0
+                        && transaction.1.created_at_time.timestamp_nanos
+                            <= up_to_timestamp.timestamp_nanos)
+            })
+            .map(|(k, _)| k)
+            .collect();
+
+        // Remove elements with those keys
+        for key in keys_to_remove {
+            transactions_borrow.remove(&key);
+        }
+
+        let mut result = Vec::new();
+        let start = if transactions_borrow.len() > 100 {
+            transactions_borrow.len() - 100
+        } else {
+            0
+        };
+        for i in start..transactions_borrow.len() {
+            result.push(transactions_borrow.get(&i).clone());
+        }
+        Ok(result)
+    })
 }
 
 #[update]
 fn refund(subaccount_id: String, hash: String) -> Result<String, Error> {
-    Ok(format!("{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}", hash, subaccount_id))
+    Ok(format!(
+        "{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}",
+        hash, subaccount_id
+    ))
 }
 
 #[update]
 fn sweep_user_vault(to_hash: String) -> Result<String, Error> {
     // Stub implementation - Return a success message
-    Ok(format!("{{\"message\": \"Sweeped user vault up to hash: {}\"}}", to_hash))
+    Ok(format!(
+        "{{\"message\": \"Sweeped user vault up to hash: {}\"}}",
+        to_hash
+    ))
 }
 
 #[query]
