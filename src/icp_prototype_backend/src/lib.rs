@@ -362,12 +362,18 @@ fn get_transactions_count() -> u32 {
 }
 
 #[query]
-fn list_transactions() -> Vec<Option<StoredTransactions>> {
+fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>> {
+    // Get Data
+    let up_to_count = match up_to_count {
+        Some(count) => count,
+        None => 100, // Default is 100
+    };
+
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
         let mut result = Vec::new();
-        let start = if transactions_borrow.len() > 100 {
-            transactions_borrow.len() - 100
+        let start = if transactions_borrow.len() > up_to_count {
+            transactions_borrow.len() - up_to_count
         } else {
             0
         };

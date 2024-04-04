@@ -217,7 +217,7 @@ mod tests {
     fn list_transactions_with_less_than_100_transactions() {
         populate_transactions(50, None); // Assuming this populates 50 transactions
 
-        let transactions = list_transactions();
+        let transactions = list_transactions(None);
         assert_eq!(transactions.len(), 50);
     }
 
@@ -225,8 +225,19 @@ mod tests {
     fn list_transactions_with_more_than_100_transactions() {
         populate_transactions(150, None); // Assuming this populates 150 transactions
 
-        let transactions = list_transactions();
+        let transactions = list_transactions(None);
         assert_eq!(transactions.len(), 100);
+    }
+
+    #[test]
+    fn list_transactions_with_specific_number_transactions() {
+        populate_transactions(150, None); // Assuming this populates 150 transactions
+
+        let transactions = list_transactions(Some(80));
+        assert_eq!(transactions.len(), 80);
+
+        let transactions = list_transactions(Some(150));
+        assert_eq!(transactions.len(), 150);
     }
 
     #[test]
@@ -329,7 +340,7 @@ mod tests {
         let large_number = 10_000; // Example large number of transactions
         populate_transactions(large_number, None);
 
-        let transactions = list_transactions();
+        let transactions = list_transactions(None);
         assert_eq!(
             transactions.len(),
             100,
