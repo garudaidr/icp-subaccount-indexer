@@ -9,7 +9,8 @@ const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
 const LAST_BLOCK_MEMORY: MemoryId = MemoryId::new(2);
 const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(3);
-const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(5);
+const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
+const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -44,5 +45,11 @@ thread_local! {
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(TRANSACTIONS_MEMORY))
         )
+    );
+    pub static CUSTODIAN_PRINCIPAL: RefCell<StableCell<StoredPrincipal, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(CUSTODIAN_PRINCIPAL_MEMORY)),
+            StoredPrincipal::default() // TODO: add to init function
+        ).expect("Initializing CUSTODIAN_PRINCIPAL StableCell failed")
     );
 }

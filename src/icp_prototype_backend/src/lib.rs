@@ -14,7 +14,10 @@ mod types;
 
 use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
-use memory::{INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL, TRANSACTIONS};
+use memory::{
+    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL,
+    TRANSACTIONS,
+};
 use types::{
     Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
     TimerManager, TimerManagerTrait, Timestamp,
@@ -29,10 +32,6 @@ thread_local! {
 struct Error {
     message: String,
 }
-
-// TODO: remove after testing
-const CUSTODIAN_PRINCIPAL_ID: &str =
-    "lvwvg-vchlg-pkyl5-hjj4h-ddnro-w5dqq-rvrew-ujp46-7mzgf-ea4ns-2qe";
 
 fn hash_to_u64(hash: &[u8; 32]) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -198,9 +197,8 @@ impl TimerManagerTrait for TimerManager {
 }
 
 #[ic_cdk::init]
-async fn init(seconds: u64, nonce: u32, ledger_principal: String) {
+async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
     let timer_manager = TimerManager;
-    let principal = Principal::from_text(&ledger_principal).expect("Invalid principal");
 
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
@@ -210,8 +208,18 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String) {
         let _ = nonce_ref.borrow_mut().set(nonce);
     });
 
+    let principal = Principal::from_text(&ledger_principal).expect("Invalid ledger principal");
+
     PRINCIPAL.with(|principal_ref| {
         let stored_principal = StoredPrincipal::new(principal);
+        let _ = principal_ref.borrow_mut().set(stored_principal);
+    });
+
+    let custodian_principal =
+        Principal::from_text(&custodian_principal).expect("Invalid custodian principal");
+
+    CUSTODIAN_PRINCIPAL.with(|principal_ref| {
+        let stored_principal = StoredPrincipal::new(custodian_principal);
         let _ = principal_ref.borrow_mut().set(stored_principal);
     });
 
@@ -227,7 +235,11 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String) {
 
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
-    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+    let account = CUSTODIAN_PRINCIPAL
+        .with(|stored_ref| stored_ref.borrow().get().clone())
+        .get_principal()
+        .expect("Custodian principal is not set");
+
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
@@ -286,7 +298,10 @@ fn convert_to_subaccount(nonce: u32) -> Subaccount {
 
 #[update]
 fn add_subaccount() -> String {
-    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+    let account = CUSTODIAN_PRINCIPAL
+        .with(|stored_ref| stored_ref.borrow().get().clone())
+        .get_principal()
+        .expect("Custodian principal is not set");
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
 
     let nonce = get_nonce();
@@ -307,7 +322,10 @@ fn add_subaccount() -> String {
 
 #[query]
 fn test_hashing(nonce: u32) -> String {
-    let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+    let account = CUSTODIAN_PRINCIPAL
+        .with(|stored_ref| stored_ref.borrow().get().clone())
+        .get_principal()
+        .expect("Custodian principal is not set");
     let subaccount = convert_to_subaccount(nonce);
     let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
     let account_id_hash = hash_to_u64(&subaccountid.to_address());
@@ -334,7 +352,10 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
             });
         }
         // recreate key<u4> from index
-        let account = Principal::from_text(CUSTODIAN_PRINCIPAL_ID).expect("Invalid principal");
+        let account = CUSTODIAN_PRINCIPAL
+            .with(|stored_ref| stored_ref.borrow().get().clone())
+            .get_principal()
+            .expect("Custodian principal is not set");
         let subaccount = convert_to_subaccount(nonce);
         let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
         let account_id_hash = hash_to_u64(&subaccountid.to_address());
