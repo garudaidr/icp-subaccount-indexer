@@ -9,6 +9,97 @@ pub struct QueryBlocksQueryRequest {
     pub length: u64,
 }
 
+#[derive(CandidType, Deserialize)]
+pub struct Icrc1TransferRequest {
+    to: ToRecord,
+    fee: Option<u64>,
+    memo: Option<Vec<u8>>,
+    from_subaccount: Option<Vec<u8>>,
+    created_at_time: Option<u64>,
+    amount: u64,
+}
+
+impl Icrc1TransferRequest {
+    pub fn new(
+        to: ToRecord,
+        fee: Option<u64>,
+        memo: Option<Vec<u8>>,
+        from_subaccount: Option<Vec<u8>>,
+        created_at_time: Option<u64>,
+        amount: u64,
+    ) -> Self {
+        Self {
+            to,
+            fee,
+            memo,
+            from_subaccount,
+            created_at_time,
+            amount,
+        }
+    }
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct ToRecord {
+    owner: Principal,
+    subaccount: Option<Vec<u8>>,
+}
+
+impl ToRecord {
+    pub fn new(owner: Principal, subaccount: Option<Vec<u8>>) -> Self {
+        Self { owner, subaccount }
+    }
+}
+
+#[derive(CandidType, Deserialize)]
+pub enum Response {
+    Ok(u64),
+    Err(Error),
+}
+
+#[derive(CandidType, Deserialize)]
+pub enum Error {
+    GenericError(GenericErrorRecord),
+    TemporarilyUnavailable,
+    BadBurn(BadBurnRecord),
+    Duplicate(DuplicateRecord),
+    BadFee(BadFeeRecord),
+    CreatedInFuture(CreatedInFutureRecord),
+    TooOld,
+    InsufficientFunds(InsufficientFundsRecord),
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct GenericErrorRecord {
+    message: String,
+    error_code: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct BadBurnRecord {
+    min_burn_amount: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct DuplicateRecord {
+    duplicate_of: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct BadFeeRecord {
+    expected_fee: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct CreatedInFutureRecord {
+    ledger_time: u64,
+}
+
+#[derive(CandidType, Deserialize)]
+pub struct InsufficientFundsRecord {
+    balance: u64,
+}
+
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct Response {
     pub certificate: Option<Vec<u8>>,

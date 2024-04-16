@@ -19,8 +19,8 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait, Timestamp,
+    Icrc1TransferRequest, Operation, QueryBlocksQueryRequest, Response, StoredPrincipal,
+    StoredTransactions, TimerManager, TimerManagerTrait, Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -461,11 +461,39 @@ fn clear_transactions(
     })
 }
 
+async fn call_icrc1_transfer() {
+    ic_cdk::println!("Calling icrc1_transfer");
+    let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let ledger_principal = match ledger_principal.get_principal() {
+        Some(result) => result,
+        None => {
+            ic_cdk::println!("Principal is not set");
+            return;
+        }
+    };
+
+    let to_record = ToRecord::new(ledger_principal);
+    let req = Icrc1TransferRequest::new(to_record, Some(1000), 1000);
+    let call_result: CallResult<(Response,)> =
+        ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await;
+
+    let response = match call_result {
+        Ok((response,)) => response,
+        Err(_) => {
+            ic_cdk::println!("An error occurred");
+            return;
+        }
+    };
+
+    ic_cdk::println!("Response: {:?}", response);
+}
+
 #[update]
-fn refund(subaccount_id: String, hash: String) -> Result<String, Error> {
+fn refund(transaction_index: u64) -> Result<String, Error> {
     Ok(format!(
-        "{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}",
-        hash, subaccount_id
+        "{{\"message\": \"Refund issued for transaction index: {}\"}}",
+        transaction_index
     ))
 }
 
