@@ -9,7 +9,7 @@ pub struct QueryBlocksQueryRequest {
     pub length: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct Icrc1TransferRequest {
     to: ToRecord,
     fee: Option<u64>,
@@ -39,7 +39,7 @@ impl Icrc1TransferRequest {
     }
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct ToRecord {
     owner: Principal,
     subaccount: Option<Vec<u8>>,
@@ -51,13 +51,13 @@ impl ToRecord {
     }
 }
 
-#[derive(CandidType, Deserialize)]
-pub enum Response {
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum Icrc1TransferResponse {
     Ok(u64),
     Err(Error),
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum Error {
     GenericError(GenericErrorRecord),
     TemporarilyUnavailable,
@@ -69,33 +69,33 @@ pub enum Error {
     InsufficientFunds(InsufficientFundsRecord),
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct GenericErrorRecord {
     message: String,
     error_code: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct BadBurnRecord {
     min_burn_amount: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct DuplicateRecord {
     duplicate_of: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct BadFeeRecord {
     expected_fee: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct CreatedInFutureRecord {
     ledger_time: u64,
 }
 
-#[derive(CandidType, Deserialize)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct InsufficientFundsRecord {
     balance: u64,
 }

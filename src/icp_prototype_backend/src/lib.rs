@@ -19,8 +19,8 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    Icrc1TransferRequest, Operation, QueryBlocksQueryRequest, Response, StoredPrincipal,
-    StoredTransactions, TimerManager, TimerManagerTrait, Timestamp, ToRecord,
+    Icrc1TransferRequest, Icrc1TransferResponse, Operation, QueryBlocksQueryRequest, Response,
+    StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait, Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -461,21 +461,10 @@ fn clear_transactions(
     })
 }
 
-async fn call_icrc1_transfer() {
+async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
     ic_cdk::println!("Calling icrc1_transfer");
-    let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
-    let ledger_principal = match ledger_principal.get_principal() {
-        Some(result) => result,
-        None => {
-            ic_cdk::println!("Principal is not set");
-            return;
-        }
-    };
-
-    let to_record = ToRecord::new(ledger_principal);
-    let req = Icrc1TransferRequest::new(to_record, Some(1000), 1000);
-    let call_result: CallResult<(Response,)> =
+    let call_result: CallResult<(Icrc1TransferResponse,)> =
         ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await;
 
     let response = match call_result {
@@ -491,10 +480,57 @@ async fn call_icrc1_transfer() {
 
 #[update]
 fn refund(transaction_index: u64) -> Result<String, Error> {
-    Ok(format!(
-        "{{\"message\": \"Refund issued for transaction index: {}\"}}",
-        transaction_index
-    ))
+    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let ledger_principal = match ledger_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Principal is not set".to_string(),
+            });
+        }
+    };
+
+    let transaction_opt = TRANSACTIONS
+        .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
+
+    let transaction = match transaction_opt {
+        Some(value) => value,
+        None => {
+            return Err(Error {
+                message: "Transaction index is not found".to_string(),
+            });
+        }
+    };
+
+    let subaccount = match transaction.operation {
+        Some(Operation::Transfer(data)) => {
+            let to = data.to.clone();
+            match &data.spender {
+                Some(spender) => (includes_hash(&spender), to, spender.clone()),
+                None => (false, to, vec![]),
+            }
+        }
+        _ => (false, vec![], vec![]),
+    };
+
+    if !subaccount.0 {
+        return Err(Error {
+            message: "Cannot confirm receiver and spender".to_string(),
+        });
+    }
+
+    let to_record = ToRecord::new(
+        Principal::from_text(String::from_utf8_lossy(&subaccount.2).into_owned())
+            .expect("Invalid spender principal"),
+        None,
+    );
+    let req =
+        Icrc1TransferRequest::new(to_record, Some(1000), None, Some(subaccount.1), None, 1000);
+
+    ic_cdk::spawn(call_icrc1_transfer(ledger_principal, req));
+
+    Ok("Refund is being requested".to_string())
 }
 
 #[update]
