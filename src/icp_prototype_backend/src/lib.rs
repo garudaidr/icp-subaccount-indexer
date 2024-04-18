@@ -19,7 +19,8 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    Icrc1TransferRequest, Icrc1TransferResponse, Operation, QueryBlocksQueryRequest, Response,
+    Icrc1TransferRequest, Icrc1TransferResponse, InterCanisterCallManager,
+    InterCanisterCallManagerTrait, Operation, QueryBlocksRequest, QueryBlocksResponse,
     StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait, Timestamp, ToRecord,
 };
 
@@ -85,6 +86,25 @@ fn get_last_block() -> u64 {
     LAST_BLOCK.with(|last_block_ref| *last_block_ref.borrow().get())
 }
 
+#[cfg(not(test))]
+impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+    async fn query_blocks(
+        &self,
+        ledger_principal: Principal,
+        req: QueryBlocksRequest,
+    ) -> CallResult<(QueryBlocksResponse,)> {
+        ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
+    }
+
+    async fn icrc1_transfer(
+        &self,
+        ledger_principal: Principal,
+        req: Icrc1TransferRequest,
+    ) -> CallResult<(Icrc1TransferResponse,)> {
+        ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await
+    }
+}
+
 async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
@@ -99,12 +119,15 @@ async fn call_query_blocks() {
         }
     };
 
-    let req = QueryBlocksQueryRequest {
+    let ic_manager = InterCanisterCallManager;
+
+    let req = QueryBlocksRequest {
         start: last_block,
         length: 100,
     };
-    let call_result: CallResult<(Response,)> =
-        ic_cdk::call(ledger_principal, "query_blocks", (req,)).await;
+
+    let call_result: CallResult<(QueryBlocksResponse,)> =
+        ic_manager.query_blocks(ledger_principal, req).await;
 
     let response = match call_result {
         Ok((response,)) => response,
@@ -180,6 +203,25 @@ async fn call_query_blocks() {
     });
 
     let _ = LAST_BLOCK.with(|last_block_ref| last_block_ref.borrow_mut().set(block_count));
+}
+
+async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
+    ic_cdk::println!("Calling icrc1_transfer");
+
+    let ic_manager = InterCanisterCallManager;
+
+    let call_result: CallResult<(Icrc1TransferResponse,)> =
+        ic_manager.icrc1_transfer(ledger_principal, req).await;
+
+    let response = match call_result {
+        Ok((response,)) => response,
+        Err(_) => {
+            ic_cdk::println!("An error occurred");
+            return;
+        }
+    };
+
+    ic_cdk::println!("Response: {:?}", response);
 }
 
 #[cfg(not(test))]
@@ -459,23 +501,6 @@ fn clear_transactions(
         }
         Ok(result)
     })
-}
-
-async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
-    ic_cdk::println!("Calling icrc1_transfer");
-
-    let call_result: CallResult<(Icrc1TransferResponse,)> =
-        ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await;
-
-    let response = match call_result {
-        Ok((response,)) => response,
-        Err(_) => {
-            ic_cdk::println!("An error occurred");
-            return;
-        }
-    };
-
-    ic_cdk::println!("Response: {:?}", response);
 }
 
 #[update]

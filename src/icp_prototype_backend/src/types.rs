@@ -1,10 +1,11 @@
 use candid::{CandidType, Deserialize, Principal};
+use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
-pub struct QueryBlocksQueryRequest {
+pub struct QueryBlocksRequest {
     pub start: u64,
     pub length: u64,
 }
@@ -101,7 +102,7 @@ pub struct InsufficientFundsRecord {
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Response {
+pub struct QueryBlocksResponse {
     pub certificate: Option<Vec<u8>>,
     pub blocks: Vec<Block>,
     pub chain_length: u64,
@@ -295,3 +296,18 @@ pub trait TimerManagerTrait {
 }
 
 pub struct TimerManager;
+
+pub trait InterCanisterCallManagerTrait {
+    async fn query_blocks(
+        &self,
+        ledger_principal: Principal,
+        req: QueryBlocksRequest,
+    ) -> CallResult<(QueryBlocksResponse,)>;
+    async fn icrc1_transfer(
+        &self,
+        ledger_principal: Principal,
+        req: Icrc1TransferRequest,
+    ) -> CallResult<(Icrc1TransferResponse,)>;
+}
+
+pub struct InterCanisterCallManager;
