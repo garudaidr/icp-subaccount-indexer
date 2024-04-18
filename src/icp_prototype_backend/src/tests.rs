@@ -354,4 +354,106 @@ mod tests {
             "Expected a maximum of 100 transactions to be returned after clearing a large number"
         );
     }
+
+    impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+        async fn query_blocks(
+            &self,
+            _ledger_principal: Principal,
+            _req: QueryBlocksRequest,
+        ) -> CallResult<(QueryBlocksResponse,)> {
+            let response = QueryBlocksResponse {
+                certificate: None,       // Assuming no certificate for this example
+                blocks: vec![],          // Assuming no blocks for this example
+                chain_length: 0,         // Example value
+                first_block_index: 0,    // Example value
+                archived_blocks: vec![], // Assuming no archived blocks for this example
+            };
+            Ok((response,))
+        }
+
+        async fn icrc1_transfer(
+            &self,
+            _ledger_principal: Principal,
+            _req: Icrc1TransferRequest,
+        ) -> CallResult<(Icrc1TransferResponse,)> {
+            // Example: A successful transfer response with a transaction ID
+            let response = Icrc1TransferResponse::Ok(12345); // Example transaction ID
+            Ok((response,))
+        }
+    }
+
+    fn refund_setup() {
+        // Setup principal
+        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        PRINCIPAL.with(|p| *p.borrow_mut() = Some(principal));
+
+        // Setup transactions
+        TRANSACTIONS.with(|t| {
+            let mut transactions = t.borrow_mut();
+            transactions.insert(
+                1,
+                StoredTransactions {
+                    index: 1,
+                    memo: 123,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: vec![1, 2, 3],
+                        fee: E8s { e8s: 100 },
+                        from: vec![4, 5, 6],
+                        amount: E8s { e8s: 1000 },
+                        spender: Some(vec![7, 8, 9]),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                },
+            );
+        });
+    }
+
+    fn refund_teardown() {
+        PRINCIPAL.with(|p| p.borrow_mut().take());
+        TRANSACTIONS.with(|t| t.borrow_mut().clear());
+    }
+
+    #[test]
+    fn test_refund_valid_transaction() {
+        refund_setup();
+
+        // Your refund test logic for a valid transaction
+        let result = refund(1);
+        assert!(
+            result.is_ok(),
+            "Refund should succeed for a valid transaction"
+        );
+
+        refund_teardown();
+    }
+
+    #[test]
+    fn test_refund_unset_principal() {
+        refund_setup();
+        // Unset the principal to simulate the error condition
+        PRINCIPAL.with(|p| *p.borrow_mut() = None);
+
+        let result = refund(1);
+        assert!(
+            result.is_err(),
+            "Refund should fail if the principal is not set"
+        );
+
+        refund_teardown();
+    }
+
+    #[test]
+    fn test_refund_nonexistent_transaction() {
+        refund_setup();
+
+        // Attempt to refund a transaction that doesn't exist
+        let result = refund(999); // Assuming transaction with index 999 does not exist
+        assert!(
+            result.is_err(),
+            "Refund should fail for a non-existent transaction"
+        );
+
+        refund_teardown();
+    }
 }
