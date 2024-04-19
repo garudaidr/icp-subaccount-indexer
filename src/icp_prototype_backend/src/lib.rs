@@ -59,7 +59,10 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
 
                         ic_cdk::println!("hash_key: {}", hash_key);
                         match subaccounts_borrow.get(&hash_key) {
-                            Some(_) => true,
+                            Some(_) => {
+                                ic_cdk::println!("yes");
+                                true
+                            },
                             None => false,
                         }
                     })
@@ -540,6 +543,7 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
     };
 
     if !subaccount.0 {
+        ic_cdk::println!("Here");
         return Err(Error {
             message: "Cannot confirm receiver and spender".to_string(),
         });

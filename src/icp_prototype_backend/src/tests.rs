@@ -385,7 +385,33 @@ mod tests {
     fn refund_setup() {
         // Setup principal
         let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
-        PRINCIPAL.with(|p| *p.borrow_mut() = Some(principal));
+        PRINCIPAL.with(|principal_ref| {
+            let stored_principal = StoredPrincipal::new(principal);
+            let _ = principal_ref.borrow_mut().set(stored_principal);
+        });
+
+        let to = [1u8; 32];
+        let from = [2u8; 32];
+        let spender = [3u8; 32];
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let account_id_hash = hash_to_u64(&to);
+            ic_cdk::println!("to_hash_key: {}", account_id_hash);
+            let account_id = AccountIdentifier { hash: [1u8; 28] }; // Force a compatible hash.
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let account_id_hash = hash_to_u64(&from);
+            ic_cdk::println!("from_hash_key: {}", account_id_hash);
+            let account_id = AccountIdentifier { hash: [2u8; 28] }; // Force a compatible hash.
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let account_id_hash = hash_to_u64(&spender);
+            ic_cdk::println!("spender_hash_key: {}", account_id_hash);
+            let account_id = AccountIdentifier { hash: [3u8; 28] }; // Force a compatible hash.
+            subaccounts_mut.insert(account_id_hash, account_id);
+        });
 
         // Setup transactions
         TRANSACTIONS.with(|t| {
@@ -397,11 +423,11 @@ mod tests {
                     memo: 123,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: vec![1, 2, 3],
+                        to: to.into(),
                         fee: E8s { e8s: 100 },
-                        from: vec![4, 5, 6],
+                        from: from.into(),
                         amount: E8s { e8s: 1000 },
-                        spender: Some(vec![7, 8, 9]),
+                        spender: Some(spender.into()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                 },
@@ -410,8 +436,10 @@ mod tests {
     }
 
     fn refund_teardown() {
-        PRINCIPAL.with(|p| p.borrow_mut().take());
-        TRANSACTIONS.with(|t| t.borrow_mut().clear());
+        PRINCIPAL.with(|principal_ref| {
+            let _ = principal_ref.borrow_mut().set(StoredPrincipal::default());
+        });
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
     }
 
     #[test]
@@ -432,7 +460,9 @@ mod tests {
     fn test_refund_unset_principal() {
         refund_setup();
         // Unset the principal to simulate the error condition
-        PRINCIPAL.with(|p| *p.borrow_mut() = None);
+        PRINCIPAL.with(|principal_ref| {
+            let _ = principal_ref.borrow_mut().set(StoredPrincipal::default());
+        });
 
         let result = refund(1);
         assert!(
