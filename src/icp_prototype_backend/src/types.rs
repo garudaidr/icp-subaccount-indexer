@@ -1,4 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
+use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
@@ -291,23 +292,27 @@ impl Storable for StoredPrincipal {
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 pub trait TimerManagerTrait {
-    fn set_timer(&self, interval: std::time::Duration) -> TimerId;
-    fn clear_timer(&self, timer_id: TimerId);
+    fn set_timer(interval: std::time::Duration) -> TimerId;
+    fn clear_timer(timer_id: TimerId);
 }
 
 pub struct TimerManager;
 
 pub trait InterCanisterCallManagerTrait {
     async fn query_blocks(
-        &self,
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)>;
     async fn icrc1_transfer(
-        &self,
         ledger_principal: Principal,
         req: Icrc1TransferRequest,
     ) -> CallResult<(Icrc1TransferResponse,)>;
 }
 
 pub struct InterCanisterCallManager;
+
+pub trait IcCdkSpawnManagerTrait {
+    fn run<F: 'static + Future<Output = ()>>(future: F);
+}
+
+pub struct IcCdkSpawnManager;

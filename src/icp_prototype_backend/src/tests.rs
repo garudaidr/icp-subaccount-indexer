@@ -4,11 +4,11 @@ mod tests {
     use crate::*;
 
     impl TimerManagerTrait for TimerManager {
-        fn set_timer(&self, _interval: std::time::Duration) -> TimerId {
+        fn set_timer(_interval: std::time::Duration) -> TimerId {
             TimerId::default()
         }
 
-        fn clear_timer(&self, _timer_id: TimerId) {}
+        fn clear_timer(_timer_id: TimerId) {}
     }
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
@@ -357,7 +357,6 @@ mod tests {
 
     impl InterCanisterCallManagerTrait for InterCanisterCallManager {
         async fn query_blocks(
-            &self,
             _ledger_principal: Principal,
             _req: QueryBlocksRequest,
         ) -> CallResult<(QueryBlocksResponse,)> {
@@ -372,7 +371,6 @@ mod tests {
         }
 
         async fn icrc1_transfer(
-            &self,
             _ledger_principal: Principal,
             _req: Icrc1TransferRequest,
         ) -> CallResult<(Icrc1TransferResponse,)> {
@@ -380,6 +378,18 @@ mod tests {
             let response = Icrc1TransferResponse::Ok(12345); // Example transaction ID
             Ok((response,))
         }
+    }
+
+    impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
+        fn run<F: 'static + Future<Output = ()>>(_future: F) {}
+    }
+
+    fn vec_to_array(vec_to_convert: Vec<u8>) -> [u8; 32] {
+        let slice = &vec_to_convert[..];
+        slice
+            .try_into()
+            .ok()
+            .expect("Failed to convert vec to array")
     }
 
     fn refund_setup() {
@@ -390,26 +400,26 @@ mod tests {
             let _ = principal_ref.borrow_mut().set(stored_principal);
         });
 
-        let to = [1u8; 32];
-        let from = [2u8; 32];
-        let spender = [3u8; 32];
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+        let spender = vec![3u8; 32];
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
-            let account_id_hash = hash_to_u64(&to);
-            ic_cdk::println!("to_hash_key: {}", account_id_hash);
-            let account_id = AccountIdentifier { hash: [1u8; 28] }; // Force a compatible hash.
+            let to_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&to_arr);
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
-            let account_id_hash = hash_to_u64(&from);
-            ic_cdk::println!("from_hash_key: {}", account_id_hash);
-            let account_id = AccountIdentifier { hash: [2u8; 28] }; // Force a compatible hash.
+            let from_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
-            let account_id_hash = hash_to_u64(&spender);
-            ic_cdk::println!("spender_hash_key: {}", account_id_hash);
-            let account_id = AccountIdentifier { hash: [3u8; 28] }; // Force a compatible hash.
+            let spender_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
         });
 
@@ -423,11 +433,11 @@ mod tests {
                     memo: 123,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: to.into(),
+                        to: to,
                         fee: E8s { e8s: 100 },
-                        from: from.into(),
+                        from: from,
                         amount: E8s { e8s: 1000 },
-                        spender: Some(spender.into()),
+                        spender: Some(principal.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                 },

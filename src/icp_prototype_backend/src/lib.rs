@@ -1,4 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
+use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
@@ -19,9 +20,10 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    Icrc1TransferRequest, Icrc1TransferResponse, InterCanisterCallManager,
-    InterCanisterCallManagerTrait, Operation, QueryBlocksRequest, QueryBlocksResponse,
-    StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait, Timestamp, ToRecord,
+    IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
+    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
+    QueryBlocksResponse, StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait,
+    Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -59,10 +61,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
 
                         ic_cdk::println!("hash_key: {}", hash_key);
                         match subaccounts_borrow.get(&hash_key) {
-                            Some(_) => {
-                                ic_cdk::println!("yes");
-                                true
-                            },
+                            Some(_) => true,
                             None => false,
                         }
                     })
@@ -90,9 +89,15 @@ fn get_last_block() -> u64 {
 }
 
 #[cfg(not(test))]
+impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
+    fn run<F: 'static + Future<Output = ()>>(future: F) {
+        ic_cdk::spawn(future);
+    }
+}
+
+#[cfg(not(test))]
 impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     async fn query_blocks(
-        &self,
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)> {
@@ -100,7 +105,6 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     }
 
     async fn icrc1_transfer(
-        &self,
         ledger_principal: Principal,
         req: Icrc1TransferRequest,
     ) -> CallResult<(Icrc1TransferResponse,)> {
@@ -122,15 +126,13 @@ async fn call_query_blocks() {
         }
     };
 
-    let ic_manager = InterCanisterCallManager;
-
     let req = QueryBlocksRequest {
         start: last_block,
         length: 100,
     };
 
     let call_result: CallResult<(QueryBlocksResponse,)> =
-        ic_manager.query_blocks(ledger_principal, req).await;
+        InterCanisterCallManager::query_blocks(ledger_principal, req).await;
 
     let response = match call_result {
         Ok((response,)) => response,
@@ -211,10 +213,8 @@ async fn call_query_blocks() {
 async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
     ic_cdk::println!("Calling icrc1_transfer");
 
-    let ic_manager = InterCanisterCallManager;
-
     let call_result: CallResult<(Icrc1TransferResponse,)> =
-        ic_manager.icrc1_transfer(ledger_principal, req).await;
+        InterCanisterCallManager::icrc1_transfer(ledger_principal, req).await;
 
     let response = match call_result {
         Ok((response,)) => response,
@@ -229,22 +229,20 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
 
 #[cfg(not(test))]
 impl TimerManagerTrait for TimerManager {
-    fn set_timer(&self, interval: std::time::Duration) -> TimerId {
+    fn set_timer(interval: std::time::Duration) -> TimerId {
         ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
         ic_cdk_timers::set_timer_interval(interval, || {
-            ic_cdk::spawn(call_query_blocks());
+            IcCdkSpawnManager::run(call_query_blocks());
         })
     }
 
-    fn clear_timer(&self, timer_id: TimerId) {
+    fn clear_timer(timer_id: TimerId) {
         ic_cdk_timers::clear_timer(timer_id);
     }
 }
 
 #[ic_cdk::init]
 async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
-    let timer_manager = TimerManager;
-
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
     });
@@ -269,7 +267,7 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_prin
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    let timer_id = timer_manager.set_timer(interval);
+    let timer_id = TimerManager::set_timer(interval);
 
     TIMERS.with(|timers_ref| {
         timers_ref.replace(timer_id);
@@ -310,13 +308,12 @@ fn get_interval() -> Result<u64, Error> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-    let timer_manager = TimerManager;
     TIMERS.with(|timers_ref| {
-        timer_manager.clear_timer(timers_ref.borrow().clone());
+        TimerManager::clear_timer(timers_ref.borrow().clone());
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    let new_timer_id = timer_manager.set_timer(interval);
+    let new_timer_id = TimerManager::set_timer(interval);
 
     TIMERS.with(|timers_ref| {
         timers_ref.replace(new_timer_id);
@@ -535,7 +532,7 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
         Some(Operation::Transfer(data)) => {
             let to = data.to.clone();
             match &data.spender {
-                Some(spender) => (includes_hash(&spender), to, spender.clone()),
+                Some(spender) => (includes_hash(&to), to, spender.clone()),
                 None => (false, to, vec![]),
             }
         }
@@ -543,21 +540,16 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
     };
 
     if !subaccount.0 {
-        ic_cdk::println!("Here");
         return Err(Error {
             message: "Cannot confirm receiver and spender".to_string(),
         });
     }
 
-    let to_record = ToRecord::new(
-        Principal::from_text(String::from_utf8_lossy(&subaccount.2).into_owned())
-            .expect("Invalid spender principal"),
-        None,
-    );
+    let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
     let req =
         Icrc1TransferRequest::new(to_record, Some(1000), None, Some(subaccount.1), None, 1000);
 
-    ic_cdk::spawn(call_icrc1_transfer(ledger_principal, req));
+    IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
 
     Ok("Refund is being requested".to_string())
 }
