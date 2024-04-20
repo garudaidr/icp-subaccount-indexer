@@ -210,6 +210,10 @@ mod tests {
                 );
             }
         });
+
+        NEXT_BLOCK.with(|next_block_ref| {
+            let _ = next_block_ref.borrow_mut().set(count);
+        });
     }
 
     #[test]

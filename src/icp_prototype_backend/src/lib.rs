@@ -450,7 +450,7 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>
     }
 
     let next_block = get_next_block();
-    let recent_block = next_block - 1;
+    let recent_block = next_block;
 
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -464,6 +464,7 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>
         };
 
         ic_cdk::println!("start_index: {}", start);
+        ic_cdk::println!("next_block: {}", next_block);
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
 
         for i in start..next_block {
