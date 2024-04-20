@@ -16,7 +16,7 @@ mod types;
 use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
 use memory::{
-    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, NEXT_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL,
+    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
@@ -51,7 +51,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
             match array_ref {
                 Some(array_ref) => {
                     let hash_key = hash_to_u64(array_ref);
-            
+
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
 
@@ -122,7 +122,7 @@ async fn call_query_blocks() {
         }
     };
 
-    let req = QueryBlocksQueryRequest {
+    let req = QueryBlocksRequest {
         start: next_block,
         length: 100,
     };
@@ -454,8 +454,10 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>
 
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
-        
-        let start = if transactions_borrow.len() > up_to_count && recent_block - up_to_count >= oldest_block.unwrap() {
+
+        let start = if transactions_borrow.len() > up_to_count
+            && recent_block - up_to_count >= oldest_block.unwrap()
+        {
             recent_block - up_to_count
         } else {
             oldest_block.unwrap()
