@@ -7,7 +7,7 @@ use crate::types::{Memory, StoredPrincipal, StoredTransactions};
 
 const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
-const LAST_BLOCK_MEMORY: MemoryId = MemoryId::new(2);
+const NEXT_BLOCK_MEMORY: MemoryId = MemoryId::new(2);
 const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(3);
 const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
 const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
@@ -29,11 +29,11 @@ thread_local! {
             0
         ).expect("Initializing LAST_SUBACCOUNT_NONCE StableCell failed")
     );
-    pub static LAST_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
+    pub static NEXT_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(LAST_BLOCK_MEMORY)),
+            MEMORY_MANAGER.with(|m| m.borrow().get(NEXT_BLOCK_MEMORY)),
             0
-        ).expect("Initializing LAST_BLOCK StableCell failed")
+        ).expect("Initializing NEXT_BLOCK StableCell failed")
     );
     pub static INTERVAL_IN_SECONDS: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
