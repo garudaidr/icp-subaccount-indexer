@@ -16,7 +16,7 @@ mod types;
 use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
 use memory::{
-    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL,
+    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, NEXT_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
@@ -48,14 +48,10 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
             let slice = &vec_to_check[..];
             let array_ref: Option<&[u8; 32]> = slice.try_into().ok();
 
-            ic_cdk::println!("got here #1");
-
             match array_ref {
                 Some(array_ref) => {
-                    ic_cdk::println!("got here #2");
                     let hash_key = hash_to_u64(array_ref);
-                    ic_cdk::println!("got here #3");
-                    // LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().contains_key(&hash_key))
+            
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
 
@@ -77,15 +73,15 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
 }
 
 #[update]
-async fn set_last_block(block: u64) {
-    LAST_BLOCK.with(|last_block_ref| {
-        let _ = last_block_ref.borrow_mut().set(block);
+async fn set_next_block(block: u64) {
+    NEXT_BLOCK.with(|next_block_ref| {
+        let _ = next_block_ref.borrow_mut().set(block);
     });
 }
 
 #[query]
-fn get_last_block() -> u64 {
-    LAST_BLOCK.with(|last_block_ref| *last_block_ref.borrow().get())
+fn get_next_block() -> u64 {
+    NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get())
 }
 
 #[cfg(not(test))]
@@ -116,7 +112,7 @@ async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
-    let last_block = LAST_BLOCK.with(|last_block_ref| last_block_ref.borrow().get().clone());
+    let next_block = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow().get().clone());
 
     let ledger_principal = match ledger_principal.get_principal() {
         Some(result) => result,
@@ -126,8 +122,8 @@ async fn call_query_blocks() {
         }
     };
 
-    let req = QueryBlocksRequest {
-        start: last_block,
+    let req = QueryBlocksQueryRequest {
+        start: next_block,
         length: 100,
     };
 
@@ -137,14 +133,14 @@ async fn call_query_blocks() {
     let response = match call_result {
         Ok((response,)) => response,
         Err(_) => {
-            ic_cdk::println!("An error occurred");
+            ic_cdk::println!("query_blocks error occurred");
             return;
         }
     };
 
     ic_cdk::println!("Response: {:?}", response);
 
-    let mut block_count = last_block;
+    let mut block_count = next_block;
     response.blocks.iter().for_each(|block| {
         block.transaction.operation.as_ref().map(|operation| {
             ic_cdk::println!("Operation: {:?}", operation);
@@ -192,14 +188,19 @@ async fn call_query_blocks() {
             };
 
             if subaccount_exist {
+                ic_cdk::println!("Subaccount exists");
                 TRANSACTIONS.with(|transactions_ref| {
                     let mut transactions = transactions_ref.borrow_mut();
+
                     let transaction =
                         StoredTransactions::new(block_count, block.transaction.clone());
+
                     if !transactions.contains_key(&block_count) {
                         // Filter keys that exist
                         ic_cdk::println!("Inserting transaction");
                         let _ = transactions.insert(block_count, transaction);
+                    } else {
+                        ic_cdk::println!("Transaction already exists");
                     }
                 });
             }
@@ -207,7 +208,7 @@ async fn call_query_blocks() {
         block_count += 1;
     });
 
-    let _ = LAST_BLOCK.with(|last_block_ref| last_block_ref.borrow_mut().set(block_count));
+    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
 async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
@@ -425,22 +426,45 @@ fn get_transactions_count() -> u32 {
 }
 
 #[query]
+fn get_oldest_block() -> Option<u64> {
+    TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+        transactions_borrow.iter().next().map(|(key, _value)| key)
+    })
+}
+
+#[query]
 fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>> {
-    // Get Data
+    // process argument
     let up_to_count = match up_to_count {
         Some(count) => count,
         None => 100, // Default is 100
     };
 
+    // get earliest block
+    // if there are no transactions, return empty `result`
+    let mut result = Vec::new();
+    let oldest_block = get_oldest_block();
+    if let None = oldest_block {
+        return result;
+    }
+
+    let next_block = get_next_block();
+    let recent_block = next_block - 1;
+
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
-        let mut result = Vec::new();
-        let start = if transactions_borrow.len() > up_to_count {
-            transactions_borrow.len() - up_to_count
+        
+        let start = if transactions_borrow.len() > up_to_count && recent_block - up_to_count >= oldest_block.unwrap() {
+            recent_block - up_to_count
         } else {
-            0
+            oldest_block.unwrap()
         };
-        for i in start..transactions_borrow.len() {
+
+        ic_cdk::println!("start_index: {}", start);
+        ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
+
+        for i in start..next_block {
             result.push(transactions_borrow.get(&i).clone());
         }
         result
