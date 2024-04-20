@@ -2,6 +2,7 @@
 mod tests {
     use crate::types::*;
     use crate::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     impl TimerManagerTrait for TimerManager {
         fn set_timer(_interval: std::time::Duration) -> TimerId {
@@ -119,8 +120,6 @@ mod tests {
             "The interval should be updated to the new value."
         );
     }
-
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn create_stored_transactions() {
