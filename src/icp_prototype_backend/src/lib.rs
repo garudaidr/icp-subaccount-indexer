@@ -220,6 +220,7 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     let response = match call_result {
         Ok((response,)) => response,
         Err(_) => {
+            // TODO: Handle error response for failed sweeps
             ic_cdk::println!("An error occurred");
             return;
         }
@@ -589,10 +590,10 @@ fn sweep_user_vault() -> Result<String, Error> {
     };
 
     let _ = TRANSACTIONS.with(|transactions_ref| {
-        let mut transaction_borrow = transactions_ref.borrow_mut();
+        let transaction_borrow = transactions_ref.borrow().clone();
+        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
 
-        transactions_ref
-            .borrow()
+        transaction_borrow
             .iter()
             .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
             .for_each(|(key, mut transaction)| {
@@ -619,8 +620,8 @@ fn sweep_user_vault() -> Result<String, Error> {
 
                     transaction.sweep_status = SweepStatus::Sweept;
 
-                    transaction_borrow.remove(&key);
-                    transaction_borrow.insert(key.clone(), transaction);
+                    transaction_borrow_mut.remove(&key);
+                    transaction_borrow_mut.insert(key.clone(), transaction);
                 }
             });
     });

@@ -492,4 +492,125 @@ mod tests {
 
         refund_teardown();
     }
+
+    fn setup_sweep_environment() {
+        // Setup PRINCIPAL with a valid Principal
+        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        PRINCIPAL.with(|p| {
+            let stored_principal = StoredPrincipal::new(principal.clone());
+            let _ = p.borrow_mut().set(stored_principal);
+        });
+
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        // Populate TRANSACTIONS with a mixture of swept and not swept transactions
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+        TRANSACTIONS.with(|t| {
+            let mut transactions = t.borrow_mut();
+            transactions.insert(
+                1,
+                StoredTransactions {
+                    index: 1,
+                    memo: 100,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: vec![1, 2, 3],
+                        fee: E8s { e8s: 100 },
+                        from: vec![4, 5, 6],
+                        amount: E8s { e8s: 500 },
+                        spender: None,
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
+                },
+            );
+            transactions.insert(
+                2,
+                StoredTransactions {
+                    index: 2,
+                    memo: 101,
+                    icrc1_memo: None,
+                    operation: None, // Operation that should not be swept
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::Sweept,
+                },
+            );
+        });
+    }
+
+    fn teardown_sweep_environment() {
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+        let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
+        let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
+    }
+
+    #[test]
+    fn test_sweep_user_vault_successful_sweep() {
+        setup_sweep_environment();
+
+        let result = sweep_user_vault();
+        assert!(result.is_ok(), "Sweeping should be successful.");
+
+        TRANSACTIONS.with(|t| {
+            assert!(
+                t.borrow()
+                    .iter()
+                    .all(|(_, tx)| tx.sweep_status == SweepStatus::Sweept),
+                "All transactions should be marked as Sweept."
+            );
+        });
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_principal_set() {
+        setup_sweep_environment();
+        // Unset the principal
+        let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_err(),
+            "Sweeping should fail without a set principal."
+        );
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_custodian_principal_set() {
+        setup_sweep_environment();
+        // Unset the custodian principal
+        let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_err(),
+            "Sweeping should fail without a set custodian principal."
+        );
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_transactions_to_sweep() {
+        setup_sweep_environment();
+        // Clear transactions to simulate no transactions to sweep
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_ok(),
+            "Sweeping should succeed even with no transactions to sweep."
+        );
+
+        teardown_sweep_environment();
+    }
 }
