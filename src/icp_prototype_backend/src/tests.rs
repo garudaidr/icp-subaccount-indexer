@@ -292,8 +292,7 @@ mod tests {
         populate_transactions(100, Some(50000)); // Populate 100 transactions, all with the same timestamp for simplicity
 
         // Clear transactions with a count less than 80 and a timestamp less than 60000 nanoseconds
-        let cleared =
-            clear_transactions(Some(80), Some(Timestamp::from_nanos(60000))).unwrap();
+        let cleared = clear_transactions(Some(80), Some(Timestamp::from_nanos(60000))).unwrap();
         // This assumes that the criteria are combined with an OR logic, not AND
         assert_eq!(
             cleared.len(),
@@ -436,6 +435,7 @@ mod tests {
                         spender: Some(principal.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
                 },
             );
         });

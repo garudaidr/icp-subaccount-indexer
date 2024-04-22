@@ -22,8 +22,8 @@ use memory::{
 use types::{
     IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
-    QueryBlocksResponse, StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait,
-    Timestamp, ToRecord,
+    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
+    TimerManagerTrait, Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -542,11 +542,11 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
         Some(Operation::Transfer(data)) => {
             let to = data.to.clone();
             match &data.spender {
-                Some(spender) => (includes_hash(&to), to, spender.clone()),
-                None => (false, to, vec![]),
+                Some(spender) => (includes_hash(&to), to, spender.clone(), data.amount.e8s),
+                None => (false, to, vec![], data.amount.e8s),
             }
         }
-        _ => (false, vec![], vec![]),
+        _ => (false, vec![], vec![], 0),
     };
 
     if !subaccount.0 {
@@ -556,8 +556,7 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
     }
 
     let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
-    let req =
-        Icrc1TransferRequest::new(to_record, Some(1000), None, Some(subaccount.1), None, 1000);
+    let req = Icrc1TransferRequest::new(to_record, None, None, Some(subaccount.1), None, 1000);
 
     IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
 
@@ -565,12 +564,68 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
 }
 
 #[update]
-fn sweep_user_vault(to_hash: String) -> Result<String, Error> {
-    // Stub implementation - Return a success message
-    Ok(format!(
-        "{{\"message\": \"Sweeped user vault up to hash: {}\"}}",
-        to_hash
-    ))
+fn sweep_user_vault() -> Result<String, Error> {
+    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let ledger_principal = match ledger_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Principal is not set".to_string(),
+            });
+        }
+    };
+
+    let custodian_principal_opt =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let custodian_principal = match custodian_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Custodian principal is not set".to_string(),
+            });
+        }
+    };
+
+    let _ = TRANSACTIONS.with(|transactions_ref| {
+        let mut transaction_borrow = transactions_ref.borrow_mut();
+
+        transactions_ref
+            .borrow()
+            .iter()
+            .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
+            .for_each(|(key, mut transaction)| {
+                let subaccount = match transaction.clone().operation {
+                    Some(Operation::Transfer(data)) => {
+                        let to = data.to.clone();
+                        (includes_hash(&to), to, data.amount.e8s)
+                    }
+                    _ => (false, vec![], 0),
+                };
+
+                if subaccount.0 {
+                    let to_record = ToRecord::new(custodian_principal, None);
+                    let req = Icrc1TransferRequest::new(
+                        to_record,
+                        None,
+                        None,
+                        Some(subaccount.1),
+                        None,
+                        subaccount.2,
+                    );
+
+                    IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
+
+                    transaction.sweep_status = SweepStatus::Sweept;
+
+                    transaction_borrow.remove(&key);
+                    transaction_borrow.insert(key.clone(), transaction);
+                }
+            });
+    });
+
+    Ok("Subaccounts are swept to vault".to_string())
 }
 
 #[query]
