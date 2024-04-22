@@ -471,15 +471,10 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
 
 #[update]
 fn clear_transactions(
-    up_to_count: Option<u64>,
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
     // Get Data
-    let up_to_count = match up_to_count {
-        Some(count) => count,
-        None => 0,
-    };
     let up_to_index = match up_to_index {
         Some(index) => index,
         None => 0,
