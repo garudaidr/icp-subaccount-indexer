@@ -2,13 +2,14 @@
 mod tests {
     use crate::types::*;
     use crate::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     impl TimerManagerTrait for TimerManager {
-        fn set_timer(&self, _interval: std::time::Duration) -> TimerId {
+        fn set_timer(_interval: std::time::Duration) -> TimerId {
             TimerId::default()
         }
 
-        fn clear_timer(&self, _timer_id: TimerId) {}
+        fn clear_timer(_timer_id: TimerId) {}
     }
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
@@ -120,8 +121,6 @@ mod tests {
         );
     }
 
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     #[test]
     fn create_stored_transactions() {
         let index = 1;
@@ -196,7 +195,7 @@ mod tests {
         };
         TRANSACTIONS.with(|transactions_ref| {
             let mut transactions_borrow = transactions_ref.borrow_mut();
-            for i in 0..count {
+            for i in 1..=count {
                 transactions_borrow.insert(
                     i,
                     StoredTransactions::new(
@@ -210,6 +209,10 @@ mod tests {
                     ),
                 );
             }
+        });
+
+        NEXT_BLOCK.with(|next_block_ref| {
+            let _ = next_block_ref.borrow_mut().set(count);
         });
     }
 
@@ -241,21 +244,13 @@ mod tests {
     }
 
     #[test]
-    fn clear_transactions_with_specific_count() {
-        populate_transactions(100, None);
-
-        let cleared = clear_transactions(Some(50), None, None).unwrap();
-        assert_eq!(cleared.len(), 50);
-    }
-
-    #[test]
     fn clear_transactions_with_specific_timestamp() {
         let nanos = 100000;
 
         let specific_timestamp = Timestamp::from_nanos(nanos);
         populate_transactions(100, None);
 
-        let cleared = clear_transactions(None, None, Some(specific_timestamp)).unwrap();
+        let cleared = clear_transactions(None, Some(specific_timestamp)).unwrap();
         assert_eq!(cleared.len(), 0);
     }
 
@@ -266,7 +261,7 @@ mod tests {
         let specific_timestamp = Timestamp::from_nanos(nanos);
         populate_transactions(100, Some(nanos));
 
-        let cleared = clear_transactions(None, None, Some(specific_timestamp)).unwrap();
+        let cleared = clear_transactions(None, Some(specific_timestamp)).unwrap();
         assert_eq!(cleared.len(), 0);
     }
 
@@ -274,7 +269,7 @@ mod tests {
     fn clear_transactions_with_none_parameters() {
         populate_transactions(100, None);
 
-        let cleared = clear_transactions(None, None, None).unwrap();
+        let cleared = clear_transactions(None, None).unwrap();
         assert_eq!(cleared.len(), 100); // Assuming no transactions are removed
     }
 
@@ -284,7 +279,7 @@ mod tests {
         populate_transactions(100, None);
 
         // Clear transactions up to a specific index, excluding transactions with a higher index
-        let cleared = clear_transactions(None, Some(50), None).unwrap();
+        let cleared = clear_transactions(Some(50), None).unwrap();
         assert_eq!(
             cleared.len(),
             50,
@@ -298,7 +293,7 @@ mod tests {
 
         // Clear transactions with a count less than 80 and a timestamp less than 60000 nanoseconds
         let cleared =
-            clear_transactions(Some(80), None, Some(Timestamp::from_nanos(60000))).unwrap();
+            clear_transactions(Some(80), Some(Timestamp::from_nanos(60000))).unwrap();
         // This assumes that the criteria are combined with an OR logic, not AND
         assert_eq!(
             cleared.len(),
@@ -312,7 +307,7 @@ mod tests {
         populate_transactions(100, Some(100000)); // Populate transactions with a specific timestamp
 
         // Clear transactions with a timestamp exactly equal to one of the transactions' timestamps
-        let cleared = clear_transactions(None, None, Some(Timestamp::from_nanos(100000))).unwrap();
+        let cleared = clear_transactions(None, Some(Timestamp::from_nanos(100000))).unwrap();
         // Depending on implementation, this may remove all transactions if they're considered "up to and including" the given timestamp
         assert!(
             cleared.is_empty(),
@@ -324,14 +319,14 @@ mod tests {
     fn clear_transactions_edge_cases() {
         populate_transactions(10, None);
 
-        // Edge case 1: up_to_count is larger than the total transactions
-        let cleared = clear_transactions(Some(50), None, None).unwrap();
+        // Edge case 1: up_to_index is larger than the total transactions
+        let cleared = clear_transactions(Some(50), None).unwrap();
         assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
 
         // Edge case 2: up_to_timestamp is before any stored transaction
         let early_timestamp = Timestamp::from_nanos(1); // Example early timestamp
         populate_transactions(10, None); // Repopulate transactions after they were all cleared
-        let cleared = clear_transactions(None, None, Some(early_timestamp)).unwrap();
+        let cleared = clear_transactions(None, Some(early_timestamp)).unwrap();
         assert_eq!(cleared.len(), 10); // Assuming no transactions are removed because all are after the timestamp
     }
 
@@ -347,11 +342,154 @@ mod tests {
             "Expected to list only the last 100 transactions from a large dataset"
         );
 
-        let cleared = clear_transactions(Some(large_number / 2), None, None).unwrap();
-        // Expecting half of the transactions to be cleared and only up to 100 of the remaining half to be returned
-        assert!(
-            cleared.len() <= 100,
+        let cleared = clear_transactions(Some(large_number / 2), None).unwrap();
+        // Expecting half of the transactions to be cleared
+        assert_eq!(
+            cleared.len(),
+            (large_number / 2) as usize,
             "Expected a maximum of 100 transactions to be returned after clearing a large number"
         );
+    }
+
+    impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+        async fn query_blocks(
+            _ledger_principal: Principal,
+            _req: QueryBlocksRequest,
+        ) -> CallResult<(QueryBlocksResponse,)> {
+            let response = QueryBlocksResponse {
+                certificate: None,       // Assuming no certificate for this example
+                blocks: vec![],          // Assuming no blocks for this example
+                chain_length: 0,         // Example value
+                first_block_index: 0,    // Example value
+                archived_blocks: vec![], // Assuming no archived blocks for this example
+            };
+            Ok((response,))
+        }
+
+        async fn icrc1_transfer(
+            _ledger_principal: Principal,
+            _req: Icrc1TransferRequest,
+        ) -> CallResult<(Icrc1TransferResponse,)> {
+            // Example: A successful transfer response with a transaction ID
+            let response = Icrc1TransferResponse::Ok(12345); // Example transaction ID
+            Ok((response,))
+        }
+    }
+
+    impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
+        fn run<F: 'static + Future<Output = ()>>(_future: F) {}
+    }
+
+    fn vec_to_array(vec_to_convert: Vec<u8>) -> [u8; 32] {
+        let slice = &vec_to_convert[..];
+        slice
+            .try_into()
+            .ok()
+            .expect("Failed to convert vec to array")
+    }
+
+    fn refund_setup() {
+        // Setup principal
+        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        PRINCIPAL.with(|principal_ref| {
+            let stored_principal = StoredPrincipal::new(principal);
+            let _ = principal_ref.borrow_mut().set(stored_principal);
+        });
+
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+        let spender = vec![3u8; 32];
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let to_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&to_arr);
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let from_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let spender_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+        });
+
+        // Setup transactions
+        TRANSACTIONS.with(|t| {
+            let mut transactions = t.borrow_mut();
+            transactions.insert(
+                1,
+                StoredTransactions {
+                    index: 1,
+                    memo: 123,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: to,
+                        fee: E8s { e8s: 100 },
+                        from: from,
+                        amount: E8s { e8s: 1000 },
+                        spender: Some(principal.as_slice().to_vec()),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                },
+            );
+        });
+    }
+
+    fn refund_teardown() {
+        PRINCIPAL.with(|principal_ref| {
+            let _ = principal_ref.borrow_mut().set(StoredPrincipal::default());
+        });
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+    }
+
+    #[test]
+    fn test_refund_valid_transaction() {
+        refund_setup();
+
+        // Your refund test logic for a valid transaction
+        let result = refund(1);
+        assert!(
+            result.is_ok(),
+            "Refund should succeed for a valid transaction"
+        );
+
+        refund_teardown();
+    }
+
+    #[test]
+    fn test_refund_unset_principal() {
+        refund_setup();
+        // Unset the principal to simulate the error condition
+        PRINCIPAL.with(|principal_ref| {
+            let _ = principal_ref.borrow_mut().set(StoredPrincipal::default());
+        });
+
+        let result = refund(1);
+        assert!(
+            result.is_err(),
+            "Refund should fail if the principal is not set"
+        );
+
+        refund_teardown();
+    }
+
+    #[test]
+    fn test_refund_nonexistent_transaction() {
+        refund_setup();
+
+        // Attempt to refund a transaction that doesn't exist
+        let result = refund(999); // Assuming transaction with index 999 does not exist
+        assert!(
+            result.is_err(),
+            "Refund should fail for a non-existent transaction"
+        );
+
+        refund_teardown();
     }
 }

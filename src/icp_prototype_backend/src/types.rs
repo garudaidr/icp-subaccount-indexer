@@ -1,16 +1,109 @@
 use candid::{CandidType, Deserialize, Principal};
+use core::future::Future;
+use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
-pub struct QueryBlocksQueryRequest {
+pub struct QueryBlocksRequest {
     pub start: u64,
     pub length: u64,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Response {
+pub struct Icrc1TransferRequest {
+    to: ToRecord,
+    fee: Option<u64>,
+    memo: Option<Vec<u8>>,
+    from_subaccount: Option<Vec<u8>>,
+    created_at_time: Option<u64>,
+    amount: u64,
+}
+
+impl Icrc1TransferRequest {
+    pub fn new(
+        to: ToRecord,
+        fee: Option<u64>,
+        memo: Option<Vec<u8>>,
+        from_subaccount: Option<Vec<u8>>,
+        created_at_time: Option<u64>,
+        amount: u64,
+    ) -> Self {
+        Self {
+            to,
+            fee,
+            memo,
+            from_subaccount,
+            created_at_time,
+            amount,
+        }
+    }
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct ToRecord {
+    owner: Principal,
+    subaccount: Option<Vec<u8>>,
+}
+
+impl ToRecord {
+    pub fn new(owner: Principal, subaccount: Option<Vec<u8>>) -> Self {
+        Self { owner, subaccount }
+    }
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum Icrc1TransferResponse {
+    Ok(u64),
+    Err(Error),
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum Error {
+    GenericError(GenericErrorRecord),
+    TemporarilyUnavailable,
+    BadBurn(BadBurnRecord),
+    Duplicate(DuplicateRecord),
+    BadFee(BadFeeRecord),
+    CreatedInFuture(CreatedInFutureRecord),
+    TooOld,
+    InsufficientFunds(InsufficientFundsRecord),
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct GenericErrorRecord {
+    message: String,
+    error_code: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct BadBurnRecord {
+    min_burn_amount: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct DuplicateRecord {
+    duplicate_of: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct BadFeeRecord {
+    expected_fee: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CreatedInFutureRecord {
+    ledger_time: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct InsufficientFundsRecord {
+    balance: u64,
+}
+
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct QueryBlocksResponse {
     pub certificate: Option<Vec<u8>>,
     pub blocks: Vec<Block>,
     pub chain_length: u64,
@@ -199,8 +292,27 @@ impl Storable for StoredPrincipal {
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 pub trait TimerManagerTrait {
-    fn set_timer(&self, interval: std::time::Duration) -> TimerId;
-    fn clear_timer(&self, timer_id: TimerId);
+    fn set_timer(interval: std::time::Duration) -> TimerId;
+    fn clear_timer(timer_id: TimerId);
 }
 
 pub struct TimerManager;
+
+pub trait InterCanisterCallManagerTrait {
+    async fn query_blocks(
+        ledger_principal: Principal,
+        req: QueryBlocksRequest,
+    ) -> CallResult<(QueryBlocksResponse,)>;
+    async fn icrc1_transfer(
+        ledger_principal: Principal,
+        req: Icrc1TransferRequest,
+    ) -> CallResult<(Icrc1TransferResponse,)>;
+}
+
+pub struct InterCanisterCallManager;
+
+pub trait IcCdkSpawnManagerTrait {
+    fn run<F: 'static + Future<Output = ()>>(future: F);
+}
+
+pub struct IcCdkSpawnManager;

@@ -1,4 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
+use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
@@ -15,12 +16,14 @@ mod types;
 use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
 
 use memory::{
-    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, NEXT_BLOCK, LAST_SUBACCOUNT_NONCE, PRINCIPAL,
+    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
-    Operation, QueryBlocksQueryRequest, Response, StoredPrincipal, StoredTransactions,
-    TimerManager, TimerManagerTrait, Timestamp,
+    IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
+    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
+    QueryBlocksResponse, StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait,
+    Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -48,7 +51,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
             match array_ref {
                 Some(array_ref) => {
                     let hash_key = hash_to_u64(array_ref);
-            
+
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
 
@@ -81,6 +84,30 @@ fn get_next_block() -> u64 {
     NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get())
 }
 
+#[cfg(not(test))]
+impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
+    fn run<F: 'static + Future<Output = ()>>(future: F) {
+        ic_cdk::spawn(future);
+    }
+}
+
+#[cfg(not(test))]
+impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+    async fn query_blocks(
+        ledger_principal: Principal,
+        req: QueryBlocksRequest,
+    ) -> CallResult<(QueryBlocksResponse,)> {
+        ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
+    }
+
+    async fn icrc1_transfer(
+        ledger_principal: Principal,
+        req: Icrc1TransferRequest,
+    ) -> CallResult<(Icrc1TransferResponse,)> {
+        ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await
+    }
+}
+
 async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
@@ -95,12 +122,13 @@ async fn call_query_blocks() {
         }
     };
 
-    let req = QueryBlocksQueryRequest {
+    let req = QueryBlocksRequest {
         start: next_block,
         length: 100,
     };
-    let call_result: CallResult<(Response,)> =
-        ic_cdk::call(ledger_principal, "query_blocks", (req,)).await;
+
+    let call_result: CallResult<(QueryBlocksResponse,)> =
+        InterCanisterCallManager::query_blocks(ledger_principal, req).await;
 
     let response = match call_result {
         Ok((response,)) => response,
@@ -183,24 +211,39 @@ async fn call_query_blocks() {
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
+async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
+    ic_cdk::println!("Calling icrc1_transfer");
+
+    let call_result: CallResult<(Icrc1TransferResponse,)> =
+        InterCanisterCallManager::icrc1_transfer(ledger_principal, req).await;
+
+    let response = match call_result {
+        Ok((response,)) => response,
+        Err(_) => {
+            ic_cdk::println!("An error occurred");
+            return;
+        }
+    };
+
+    ic_cdk::println!("Response: {:?}", response);
+}
+
 #[cfg(not(test))]
 impl TimerManagerTrait for TimerManager {
-    fn set_timer(&self, interval: std::time::Duration) -> TimerId {
+    fn set_timer(interval: std::time::Duration) -> TimerId {
         ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
         ic_cdk_timers::set_timer_interval(interval, || {
-            ic_cdk::spawn(call_query_blocks());
+            IcCdkSpawnManager::run(call_query_blocks());
         })
     }
 
-    fn clear_timer(&self, timer_id: TimerId) {
+    fn clear_timer(timer_id: TimerId) {
         ic_cdk_timers::clear_timer(timer_id);
     }
 }
 
 #[ic_cdk::init]
 async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
-    let timer_manager = TimerManager;
-
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
     });
@@ -225,7 +268,7 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_prin
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    let timer_id = timer_manager.set_timer(interval);
+    let timer_id = TimerManager::set_timer(interval);
 
     TIMERS.with(|timers_ref| {
         timers_ref.replace(timer_id);
@@ -266,13 +309,12 @@ fn get_interval() -> Result<u64, Error> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-    let timer_manager = TimerManager;
     TIMERS.with(|timers_ref| {
-        timer_manager.clear_timer(timers_ref.borrow().clone());
+        TimerManager::clear_timer(timers_ref.borrow().clone());
     });
 
     let interval = std::time::Duration::from_secs(seconds);
-    let new_timer_id = timer_manager.set_timer(interval);
+    let new_timer_id = TimerManager::set_timer(interval);
 
     TIMERS.with(|timers_ref| {
         timers_ref.replace(new_timer_id);
@@ -392,7 +434,7 @@ fn get_oldest_block() -> Option<u64> {
 }
 
 #[query]
-fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>> {
+fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
     // process argument
     let up_to_count = match up_to_count {
         Some(count) => count,
@@ -402,44 +444,37 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>
     // get earliest block
     // if there are no transactions, return empty `result`
     let mut result = Vec::new();
-    let oldest_block = get_oldest_block();
-    if let None = oldest_block {
-        return result;
-    }
-
-    let next_block = get_next_block();
-    let recent_block = next_block - 1;
 
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
-        
-        let start = if transactions_borrow.len() > up_to_count && recent_block - up_to_count >= oldest_block.unwrap() {
-            recent_block - up_to_count
-        } else {
-            oldest_block.unwrap()
-        };
 
-        ic_cdk::println!("start_index: {}", start);
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
 
-        for i in start..next_block {
-            result.push(transactions_borrow.get(&i).clone());
-        }
+        // If transactions_borrow.len() is less than up_to_count, return all transactions
+        let skip = if transactions_borrow.len() < up_to_count {
+            0
+        } else {
+            transactions_borrow.len() - up_to_count
+        };
+
+        ic_cdk::println!("skip: {}", skip);
+        transactions_borrow
+            .iter()
+            .skip(skip as usize)
+            .take(up_to_count as usize)
+            .for_each(|(_key, value)| {
+                result.push(value.clone());
+            });
         result
     })
 }
 
 #[update]
 fn clear_transactions(
-    up_to_count: Option<u64>,
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
-) -> Result<Vec<Option<StoredTransactions>>, Error> {
+) -> Result<Vec<StoredTransactions>, Error> {
     // Get Data
-    let up_to_count = match up_to_count {
-        Some(count) => count,
-        None => 0,
-    };
     let up_to_index = match up_to_index {
         Some(index) => index,
         None => 0,
@@ -455,11 +490,9 @@ fn clear_transactions(
         let keys_to_remove: Vec<u64> = transactions_borrow
             .iter()
             .filter(|transaction| {
-                // If up_to_count is set then remove transactions with a count less than up_to_count
                 // If up_to_index is set then remove transactions with a index less than up_to_index
                 // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
-                (up_to_count != 0 && transaction.0 < up_to_count)
-                    || (up_to_index != 0 && transaction.1.index < up_to_index)
+                (up_to_index != 0 && transaction.1.index <= up_to_index)
                     || (up_to_timestamp.timestamp_nanos != 0
                         && transaction.1.created_at_time.timestamp_nanos
                             <= up_to_timestamp.timestamp_nanos)
@@ -473,24 +506,62 @@ fn clear_transactions(
         }
 
         let mut result = Vec::new();
-        let start = if transactions_borrow.len() > 100 {
-            transactions_borrow.len() - 100
-        } else {
-            0
-        };
-        for i in start..transactions_borrow.len() {
-            result.push(transactions_borrow.get(&i).clone());
-        }
+        transactions_borrow.iter().for_each(|(_key, value)| {
+            result.push(value.clone());
+        });
         Ok(result)
     })
 }
 
 #[update]
-fn refund(subaccount_id: String, hash: String) -> Result<String, Error> {
-    Ok(format!(
-        "{{\"message\": \"Refund issued for hash: {} in subaccount: {}\"}}",
-        hash, subaccount_id
-    ))
+fn refund(transaction_index: u64) -> Result<String, Error> {
+    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let ledger_principal = match ledger_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Principal is not set".to_string(),
+            });
+        }
+    };
+
+    let transaction_opt = TRANSACTIONS
+        .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
+
+    let transaction = match transaction_opt {
+        Some(value) => value,
+        None => {
+            return Err(Error {
+                message: "Transaction index is not found".to_string(),
+            });
+        }
+    };
+
+    let subaccount = match transaction.operation {
+        Some(Operation::Transfer(data)) => {
+            let to = data.to.clone();
+            match &data.spender {
+                Some(spender) => (includes_hash(&to), to, spender.clone()),
+                None => (false, to, vec![]),
+            }
+        }
+        _ => (false, vec![], vec![]),
+    };
+
+    if !subaccount.0 {
+        return Err(Error {
+            message: "Cannot confirm receiver and spender".to_string(),
+        });
+    }
+
+    let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
+    let req =
+        Icrc1TransferRequest::new(to_record, Some(1000), None, Some(subaccount.1), None, 1000);
+
+    IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
+
+    Ok("Refund is being requested".to_string())
 }
 
 #[update]

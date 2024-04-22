@@ -47,7 +47,7 @@ service : (nat64, nat32, text, text) -> {
   get_subaccountid : (nat32) -> (Result) query;
   get_transactions_count : () -> (nat32) query;
   list_transactions : (opt nat64) -> (vec opt StoredTransactions) query;
-  refund : (text, text) -> (Result);
+  refund : (nat64) -> (Result);
   set_interval : (nat64) -> (Result_2);
   set_next_block : (nat64) -> ();
   sweep_user_vault : (text) -> (Result);
