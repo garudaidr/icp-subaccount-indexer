@@ -195,7 +195,7 @@ mod tests {
         };
         TRANSACTIONS.with(|transactions_ref| {
             let mut transactions_borrow = transactions_ref.borrow_mut();
-            for i in 0..count {
+            for i in 1..=count {
                 transactions_borrow.insert(
                     i,
                     StoredTransactions::new(
@@ -241,14 +241,6 @@ mod tests {
 
         let transactions = list_transactions(Some(150));
         assert_eq!(transactions.len(), 150);
-    }
-
-    #[test]
-    fn clear_transactions_with_specific_count() {
-        populate_transactions(100, None);
-
-        let cleared = clear_transactions(Some(50), None, None).unwrap();
-        assert_eq!(cleared.len(), 50);
     }
 
     #[test]
@@ -327,8 +319,8 @@ mod tests {
     fn clear_transactions_edge_cases() {
         populate_transactions(10, None);
 
-        // Edge case 1: up_to_count is larger than the total transactions
-        let cleared = clear_transactions(Some(50), None, None).unwrap();
+        // Edge case 1: up_to_index is larger than the total transactions
+        let cleared = clear_transactions(None, Some(50), None).unwrap();
         assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
 
         // Edge case 2: up_to_timestamp is before any stored transaction
@@ -350,10 +342,11 @@ mod tests {
             "Expected to list only the last 100 transactions from a large dataset"
         );
 
-        let cleared = clear_transactions(Some(large_number / 2), None, None).unwrap();
-        // Expecting half of the transactions to be cleared and only up to 100 of the remaining half to be returned
-        assert!(
-            cleared.len() <= 100,
+        let cleared = clear_transactions(None, Some(large_number / 2), None).unwrap();
+        // Expecting half of the transactions to be cleared
+        assert_eq!(
+            cleared.len(),
+            (large_number / 2) as usize,
             "Expected a maximum of 100 transactions to be returned after clearing a large number"
         );
     }

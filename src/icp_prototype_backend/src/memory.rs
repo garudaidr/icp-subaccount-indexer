@@ -32,7 +32,7 @@ thread_local! {
     pub static NEXT_BLOCK: RefCell<StableCell<u64, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(NEXT_BLOCK_MEMORY)),
-            0
+            1 // Default is 1
         ).expect("Initializing NEXT_BLOCK StableCell failed")
     );
     pub static INTERVAL_IN_SECONDS: RefCell<StableCell<u64, Memory>> = RefCell::new(

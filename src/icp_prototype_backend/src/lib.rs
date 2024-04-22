@@ -434,7 +434,7 @@ fn get_oldest_block() -> Option<u64> {
 }
 
 #[query]
-fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>> {
+fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
     // process argument
     let up_to_count = match up_to_count {
         Some(count) => count,
@@ -444,32 +444,27 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<Option<StoredTransactions>
     // get earliest block
     // if there are no transactions, return empty `result`
     let mut result = Vec::new();
-    let oldest_block = get_oldest_block();
-    if let None = oldest_block {
-        return result;
-    }
-
-    let next_block = get_next_block();
-    let recent_block = next_block;
 
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
 
-        let start = if transactions_borrow.len() > up_to_count
-            && recent_block - up_to_count >= oldest_block.unwrap()
-        {
-            recent_block - up_to_count
-        } else {
-            oldest_block.unwrap()
-        };
-
-        ic_cdk::println!("start_index: {}", start);
-        ic_cdk::println!("next_block: {}", next_block);
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
 
-        for i in start..next_block {
-            result.push(transactions_borrow.get(&i).clone());
-        }
+        // If transactions_borrow.len() is less than up_to_count, return all transactions
+        let skip = if transactions_borrow.len() < up_to_count {
+            0
+        } else {
+            transactions_borrow.len() - up_to_count
+        };
+
+        ic_cdk::println!("skip: {}", skip);
+        transactions_borrow
+            .iter()
+            .skip(skip as usize)
+            .take(up_to_count as usize)
+            .for_each(|(_key, value)| {
+                result.push(value.clone());
+            });
         result
     })
 }
@@ -479,7 +474,7 @@ fn clear_transactions(
     up_to_count: Option<u64>,
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
-) -> Result<Vec<Option<StoredTransactions>>, Error> {
+) -> Result<Vec<StoredTransactions>, Error> {
     // Get Data
     let up_to_count = match up_to_count {
         Some(count) => count,
@@ -500,11 +495,9 @@ fn clear_transactions(
         let keys_to_remove: Vec<u64> = transactions_borrow
             .iter()
             .filter(|transaction| {
-                // If up_to_count is set then remove transactions with a count less than up_to_count
                 // If up_to_index is set then remove transactions with a index less than up_to_index
                 // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
-                (up_to_count != 0 && transaction.0 < up_to_count)
-                    || (up_to_index != 0 && transaction.1.index < up_to_index)
+                (up_to_index != 0 && transaction.1.index <= up_to_index)
                     || (up_to_timestamp.timestamp_nanos != 0
                         && transaction.1.created_at_time.timestamp_nanos
                             <= up_to_timestamp.timestamp_nanos)
@@ -518,14 +511,9 @@ fn clear_transactions(
         }
 
         let mut result = Vec::new();
-        let start = if transactions_borrow.len() > 100 {
-            transactions_borrow.len() - 100
-        } else {
-            0
-        };
-        for i in start..transactions_borrow.len() {
-            result.push(transactions_borrow.get(&i).clone());
-        }
+        transactions_borrow.iter().for_each(|(_key, value)| {
+            result.push(value.clone());
+        });
         Ok(result)
     })
 }
