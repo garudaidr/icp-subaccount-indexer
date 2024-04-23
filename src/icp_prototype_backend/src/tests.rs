@@ -508,6 +508,29 @@ mod tests {
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+        let spender = vec![3u8; 32];
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let to_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&to_arr);
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let from_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let spender_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
+            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+        });
+
         // Populate TRANSACTIONS with a mixture of swept and not swept transactions
         TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
 
@@ -520,11 +543,11 @@ mod tests {
                     memo: 100,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: vec![1, 2, 3],
+                        to: to,
                         fee: E8s { e8s: 100 },
-                        from: vec![4, 5, 6],
-                        amount: E8s { e8s: 500 },
-                        spender: None,
+                        from: from,
+                        amount: E8s { e8s: 1000 },
+                        spender: Some(principal.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,

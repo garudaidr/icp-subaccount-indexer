@@ -220,13 +220,17 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     let response = match call_result {
         Ok((response,)) => response,
         Err(_) => {
-            // TODO: Handle error response for failed sweeps
-            ic_cdk::println!("An error occurred");
+            icrc1_transfer_error_handling();
             return;
         }
     };
 
     ic_cdk::println!("Response: {:?}", response);
+}
+
+fn icrc1_transfer_error_handling() {
+    // TODO: Handle error response for failed sweeps
+    ic_cdk::println!("An error occurred");
 }
 
 #[cfg(not(test))]
@@ -590,40 +594,45 @@ fn sweep_user_vault() -> Result<String, Error> {
     };
 
     let _ = TRANSACTIONS.with(|transactions_ref| {
-        let transaction_borrow = transactions_ref.borrow().clone();
+        let mut transactions: Vec<(u64, StoredTransactions)> = {
+            transactions_ref
+                .borrow()
+                .iter()
+                .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
+                .map(|(key, transaction)| (key.clone(), transaction.clone()))
+                .collect()
+        };
+
         let mut transaction_borrow_mut = transactions_ref.borrow_mut();
 
-        transaction_borrow
-            .iter()
-            .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
-            .for_each(|(key, mut transaction)| {
-                let subaccount = match transaction.clone().operation {
-                    Some(Operation::Transfer(data)) => {
-                        let to = data.to.clone();
-                        (includes_hash(&to), to, data.amount.e8s)
-                    }
-                    _ => (false, vec![], 0),
-                };
-
-                if subaccount.0 {
-                    let to_record = ToRecord::new(custodian_principal, None);
-                    let req = Icrc1TransferRequest::new(
-                        to_record,
-                        None,
-                        None,
-                        Some(subaccount.1),
-                        None,
-                        subaccount.2,
-                    );
-
-                    IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
-
-                    transaction.sweep_status = SweepStatus::Sweept;
-
-                    transaction_borrow_mut.remove(&key);
-                    transaction_borrow_mut.insert(key.clone(), transaction);
+        transactions.iter_mut().for_each(|(key, transaction)| {
+            let subaccount = match transaction.clone().operation {
+                Some(Operation::Transfer(data)) => {
+                    let to = data.to.clone();
+                    (includes_hash(&to), to, data.amount.e8s)
                 }
-            });
+                _ => (false, vec![], 0),
+            };
+
+            if subaccount.0 {
+                let to_record = ToRecord::new(custodian_principal, None);
+                let req = Icrc1TransferRequest::new(
+                    to_record,
+                    None,
+                    None,
+                    Some(subaccount.1),
+                    None,
+                    subaccount.2,
+                );
+
+                IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
+
+                transaction.sweep_status = SweepStatus::Sweept;
+
+                transaction_borrow_mut.remove(&key);
+                transaction_borrow_mut.insert(key.clone(), transaction.clone());
+            }
+        });
     });
 
     Ok("Subaccounts are swept to vault".to_string())
