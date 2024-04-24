@@ -215,12 +215,12 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     ic_cdk::println!("Calling icrc1_transfer");
 
     let call_result: CallResult<(Icrc1TransferResponse,)> =
-        InterCanisterCallManager::icrc1_transfer(ledger_principal, req).await;
+        InterCanisterCallManager::icrc1_transfer(ledger_principal, req.clone()).await;
 
     let response = match call_result {
         Ok((response,)) => response,
         Err(_) => {
-            icrc1_transfer_error_handling();
+            icrc1_transfer_error_handling(req);
             return;
         }
     };
@@ -228,9 +228,35 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     ic_cdk::println!("Response: {:?}", response);
 }
 
-fn icrc1_transfer_error_handling() {
-    // TODO: Handle error response for failed sweeps
+fn vec_u8_to_u64(bytes: Vec<u8>) -> u64 {
+    let bytes_array = <[u8; 8]>::try_from(bytes).expect("Slice with incorrect length");
+    u64::from_be_bytes(bytes_array)
+}
+
+fn icrc1_transfer_error_handling(req: Icrc1TransferRequest) {
     ic_cdk::println!("An error occurred");
+    let memo = match req.memo {
+        Some(memo) => memo,
+        None => {
+            return;
+        }
+    };
+
+    let _ = TRANSACTIONS.with(|transactions_ref| {
+        let key = vec_u8_to_u64(memo);
+        let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
+            Some(transaction) => transaction,
+            None => {
+                return;
+            }
+        };
+
+        transaction.sweep_status = SweepStatus::FailedToSweep;
+
+        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
+        transaction_borrow_mut.remove(&key);
+        transaction_borrow_mut.insert(key.clone(), transaction.clone());
+    });
 }
 
 #[cfg(not(test))]
@@ -619,7 +645,7 @@ fn sweep_user_vault() -> Result<String, Error> {
                 let req = Icrc1TransferRequest::new(
                     to_record,
                     None,
-                    None,
+                    Some(transaction.index.to_be_bytes().to_vec()),
                     Some(subaccount.1),
                     None,
                     subaccount.2,
@@ -627,7 +653,7 @@ fn sweep_user_vault() -> Result<String, Error> {
 
                 IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
 
-                transaction.sweep_status = SweepStatus::Sweept;
+                transaction.sweep_status = SweepStatus::Swept;
 
                 transaction_borrow_mut.remove(&key);
                 transaction_borrow_mut.insert(key.clone(), transaction.clone());

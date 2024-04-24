@@ -638,4 +638,65 @@ mod tests {
 
         teardown_sweep_environment();
     }
+
+    fn setup_transactions_with_error() {
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+
+        // Setup a transaction expected to fail during the transfer, leading to error handling
+        TRANSACTIONS.with(|transactions_ref| {
+            transactions_ref.borrow_mut().insert(
+                3,
+                StoredTransactions {
+                    index: 3,
+                    memo: 102,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: to,
+                        fee: E8s { e8s: 100 },
+                        from: from,
+                        amount: E8s { e8s: 500 },
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
+                },
+            );
+        });
+    }
+
+    #[test]
+    fn test_icrc1_transfer_error_handling() {
+        setup_sweep_environment();
+        setup_transactions_with_error();
+
+        // Memo corresponding to the transaction we expect to handle error for
+        let test_memo = 3_u64.to_be_bytes().to_vec();
+        let key = vec_u8_to_u64(test_memo.clone());
+
+        // Create a request with the memo
+        let request = Icrc1TransferRequest::new(
+            ToRecord::new(*STATIC_PRINCIPAL, None),
+            None,
+            Some(test_memo),
+            None,
+            None,
+            500,
+        );
+
+        icrc1_transfer_error_handling(request);
+
+        // Check if the transaction was marked as FailedToSweep
+        TRANSACTIONS.with(|transactions_ref| {
+            let transactions_borrow = transactions_ref.borrow();
+            let transaction = transactions_borrow.get(&key).unwrap();
+            assert_eq!(
+                transaction.sweep_status,
+                SweepStatus::FailedToSweep,
+                "The transaction should be marked as FailedToSweep."
+            );
+        });
+
+        teardown_sweep_environment();
+    }
 }

@@ -15,7 +15,7 @@ pub struct QueryBlocksRequest {
 pub struct Icrc1TransferRequest {
     to: ToRecord,
     fee: Option<u64>,
-    memo: Option<Vec<u8>>,
+    pub memo: Option<Vec<u8>>,
     from_subaccount: Option<Vec<u8>>,
     created_at_time: Option<u64>,
     amount: u64,
@@ -209,7 +209,7 @@ pub enum CallbackError {
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum SweepStatus {
-    Sweept,
+    Swept,
     FailedToSweep,
     NotSwept,
 }
