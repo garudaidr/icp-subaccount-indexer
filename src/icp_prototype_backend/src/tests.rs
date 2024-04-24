@@ -2,6 +2,7 @@
 mod tests {
     use crate::types::*;
     use crate::*;
+    use once_cell::sync::Lazy;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     impl TimerManagerTrait for TimerManager {
@@ -11,6 +12,9 @@ mod tests {
 
         fn clear_timer(_timer_id: TimerId) {}
     }
+
+    static STATIC_PRINCIPAL: Lazy<Principal> =
+        Lazy::new(|| Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap());
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
     fn setup() {
@@ -160,11 +164,9 @@ mod tests {
 
     #[test]
     fn create_and_retrieve_stored_principal() {
-        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
 
-        let stored_principal = StoredPrincipal::new(principal.clone());
-
-        assert_eq!(stored_principal.get_principal(), Some(principal));
+        assert_eq!(stored_principal.get_principal(), Some(*STATIC_PRINCIPAL));
     }
 
     // #[test]
@@ -389,9 +391,8 @@ mod tests {
 
     fn refund_setup() {
         // Setup principal
-        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
         PRINCIPAL.with(|principal_ref| {
-            let stored_principal = StoredPrincipal::new(principal);
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
             let _ = principal_ref.borrow_mut().set(stored_principal);
         });
 
@@ -404,17 +405,18 @@ mod tests {
 
             let to_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&to_arr);
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let from_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let spender_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
+            let account_id =
+                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
         });
 
@@ -432,7 +434,7 @@ mod tests {
                         fee: E8s { e8s: 100 },
                         from: from,
                         amount: E8s { e8s: 1000 },
-                        spender: Some(principal.as_slice().to_vec()),
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,
@@ -495,14 +497,13 @@ mod tests {
 
     fn setup_sweep_environment() {
         // Setup PRINCIPAL with a valid Principal
-        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
         PRINCIPAL.with(|p| {
-            let stored_principal = StoredPrincipal::new(principal.clone());
+            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
             let _ = p.borrow_mut().set(stored_principal);
         });
 
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        let custodian_principal = STATIC_PRINCIPAL.clone();
         CUSTODIAN_PRINCIPAL.with(|cp| {
             let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
             let _ = cp.borrow_mut().set(stored_custodian_principal);
@@ -517,17 +518,18 @@ mod tests {
 
             let to_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&to_arr);
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let from_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let spender_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
+            let account_id =
+                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
         });
 
@@ -547,7 +549,7 @@ mod tests {
                         fee: E8s { e8s: 100 },
                         from: from,
                         amount: E8s { e8s: 1000 },
-                        spender: Some(principal.as_slice().to_vec()),
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,
@@ -561,7 +563,7 @@ mod tests {
                     icrc1_memo: None,
                     operation: None, // Operation that should not be swept
                     created_at_time: Timestamp { timestamp_nanos: 0 },
-                    sweep_status: SweepStatus::Sweept,
+                    sweep_status: SweepStatus::Swept,
                 },
             );
         });
@@ -584,8 +586,8 @@ mod tests {
             assert!(
                 t.borrow()
                     .iter()
-                    .all(|(_, tx)| tx.sweep_status == SweepStatus::Sweept),
-                "All transactions should be marked as Sweept."
+                    .all(|(_, tx)| tx.sweep_status == SweepStatus::Swept),
+                "All transactions should be marked as Swept."
             );
         });
 
