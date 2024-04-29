@@ -18,7 +18,7 @@ type Operation = variant {
   Transfer : Transfer;
 };
 type Result = variant { Ok : text; Err : Error };
-type Result_1 = variant { Ok : vec opt StoredTransactions; Err : Error };
+type Result_1 = variant { Ok : vec StoredTransactions; Err : Error };
 type Result_2 = variant { Ok : nat64; Err : Error };
 type StoredTransactions = record {
   memo : nat64;
@@ -38,7 +38,7 @@ type Transfer = record {
 service : (nat64, nat32, text, text) -> {
   add_subaccount : () -> (text);
   canister_status : () -> (Result) query;
-  clear_transactions : (opt nat64, opt nat64, opt Timestamp) -> (Result_1);
+  clear_transactions : (opt nat64, opt Timestamp) -> (Result_1);
   get_interval : () -> (Result_2) query;
   get_next_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;
@@ -46,10 +46,9 @@ service : (nat64, nat32, text, text) -> {
   get_subaccount_count : () -> (nat32) query;
   get_subaccountid : (nat32) -> (Result) query;
   get_transactions_count : () -> (nat32) query;
-  list_transactions : (opt nat64) -> (vec opt StoredTransactions) query;
+  list_transactions : (opt nat64) -> (vec StoredTransactions) query;
   refund : (nat64) -> (Result);
   set_interval : (nat64) -> (Result_2);
   set_next_block : (nat64) -> ();
   sweep_user_vault : (text) -> (Result);
-  test_hashing : (nat32) -> (text) query;
 }

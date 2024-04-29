@@ -8,12 +8,13 @@ use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 
-mod account_identifier;
 mod memory;
 mod tests;
 mod types;
 
-use account_identifier::{to_hex_string, AccountIdentifier, Subaccount};
+use ic_ledger_types::{
+    AccountIdentifier, Subaccount,
+};
 
 use memory::{
     CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
@@ -27,7 +28,7 @@ use types::{
 };
 
 thread_local! {
-    static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, AccountIdentifier>> = RefCell::default();
+    static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, Subaccount>> = RefCell::default();
     static TIMERS: RefCell<TimerId> = RefCell::default();
 }
 
@@ -36,10 +37,25 @@ struct Error {
     message: String,
 }
 
-fn hash_to_u64(hash: &[u8; 32]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    hash.hash(&mut hasher);
-    hasher.finish()
+trait ToU64Hash {
+    fn to_u64_hash(&self) -> u64;
+}
+
+impl ToU64Hash for [u8; 32] {
+    fn to_u64_hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+}
+
+impl ToU64Hash for AccountIdentifier {
+    fn to_u64_hash(&self) -> u64 {
+        let bytes = from_hex(&self.to_hex()).unwrap();
+        let mut hasher = DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
@@ -50,7 +66,8 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
 
             match array_ref {
                 Some(array_ref) => {
-                    let hash_key = hash_to_u64(array_ref);
+                    let data: [u8; 32] = *array_ref;
+                    let hash_key = data.to_u64_hash();
 
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
@@ -318,11 +335,11 @@ fn reconstruct_subaccounts() {
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
-        let subaccount = convert_to_subaccount(i);
-        let account_id = AccountIdentifier::new(account, Some(subaccount));
-        let account_id_hash = hash_to_u64(&account_id.to_address());
+        let subaccount = to_subaccount(i);
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); 
+        let account_id_hash = subaccountid.to_u64_hash();
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            list_ref.borrow_mut().insert(account_id_hash, account_id);
+            list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
 }
@@ -363,52 +380,50 @@ fn get_nonce() -> u32 {
     LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
 }
 
-fn convert_to_subaccount(nonce: u32) -> Subaccount {
+fn to_subaccount(nonce: u32) -> Subaccount {
     let mut subaccount = Subaccount([0; 32]);
     let nonce_bytes = nonce.to_be_bytes(); // Converts u32 to an array of 4 bytes
     subaccount.0[32 - nonce_bytes.len()..].copy_from_slice(&nonce_bytes); // Aligns the bytes at the end of the array
     subaccount
 }
 
-#[update]
-fn add_subaccount() -> String {
+fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
     let account = CUSTODIAN_PRINCIPAL
         .with(|stored_ref| stored_ref.borrow().get().clone())
         .get_principal()
         .expect("Custodian principal is not set");
-    ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
+    AccountIdentifier::new(&account, &subaccount)
+}
 
+fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
+    
+    let vec = hex::decode(hex).map_err(|_| Error {
+        message: "string to vector conversion error".to_string(),
+    })?;
+
+    let arr = vec.as_slice().try_into().map_err(|_| Error {
+        message: "vector to fix array conversion error".to_string(),
+    })?;
+
+    Ok(arr)
+}
+
+#[update]
+fn add_subaccount() -> String {
     let nonce = get_nonce();
+    let subaccount = to_subaccount(nonce); // needed for storing the subaccount
+    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
+    let account_id_hash = subaccountid.to_u64_hash();
 
-    let subaccount = convert_to_subaccount(nonce);
-    let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-    let account_id_hash = hash_to_u64(&subaccountid.to_address());
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
-        list_ref.borrow_mut().insert(account_id_hash, subaccountid);
+        list_ref.borrow_mut().insert(account_id_hash, subaccount);
     });
 
     LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
         let _ = nonce_ref.borrow_mut().set(nonce + 1);
     });
 
-    to_hex_string(subaccountid.to_address())
-}
-
-#[query]
-fn test_hashing(nonce: u32) -> String {
-    let account = CUSTODIAN_PRINCIPAL
-        .with(|stored_ref| stored_ref.borrow().get().clone())
-        .get_principal()
-        .expect("Custodian principal is not set");
-    let subaccount = convert_to_subaccount(nonce);
-    let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-    let account_id_hash = hash_to_u64(&subaccountid.to_address());
-    ic_cdk::println!("account_id_hash: {}", account_id_hash);
-    ic_cdk::println!(
-        "subaccountid: {:?}",
-        to_hex_string(subaccountid.to_address())
-    );
-    to_hex_string(subaccountid.to_address())
+    subaccountid.to_hex()
 }
 
 #[query]
@@ -416,29 +431,21 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
 
-        for (key, value) in subaccounts_borrow.iter() {
-            ic_cdk::println!("key: {}, value: {}", key, to_hex_string(value.to_address()));
-        }
-
         if nonce as usize >= subaccounts_borrow.len() {
             return Err(Error {
                 message: "Index out of bounds".to_string(),
             });
         }
-        // recreate key<u4> from index
-        let account = CUSTODIAN_PRINCIPAL
-            .with(|stored_ref| stored_ref.borrow().get().clone())
-            .get_principal()
-            .expect("Custodian principal is not set");
-        let subaccount = convert_to_subaccount(nonce);
-        let subaccountid: AccountIdentifier = AccountIdentifier::new(account, Some(subaccount));
-        let account_id_hash = hash_to_u64(&subaccountid.to_address());
+       
+        let subaccount = to_subaccount(nonce);
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); 
+        let account_id_hash = subaccountid.to_u64_hash();
 
         ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
 
-        // get the account id from the list
+        // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
-            Some(account_id) => Ok(to_hex_string(account_id.to_address())),
+            Some(_) => Ok(subaccountid.to_hex()),
             None => Err(Error {
                 message: "Account not found".to_string(),
             }),
