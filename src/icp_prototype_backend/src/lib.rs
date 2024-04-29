@@ -396,18 +396,6 @@ fn add_subaccount() -> String {
 }
 
 #[query]
-fn test_hashing(nonce: u32) -> String {
-
-    let subaccount = to_subaccount(nonce);
-    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-
-    let account_id_hash = subaccountid.to_u64_hash();
-
-    ic_cdk::println!("account_id_hash: {}", account_id_hash);
-    subaccountid.to_hex()
-}
-
-#[query]
 fn get_subaccountid(nonce: u32) -> Result<String, Error> {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
