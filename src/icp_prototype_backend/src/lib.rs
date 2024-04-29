@@ -22,8 +22,8 @@ use memory::{
 use types::{
     IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
-    QueryBlocksResponse, StoredPrincipal, StoredTransactions, TimerManager, TimerManagerTrait,
-    Timestamp, ToRecord,
+    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
+    TimerManagerTrait, Timestamp, ToRecord,
 };
 
 thread_local! {
@@ -215,17 +215,48 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     ic_cdk::println!("Calling icrc1_transfer");
 
     let call_result: CallResult<(Icrc1TransferResponse,)> =
-        InterCanisterCallManager::icrc1_transfer(ledger_principal, req).await;
+        InterCanisterCallManager::icrc1_transfer(ledger_principal, req.clone()).await;
 
     let response = match call_result {
         Ok((response,)) => response,
         Err(_) => {
-            ic_cdk::println!("An error occurred");
+            icrc1_transfer_error_handling(req);
             return;
         }
     };
 
     ic_cdk::println!("Response: {:?}", response);
+}
+
+fn vec_u8_to_u64(bytes: Vec<u8>) -> u64 {
+    let bytes_array = <[u8; 8]>::try_from(bytes).expect("Slice with incorrect length");
+    u64::from_be_bytes(bytes_array)
+}
+
+fn icrc1_transfer_error_handling(req: Icrc1TransferRequest) {
+    ic_cdk::println!("An error occurred");
+    let memo = match req.memo {
+        Some(memo) => memo,
+        None => {
+            return;
+        }
+    };
+
+    let _ = TRANSACTIONS.with(|transactions_ref| {
+        let key = vec_u8_to_u64(memo);
+        let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
+            Some(transaction) => transaction,
+            None => {
+                return;
+            }
+        };
+
+        transaction.sweep_status = SweepStatus::FailedToSweep;
+
+        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
+        transaction_borrow_mut.remove(&key);
+        transaction_borrow_mut.insert(key.clone(), transaction.clone());
+    });
 }
 
 #[cfg(not(test))]
@@ -542,11 +573,11 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
         Some(Operation::Transfer(data)) => {
             let to = data.to.clone();
             match &data.spender {
-                Some(spender) => (includes_hash(&to), to, spender.clone()),
-                None => (false, to, vec![]),
+                Some(spender) => (includes_hash(&to), to, spender.clone(), data.amount.e8s),
+                None => (false, to, vec![], data.amount.e8s),
             }
         }
-        _ => (false, vec![], vec![]),
+        _ => (false, vec![], vec![], 0),
     };
 
     if !subaccount.0 {
@@ -556,8 +587,7 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
     }
 
     let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
-    let req =
-        Icrc1TransferRequest::new(to_record, Some(1000), None, Some(subaccount.1), None, 1000);
+    let req = Icrc1TransferRequest::new(to_record, None, None, Some(subaccount.1), None, 1000);
 
     IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
 
@@ -565,12 +595,73 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
 }
 
 #[update]
-fn sweep_user_vault(to_hash: String) -> Result<String, Error> {
-    // Stub implementation - Return a success message
-    Ok(format!(
-        "{{\"message\": \"Sweeped user vault up to hash: {}\"}}",
-        to_hash
-    ))
+fn sweep_user_vault() -> Result<String, Error> {
+    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let ledger_principal = match ledger_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Principal is not set".to_string(),
+            });
+        }
+    };
+
+    let custodian_principal_opt =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let custodian_principal = match custodian_principal_opt.get_principal() {
+        Some(result) => result,
+        None => {
+            return Err(Error {
+                message: "Custodian principal is not set".to_string(),
+            });
+        }
+    };
+
+    let _ = TRANSACTIONS.with(|transactions_ref| {
+        let mut transactions: Vec<(u64, StoredTransactions)> = {
+            transactions_ref
+                .borrow()
+                .iter()
+                .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
+                .map(|(key, transaction)| (key.clone(), transaction.clone()))
+                .collect()
+        };
+
+        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
+
+        transactions.iter_mut().for_each(|(key, transaction)| {
+            let subaccount = match transaction.clone().operation {
+                Some(Operation::Transfer(data)) => {
+                    let to = data.to.clone();
+                    (includes_hash(&to), to, data.amount.e8s)
+                }
+                _ => (false, vec![], 0),
+            };
+
+            if subaccount.0 {
+                let to_record = ToRecord::new(custodian_principal, None);
+                let req = Icrc1TransferRequest::new(
+                    to_record,
+                    None,
+                    Some(transaction.index.to_be_bytes().to_vec()),
+                    Some(subaccount.1),
+                    None,
+                    subaccount.2,
+                );
+
+                IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
+
+                transaction.sweep_status = SweepStatus::Swept;
+
+                transaction_borrow_mut.remove(&key);
+                transaction_borrow_mut.insert(key.clone(), transaction.clone());
+            }
+        });
+    });
+
+    Ok("Subaccounts are swept to vault".to_string())
 }
 
 #[query]

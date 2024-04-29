@@ -15,7 +15,7 @@ pub struct QueryBlocksRequest {
 pub struct Icrc1TransferRequest {
     to: ToRecord,
     fee: Option<u64>,
-    memo: Option<Vec<u8>>,
+    pub memo: Option<Vec<u8>>,
     from_subaccount: Option<Vec<u8>>,
     created_at_time: Option<u64>,
     amount: u64,
@@ -207,6 +207,13 @@ pub enum CallbackError {
     },
 }
 
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum SweepStatus {
+    Swept,
+    FailedToSweep,
+    NotSwept,
+}
+
 #[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct StoredTransactions {
     pub index: u64,
@@ -214,6 +221,7 @@ pub struct StoredTransactions {
     pub icrc1_memo: Option<Vec<u8>>,
     pub operation: Option<Operation>,
     pub created_at_time: Timestamp,
+    pub sweep_status: SweepStatus,
 }
 
 // #[derive(CandidType, Deserialize, Serialize, Clone)]
@@ -231,6 +239,7 @@ impl StoredTransactions {
             icrc1_memo: transaction.icrc1_memo,
             operation: transaction.operation,
             created_at_time: transaction.created_at_time,
+            sweep_status: SweepStatus::NotSwept,
         }
     }
 }

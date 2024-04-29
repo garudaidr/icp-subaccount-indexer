@@ -2,6 +2,7 @@
 mod tests {
     use crate::types::*;
     use crate::*;
+    use once_cell::sync::Lazy;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     impl TimerManagerTrait for TimerManager {
@@ -11,6 +12,9 @@ mod tests {
 
         fn clear_timer(_timer_id: TimerId) {}
     }
+
+    static STATIC_PRINCIPAL: Lazy<Principal> =
+        Lazy::new(|| Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap());
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
     fn setup() {
@@ -160,11 +164,9 @@ mod tests {
 
     #[test]
     fn create_and_retrieve_stored_principal() {
-        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
+        let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
 
-        let stored_principal = StoredPrincipal::new(principal.clone());
-
-        assert_eq!(stored_principal.get_principal(), Some(principal));
+        assert_eq!(stored_principal.get_principal(), Some(*STATIC_PRINCIPAL));
     }
 
     // #[test]
@@ -292,8 +294,7 @@ mod tests {
         populate_transactions(100, Some(50000)); // Populate 100 transactions, all with the same timestamp for simplicity
 
         // Clear transactions with a count less than 80 and a timestamp less than 60000 nanoseconds
-        let cleared =
-            clear_transactions(Some(80), Some(Timestamp::from_nanos(60000))).unwrap();
+        let cleared = clear_transactions(Some(80), Some(Timestamp::from_nanos(60000))).unwrap();
         // This assumes that the criteria are combined with an OR logic, not AND
         assert_eq!(
             cleared.len(),
@@ -390,9 +391,8 @@ mod tests {
 
     fn refund_setup() {
         // Setup principal
-        let principal = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap();
         PRINCIPAL.with(|principal_ref| {
-            let stored_principal = StoredPrincipal::new(principal);
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
             let _ = principal_ref.borrow_mut().set(stored_principal);
         });
 
@@ -405,17 +405,18 @@ mod tests {
 
             let to_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&to_arr);
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(to_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let from_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(from_arr)));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
 
             let spender_arr = vec_to_array(to.clone());
             let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
-            let account_id = AccountIdentifier::new(principal, Some(Subaccount(spender_arr)));
+            let account_id =
+                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
             subaccounts_mut.insert(account_id_hash, account_id);
         });
 
@@ -433,9 +434,10 @@ mod tests {
                         fee: E8s { e8s: 100 },
                         from: from,
                         amount: E8s { e8s: 1000 },
-                        spender: Some(principal.as_slice().to_vec()),
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
                 },
             );
         });
@@ -491,5 +493,210 @@ mod tests {
         );
 
         refund_teardown();
+    }
+
+    fn setup_sweep_environment() {
+        // Setup PRINCIPAL with a valid Principal
+        PRINCIPAL.with(|p| {
+            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
+            let _ = p.borrow_mut().set(stored_principal);
+        });
+
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+        let spender = vec![3u8; 32];
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let to_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&to_arr);
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let from_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
+            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+
+            let spender_arr = vec_to_array(to.clone());
+            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
+            let account_id =
+                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
+            subaccounts_mut.insert(account_id_hash, account_id);
+        });
+
+        // Populate TRANSACTIONS with a mixture of swept and not swept transactions
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+        TRANSACTIONS.with(|t| {
+            let mut transactions = t.borrow_mut();
+            transactions.insert(
+                1,
+                StoredTransactions {
+                    index: 1,
+                    memo: 100,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: to,
+                        fee: E8s { e8s: 100 },
+                        from: from,
+                        amount: E8s { e8s: 1000 },
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
+                },
+            );
+            transactions.insert(
+                2,
+                StoredTransactions {
+                    index: 2,
+                    memo: 101,
+                    icrc1_memo: None,
+                    operation: None, // Operation that should not be swept
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::Swept,
+                },
+            );
+        });
+    }
+
+    fn teardown_sweep_environment() {
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+        let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
+        let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
+    }
+
+    #[test]
+    fn test_sweep_user_vault_successful_sweep() {
+        setup_sweep_environment();
+
+        let result = sweep_user_vault();
+        assert!(result.is_ok(), "Sweeping should be successful.");
+
+        TRANSACTIONS.with(|t| {
+            assert!(
+                t.borrow()
+                    .iter()
+                    .all(|(_, tx)| tx.sweep_status == SweepStatus::Swept),
+                "All transactions should be marked as Swept."
+            );
+        });
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_principal_set() {
+        setup_sweep_environment();
+        // Unset the principal
+        let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_err(),
+            "Sweeping should fail without a set principal."
+        );
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_custodian_principal_set() {
+        setup_sweep_environment();
+        // Unset the custodian principal
+        let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_err(),
+            "Sweeping should fail without a set custodian principal."
+        );
+
+        teardown_sweep_environment();
+    }
+
+    #[test]
+    fn test_sweep_user_vault_no_transactions_to_sweep() {
+        setup_sweep_environment();
+        // Clear transactions to simulate no transactions to sweep
+        TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+        let result = sweep_user_vault();
+        assert!(
+            result.is_ok(),
+            "Sweeping should succeed even with no transactions to sweep."
+        );
+
+        teardown_sweep_environment();
+    }
+
+    fn setup_transactions_with_error() {
+        let to = vec![1u8; 32];
+        let from = vec![2u8; 32];
+
+        // Setup a transaction expected to fail during the transfer, leading to error handling
+        TRANSACTIONS.with(|transactions_ref| {
+            transactions_ref.borrow_mut().insert(
+                3,
+                StoredTransactions {
+                    index: 3,
+                    memo: 102,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: to,
+                        fee: E8s { e8s: 100 },
+                        from: from,
+                        amount: E8s { e8s: 500 },
+                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos: 0 },
+                    sweep_status: SweepStatus::NotSwept,
+                },
+            );
+        });
+    }
+
+    #[test]
+    fn test_icrc1_transfer_error_handling() {
+        setup_sweep_environment();
+        setup_transactions_with_error();
+
+        // Memo corresponding to the transaction we expect to handle error for
+        let test_memo = 3_u64.to_be_bytes().to_vec();
+        let key = vec_u8_to_u64(test_memo.clone());
+
+        // Create a request with the memo
+        let request = Icrc1TransferRequest::new(
+            ToRecord::new(*STATIC_PRINCIPAL, None),
+            None,
+            Some(test_memo),
+            None,
+            None,
+            500,
+        );
+
+        icrc1_transfer_error_handling(request);
+
+        // Check if the transaction was marked as FailedToSweep
+        TRANSACTIONS.with(|transactions_ref| {
+            let transactions_borrow = transactions_ref.borrow();
+            let transaction = transactions_borrow.get(&key).unwrap();
+            assert_eq!(
+                transaction.sweep_status,
+                SweepStatus::FailedToSweep,
+                "The transaction should be marked as FailedToSweep."
+            );
+        });
+
+        teardown_sweep_environment();
     }
 }
