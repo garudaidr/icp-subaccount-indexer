@@ -1,5 +1,6 @@
 use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
+use futures::{stream::FuturesUnordered, StreamExt};
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
@@ -13,7 +14,6 @@ mod tests;
 mod types;
 
 use ic_ledger_types::{AccountIdentifier, Subaccount};
-use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
 
 use memory::{
@@ -24,7 +24,7 @@ use types::{
     IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
     QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp, ToRecord,
+    TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
@@ -228,7 +228,10 @@ async fn call_query_blocks() {
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
-async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
+async fn call_icrc1_transfer(
+    ledger_principal: Principal,
+    req: Icrc1TransferRequest,
+) -> Result<Option<StoredTransactions>, &'static str> {
     ic_cdk::println!(
         "Transferring {} tokens to account {}",
         &req.transfer_args.amount,
@@ -242,27 +245,42 @@ async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequ
     )
     .await;
 
-    match call_result {
-        Ok((response,)) => response,
-        Err(_) => TRANSACTIONS.with(|transactions_ref| {
-            let key = match req.sweeped_index {
-                Some(data) => data,
-                None => {
-                    return Err("Skipping error handling because sweeped index is not supplied");
-                }
-            };
+    let key = match req.sweeped_index {
+        Some(data) => data,
+        None => {
+            ic_cdk::println!("Skipping state mutation because sweeped index is not supplied");
+            return Ok(None);
+        }
+    };
 
+    match call_result {
+        Ok(_) => TRANSACTIONS.with(|transactions_ref| {
             let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
                 Some(transaction) => transaction,
                 None => {
-                    return Err("Transaction not found");
+                    return Err("");
+                }
+            };
+
+            transaction.sweep_status = SweepStatus::Swept;
+
+            let mut transaction_borrow_mut = transactions_ref.borrow_mut();
+            transaction_borrow_mut.insert(key.clone(), transaction.clone());
+            Ok(Some(transaction))
+        }),
+        Err(_) => TRANSACTIONS.with(|transactions_ref| {
+            let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
+                Some(transaction) => transaction,
+                None => {
+                    return Err("");
                 }
             };
 
             transaction.sweep_status = SweepStatus::FailedToSweep;
 
             let mut transaction_borrow_mut = transactions_ref.borrow_mut();
-            Ok(transaction_borrow_mut.insert(key.clone(), transaction.clone()))
+            transaction_borrow_mut.insert(key.clone(), transaction.clone());
+            Ok(Some(transaction))
         }),
     }
 }
@@ -585,23 +603,22 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
     let transfer_args: TransferArg = TransferArg {
         memo: None,
-        amount: 1000,
+        amount: subaccount.3.into(),
         from_subaccount: None,
         fee: None,
         to: Principal::from_slice(&subaccount.2).into(),
         created_at_time: None,
     };
 
-    let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
     let req = Icrc1TransferRequest::new(transfer_args, None);
 
-    call_icrc1_transfer(ledger_principal, req).await;
+    let _ = call_icrc1_transfer(ledger_principal, req).await;
 
     Ok("Refund is being requested".to_string())
 }
 
 #[update]
-fn sweep_user_vault() -> Result<String, Error> {
+async fn sweep_user_vault() -> Result<String, Error> {
     let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
     let ledger_principal = match ledger_principal_opt.get_principal() {
@@ -625,6 +642,7 @@ fn sweep_user_vault() -> Result<String, Error> {
         }
     };
 
+    let mut icrc1_futures = FuturesUnordered::new();
     let _ = TRANSACTIONS.with(|transactions_ref| {
         let mut transactions: Vec<(u64, StoredTransactions)> = {
             transactions_ref
@@ -635,32 +653,37 @@ fn sweep_user_vault() -> Result<String, Error> {
                 .collect()
         };
 
-        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
-
-        transactions.iter_mut().for_each(|(key, transaction)| {
-            let subaccount = match transaction.clone().operation {
-                Some(Operation::Transfer(data)) => {
-                    let to = data.to.clone();
-                    (includes_hash(&to), to, data.amount.e8s)
-                }
-                _ => (false, vec![], 0),
-            };
-
-            if subaccount.0 {
-                let transfer_args: TransferArg = TransferArg {
-                    memo: None,
-                    amount: 1000,
-                    from_subaccount: None,
-                    fee: None,
-                    to: custodian_principal.into(),
-                    created_at_time: None,
+        for (key, transaction) in transactions.iter_mut().map(|(k, t)| (*k, t.clone())) {
+            icrc1_futures.push(async move {
+                let subaccount = match transaction.operation {
+                    Some(Operation::Transfer(data)) => {
+                        let to = data.to.clone();
+                        (includes_hash(&to), to, data.amount.e8s)
+                    }
+                    _ => (false, vec![], 0),
                 };
-                let req = Icrc1TransferRequest::new(transfer_args, Some(*key));
 
-                call_icrc1_transfer(ledger_principal, req);
-            }
-        });
+                if subaccount.0 {
+                    let transfer_args: TransferArg = TransferArg {
+                        memo: None,
+                        amount: subaccount.2.into(),
+                        from_subaccount: None,
+                        fee: None,
+                        to: custodian_principal.into(),
+                        created_at_time: None,
+                    };
+                    let req = Icrc1TransferRequest::new(transfer_args, Some(key));
+
+                    let _response = call_icrc1_transfer(ledger_principal, req).await;
+                }
+            });
+        }
     });
+
+    // Await all futures to complete their operations
+    while let Some(_result) = icrc1_futures.next().await {
+        // Process result if necessary
+    }
 
     Ok("Subaccounts are swept to vault".to_string())
 }
