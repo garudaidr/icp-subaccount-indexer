@@ -19,6 +19,13 @@ mod tests {
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
     fn setup() {
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
         let subaccount = Subaccount([1u8; 32]);
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
