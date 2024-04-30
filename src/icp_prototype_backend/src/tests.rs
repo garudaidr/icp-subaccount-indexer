@@ -29,6 +29,7 @@ mod tests {
         let subaccount = Subaccount([1u8; 32]);
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
+        ic_cdk::println!("hash_key: {}", account_id_hash);
 
         // Insert the test hash into LIST_OF_SUBACCOUNTS.
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
@@ -376,6 +377,13 @@ mod tests {
     }
 
     fn refund_setup() {
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
         // Setup principal
         PRINCIPAL.with(|principal_ref| {
             let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
@@ -390,16 +398,23 @@ mod tests {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
             let to_arr = vec_to_array(to.clone());
-            let account_id_hash = to_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(to_arr));
+            let to_subaccount = Subaccount(to_arr.clone());
+            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
 
             let from_arr = vec_to_array(from.clone());
-            let account_id_hash = from_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(from_arr));
+            let from_subaccount = Subaccount(from_arr.clone());
+            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
 
             let spender_arr = vec_to_array(spender.clone());
-            let account_id_hash = spender_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(spender_arr));
+            let spender_subaccount = Subaccount(spender_arr.clone());
+            let spender_subaccountid: AccountIdentifier =
+                to_subaccount_id(spender_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Setup transactions
@@ -478,17 +493,17 @@ mod tests {
     }
 
     fn setup_sweep_environment() {
-        // Setup PRINCIPAL with a valid Principal
-        PRINCIPAL.with(|p| {
-            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
-            let _ = p.borrow_mut().set(stored_principal);
-        });
-
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
         let custodian_principal = STATIC_PRINCIPAL.clone();
         CUSTODIAN_PRINCIPAL.with(|cp| {
             let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
             let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        // Setup PRINCIPAL with a valid Principal
+        PRINCIPAL.with(|p| {
+            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
+            let _ = p.borrow_mut().set(stored_principal);
         });
 
         let to = vec![1u8; 32];
@@ -499,16 +514,23 @@ mod tests {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
             let to_arr = vec_to_array(to.clone());
-            let account_id_hash = to_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(to_arr));
+            let to_subaccount = Subaccount(to_arr.clone());
+            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
 
             let from_arr = vec_to_array(from.clone());
-            let account_id_hash = from_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(from_arr));
+            let from_subaccount = Subaccount(from_arr.clone());
+            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
 
             let spender_arr = vec_to_array(spender.clone());
-            let account_id_hash = spender_arr.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, Subaccount(spender_arr));
+            let spender_subaccount = Subaccount(spender_arr.clone());
+            let spender_subaccountid: AccountIdentifier =
+                to_subaccount_id(spender_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Populate TRANSACTIONS with a mixture of swept and not swept transactions

@@ -67,7 +67,9 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
             match array_ref {
                 Some(array_ref) => {
                     let data: [u8; 32] = *array_ref;
-                    let hash_key = data.to_u64_hash();
+                    let subaccount = Subaccount(data);
+                    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
+                    let hash_key = subaccountid.to_u64_hash();
 
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
