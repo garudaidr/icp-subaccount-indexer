@@ -120,8 +120,13 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     async fn icrc1_transfer(
         ledger_principal: Principal,
         req: Icrc1TransferRequest,
-    ) -> CallResult<(Icrc1TransferResponse,)> {
-        ic_cdk::call(ledger_principal, "icrc1_transfer", (req,)).await
+    ) -> Result<BlockIndex, TransferError> {
+        ic_cdk::call::<(TransferArg,), (Result<BlockIndex, TransferError>,)>(
+            ledger_principal,
+            "icrc1_transfer",
+            (req.transfer_args,),
+        )
+        .await
     }
 }
 
@@ -238,12 +243,7 @@ async fn call_icrc1_transfer(
         &req.transfer_args.to,
     );
 
-    let call_result = ic_cdk::call::<(TransferArg,), (Result<BlockIndex, TransferError>,)>(
-        ledger_principal,
-        "icrc1_transfer",
-        (req.transfer_args,),
-    )
-    .await;
+    let call_result = InterCanisterCallManager::icrc1_transfer(ledger_principal, req.clone()).await;
 
     let key = match req.sweeped_index {
         Some(data) => data,
