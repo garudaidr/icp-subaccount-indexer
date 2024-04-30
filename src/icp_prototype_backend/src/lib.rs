@@ -12,9 +12,9 @@ mod memory;
 mod tests;
 mod types;
 
-use ic_ledger_types::{
-    AccountIdentifier, Subaccount,
-};
+use ic_ledger_types::{AccountIdentifier, Subaccount};
+use icrc_ledger_types::icrc1::account::Account;
+use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
 
 use memory::{
     CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
@@ -229,51 +229,42 @@ async fn call_query_blocks() {
 }
 
 async fn call_icrc1_transfer(ledger_principal: Principal, req: Icrc1TransferRequest) {
-    ic_cdk::println!("Calling icrc1_transfer");
+    ic_cdk::println!(
+        "Transferring {} tokens to account {}",
+        &req.transfer_args.amount,
+        &req.transfer_args.to,
+    );
 
-    let call_result: CallResult<(Icrc1TransferResponse,)> =
-        InterCanisterCallManager::icrc1_transfer(ledger_principal, req.clone()).await;
+    let call_result = ic_cdk::call::<(TransferArg,), (Result<BlockIndex, TransferError>,)>(
+        ledger_principal,
+        "icrc1_transfer",
+        (req.transfer_args,),
+    )
+    .await;
 
-    let response = match call_result {
+    match call_result {
         Ok((response,)) => response,
-        Err(_) => {
-            icrc1_transfer_error_handling(req);
-            return;
-        }
-    };
+        Err(_) => TRANSACTIONS.with(|transactions_ref| {
+            let key = match req.sweeped_index {
+                Some(data) => data,
+                None => {
+                    return Err("Skipping error handling because sweeped index is not supplied");
+                }
+            };
 
-    ic_cdk::println!("Response: {:?}", response);
-}
+            let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
+                Some(transaction) => transaction,
+                None => {
+                    return Err("Transaction not found");
+                }
+            };
 
-fn vec_u8_to_u64(bytes: Vec<u8>) -> u64 {
-    let bytes_array = <[u8; 8]>::try_from(bytes).expect("Slice with incorrect length");
-    u64::from_be_bytes(bytes_array)
-}
+            transaction.sweep_status = SweepStatus::FailedToSweep;
 
-fn icrc1_transfer_error_handling(req: Icrc1TransferRequest) {
-    ic_cdk::println!("An error occurred");
-    let memo = match req.memo {
-        Some(memo) => memo,
-        None => {
-            return;
-        }
-    };
-
-    let _ = TRANSACTIONS.with(|transactions_ref| {
-        let key = vec_u8_to_u64(memo);
-        let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
-            Some(transaction) => transaction,
-            None => {
-                return;
-            }
-        };
-
-        transaction.sweep_status = SweepStatus::FailedToSweep;
-
-        let mut transaction_borrow_mut = transactions_ref.borrow_mut();
-        transaction_borrow_mut.remove(&key);
-        transaction_borrow_mut.insert(key.clone(), transaction.clone());
-    });
+            let mut transaction_borrow_mut = transactions_ref.borrow_mut();
+            Ok(transaction_borrow_mut.insert(key.clone(), transaction.clone()))
+        }),
+    }
 }
 
 #[cfg(not(test))]
@@ -336,7 +327,7 @@ fn reconstruct_subaccounts() {
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
         let subaccount = to_subaccount(i);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); 
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
@@ -396,7 +387,6 @@ fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
 }
 
 fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
-    
     let vec = hex::decode(hex).map_err(|_| Error {
         message: "string to vector conversion error".to_string(),
     })?;
@@ -436,9 +426,9 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
                 message: "Index out of bounds".to_string(),
             });
         }
-       
+
         let subaccount = to_subaccount(nonce);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); 
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
 
         ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
@@ -552,7 +542,7 @@ fn clear_transactions(
 }
 
 #[update]
-fn refund(transaction_index: u64) -> Result<String, Error> {
+async fn refund(transaction_index: u64) -> Result<String, Error> {
     let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
     let ledger_principal = match ledger_principal_opt.get_principal() {
@@ -593,10 +583,19 @@ fn refund(transaction_index: u64) -> Result<String, Error> {
         });
     }
 
-    let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
-    let req = Icrc1TransferRequest::new(to_record, None, None, Some(subaccount.1), None, 1000);
+    let transfer_args: TransferArg = TransferArg {
+        memo: None,
+        amount: 1000,
+        from_subaccount: None,
+        fee: None,
+        to: Principal::from_slice(&subaccount.2).into(),
+        created_at_time: None,
+    };
 
-    IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
+    let to_record = ToRecord::new(Principal::from_slice(&subaccount.2), None);
+    let req = Icrc1TransferRequest::new(transfer_args, None);
+
+    call_icrc1_transfer(ledger_principal, req).await;
 
     Ok("Refund is being requested".to_string())
 }
@@ -648,22 +647,17 @@ fn sweep_user_vault() -> Result<String, Error> {
             };
 
             if subaccount.0 {
-                let to_record = ToRecord::new(custodian_principal, None);
-                let req = Icrc1TransferRequest::new(
-                    to_record,
-                    None,
-                    Some(transaction.index.to_be_bytes().to_vec()),
-                    Some(subaccount.1),
-                    None,
-                    subaccount.2,
-                );
+                let transfer_args: TransferArg = TransferArg {
+                    memo: None,
+                    amount: 1000,
+                    from_subaccount: None,
+                    fee: None,
+                    to: custodian_principal.into(),
+                    created_at_time: None,
+                };
+                let req = Icrc1TransferRequest::new(transfer_args, Some(*key));
 
-                IcCdkSpawnManager::run(call_icrc1_transfer(ledger_principal, req));
-
-                transaction.sweep_status = SweepStatus::Swept;
-
-                transaction_borrow_mut.remove(&key);
-                transaction_borrow_mut.insert(key.clone(), transaction.clone());
+                call_icrc1_transfer(ledger_principal, req);
             }
         });
     });

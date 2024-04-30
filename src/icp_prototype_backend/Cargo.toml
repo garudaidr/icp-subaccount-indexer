@@ -20,6 +20,8 @@ hex = "0.4.3"
 
 candid = "0.10"
 ic-cdk = "0.12"
-ic-cdk-timers = "0.6" # Feel free to remove this dependency if you don't need timers
+ic-cdk-timers = "0.6"
+icrc-ledger-types = "0.1.5"
+ic-ledger-types = "0.10.0"
 ic-cdk-macros = "0.8.4"
 ic-stable-structures = "0.6.3"
