@@ -2,10 +2,10 @@ use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
+use ic_ledger_types::{BlockIndex, TransferArgs};
 use icrc_ledger_types::icrc1::transfer::TransferArg;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
-use ic_ledger_types::{TransferArgs, BlockIndex};
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct QueryBlocksRequest {

@@ -1,6 +1,6 @@
 use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::future::join_all;
 use ic_cdk::api;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
@@ -9,25 +9,25 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
-use futures::future::join_all;
 
 mod memory;
 mod tests;
 mod types;
 
-use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
-use ic_ledger_types::{AccountIdentifier, Subaccount, TransferArgs, Tokens, Memo, MAINNET_LEDGER_CANISTER_ID, BlockIndex};
 use ic_ledger_types;
+use ic_ledger_types::{
+    AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs,
+    MAINNET_LEDGER_CANISTER_ID,
+};
 
 use memory::{
     CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
-    IcCdkSpawnManager, IcCdkSpawnManagerTrait,
-    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
-    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp,
+    IcCdkSpawnManager, IcCdkSpawnManagerTrait, InterCanisterCallManager,
+    InterCanisterCallManagerTrait, Operation, QueryBlocksRequest, QueryBlocksResponse,
+    StoredPrincipal, StoredTransactions, SweepStatus, TimerManager, TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
@@ -128,8 +128,10 @@ fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
 }
 
 fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
-    let custodian_id = get_custodian_id().map_err(|e| Error {message: e})?;
-    let operation = tx.operation.as_ref().ok_or(Error {message: "Operation is None".to_string(),})?;
+    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
+    let operation = tx.operation.as_ref().ok_or(Error {
+        message: "Operation is None".to_string(),
+    })?;
     match operation {
         Operation::Transfer(data) => {
             // construct sweep destination -> custodian id
@@ -137,14 +139,18 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
             // construct sweep source of funds
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
-            let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err|{
+            let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error converting to to AccountIdentifier".to_string(),}
+                Error {
+                    message: "Error converting to to AccountIdentifier".to_string(),
+                }
             })?;
             let result = get_subaccount(&sweep_from);
-            let sweep_source_subaccount = result.map_err(|err|{
+            let sweep_source_subaccount = result.map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error getting from_subaccount".to_string(),}
+                Error {
+                    message: "Error getting from_subaccount".to_string(),
+                }
             })?;
 
             // calculate amount
@@ -158,36 +164,42 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
                 to: custodian_id,
                 created_at_time: None,
             })
-        },
-        _ => Err(Error {message: "Operation is not a transfer".to_string(),}),
+        }
+        _ => Err(Error {
+            message: "Operation is not a transfer".to_string(),
+        }),
     } // end match
 }
-
 
 fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
     let operation = tx.operation.as_ref().unwrap();
     match operation {
         Operation::Transfer(data) => {
-
             // construct refund destination
             let topup_from = data.from.clone();
             let topup_from = topup_from.as_slice();
-            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err|{
+            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error converting from to AccountIdentifier".to_string(),}
+                Error {
+                    message: "Error converting from to AccountIdentifier".to_string(),
+                }
             })?;
-            
+
             // construct refund source of funds
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
-            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err|{
+            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error converting to to AccountIdentifier".to_string(),}
+                Error {
+                    message: "Error converting to to AccountIdentifier".to_string(),
+                }
             })?;
             let result = get_subaccount(&refund_source);
-            let refund_source_subaccount = result.map_err(|err|{
+            let refund_source_subaccount = result.map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error getting to_subaccount".to_string(),}
+                Error {
+                    message: "Error getting to_subaccount".to_string(),
+                }
             })?;
 
             ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
@@ -201,14 +213,16 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
                 to: refund_to,
                 created_at_time: None,
             })
-        },
-        _ => Err(Error {message: "Operation is not a transfer".to_string(),}),
+        }
+        _ => Err(Error {
+            message: "Operation is not a transfer".to_string(),
+        }),
     } // end match
 }
 
 fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Error> {
     let mut tx = tx.clone();
-    
+
     tx.sweep_status = status;
 
     let prev_tx = TRANSACTIONS.with(|transactions_ref| {
@@ -234,14 +248,13 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     }
 
     async fn transfer(args: TransferArgs) -> Result<BlockIndex, String> {
-        let result = ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args)
-        .await;
+        let result = ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args).await;
 
         let result = result.unwrap();
 
         match result {
             Ok(block_index) => Ok(block_index),
-            Err(e) => Err(format!("transfer error: {:?}", e.to_string())),       
+            Err(e) => Err(format!("transfer error: {:?}", e.to_string())),
         }
     }
 }
@@ -348,7 +361,6 @@ async fn call_query_blocks() {
 
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
-
 
 #[cfg(not(test))]
 impl TimerManagerTrait for TimerManager {
@@ -458,7 +470,7 @@ fn get_nonce() -> u32 {
 fn get_canister_principal() -> String {
     // Retrieve the principal ID of the canister
     let principal_id = api::id();
-    
+
     // Convert the Principal to a string to easily return or log it
     principal_id.to_string()
 }
@@ -649,32 +661,29 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
     InterCanisterCallManager::transfer(transfer_args)
         .await
-        .map_err(|e| Error {
-            message: e,
-        })?;
+        .map_err(|e| Error { message: e })?;
 
     update_status(&transaction, SweepStatus::Swept)?;
-    
+
     Ok("Refund & tx update is successful".to_string())
 }
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
-
     let mut futures = Vec::new();
 
     // get relevant txs
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
-    
+
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
-    
+
         // Filter transactions where sweep_status == NotSwept
         let filtered_transactions: Vec<_> = transactions_borrow
             .iter()
             .filter(|(_key, value)| value.sweep_status == SweepStatus::NotSwept)
             .collect();
-    
+
         // If filtered_transactions.len() is less than up_to_count, return all transactions
         // max concurrent calls allowed by the IC is 500
         let up_to_count = 100;
@@ -683,7 +692,7 @@ async fn sweep() -> Result<Vec<String>, Error> {
         } else {
             filtered_transactions.len() - up_to_count
         };
-    
+
         ic_cdk::println!("skip: {}", skip);
         let result: Vec<_> = filtered_transactions
             .iter()
@@ -701,27 +710,36 @@ async fn sweep() -> Result<Vec<String>, Error> {
     }
 
     let responses = join_all(futures).await;
-    
+
     let mut results = Vec::<String>::new();
 
     // Trigger subsequent process here
     for (index, response) in responses.iter().enumerate() {
         let tx = txs[index].1.clone();
         match response {
-            Ok(_) => {           
+            Ok(_) => {
                 let status_update = update_status(&tx, SweepStatus::Swept);
                 if status_update.is_ok() {
                     results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
                 } else {
-                    results.push(format!("tx: {}, sweep: ok, status_update: {}", tx.index, status_update.unwrap_err().message));
+                    results.push(format!(
+                        "tx: {}, sweep: ok, status_update: {}",
+                        tx.index,
+                        status_update.unwrap_err().message
+                    ));
                 }
-            },
+            }
             Err(e) => {
                 let status_update = update_status(&tx, SweepStatus::FailedToSweep);
                 if status_update.is_ok() {
                     results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
                 } else {
-                    results.push(format!("tx: {}, sweep: {}, status_update: {}", tx.index, e, status_update.unwrap_err().message));
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: {}",
+                        tx.index,
+                        e,
+                        status_update.unwrap_err().message
+                    ));
                 }
             }
         }
@@ -730,10 +748,12 @@ async fn sweep() -> Result<Vec<String>, Error> {
     Ok(results)
 }
 
-fn get_custodian_id() -> Result<AccountIdentifier, String> {  
+fn get_custodian_id() -> Result<AccountIdentifier, String> {
     let custodian_principal_opt =
         CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
-    let custodian_principal = custodian_principal_opt.get_principal().ok_or("Failed to get principal")?;
+    let custodian_principal = custodian_principal_opt
+        .get_principal()
+        .ok_or("Failed to get principal")?;
     let subaccount = Subaccount([0; 32]);
     Ok(AccountIdentifier::new(&custodian_principal, &subaccount))
 }
