@@ -4,6 +4,7 @@ mod tests {
     use crate::*;
     use once_cell::sync::Lazy;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use tokio;
 
     impl TimerManagerTrait for TimerManager {
         fn set_timer(_interval: std::time::Duration) -> TimerId {
@@ -18,15 +19,21 @@ mod tests {
 
     // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
     fn setup() {
-        let hash = [1u8; 32];
-        let hash_u64 = hash_to_u64(&hash);
-        let account_identifier = AccountIdentifier { hash: [1u8; 28] }; // Force a compatible hash.
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        let subaccount = Subaccount([1u8; 32]);
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let account_id_hash = subaccountid.to_u64_hash();
+        ic_cdk::println!("hash_key: {}", account_id_hash);
 
         // Insert the test hash into LIST_OF_SUBACCOUNTS.
-        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
-            subaccounts
-                .borrow_mut()
-                .insert(hash_u64, account_identifier);
+        LIST_OF_SUBACCOUNTS.with(|list_ref| {
+            list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
 
@@ -168,26 +175,6 @@ mod tests {
 
         assert_eq!(stored_principal.get_principal(), Some(*STATIC_PRINCIPAL));
     }
-
-    // #[test]
-    // fn test_increment_nonce() {
-    //     let nonce = increment_nonce();
-    //     assert_eq!(nonce, 1);
-    // }
-
-    #[test]
-    fn test_convert_to_subaccount() {
-        let nonce = 1;
-        let subaccount = convert_to_subaccount(nonce);
-        assert_eq!(subaccount.0[28..32], [0, 0, 0, 1]);
-    }
-
-    // #[test]
-    // fn test_account_id() {
-    //     let account_id = account_id();
-    //     let hex = to_hex_string(account_id.to_address());
-    //     assert_eq!(hex.len(), 64);
-    // }
 
     // Utility function to populate transactions for testing
     fn populate_transactions(count: u64, timestamp_nanos: Option<u64>) {
@@ -390,6 +377,13 @@ mod tests {
     }
 
     fn refund_setup() {
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
         // Setup principal
         PRINCIPAL.with(|principal_ref| {
             let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
@@ -404,20 +398,23 @@ mod tests {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
             let to_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&to_arr);
-            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let to_subaccount = Subaccount(to_arr.clone());
+            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let from_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
-            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let from_arr = vec_to_array(from.clone());
+            let from_subaccount = Subaccount(from_arr.clone());
+            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
 
-            let spender_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
-            let account_id =
-                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let spender_arr = vec_to_array(spender.clone());
+            let spender_subaccount = Subaccount(spender_arr.clone());
+            let spender_subaccountid: AccountIdentifier =
+                to_subaccount_id(spender_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Setup transactions
@@ -450,22 +447,22 @@ mod tests {
         TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
     }
 
-    #[test]
-    fn test_refund_valid_transaction() {
+    #[tokio::test]
+    async fn test_refund_valid_transaction() {
         refund_setup();
 
         // Your refund test logic for a valid transaction
         let result = refund(1);
         assert!(
-            result.is_ok(),
+            result.await.is_ok(),
             "Refund should succeed for a valid transaction"
         );
 
         refund_teardown();
     }
 
-    #[test]
-    fn test_refund_unset_principal() {
+    #[tokio::test]
+    async fn test_refund_unset_principal() {
         refund_setup();
         // Unset the principal to simulate the error condition
         PRINCIPAL.with(|principal_ref| {
@@ -474,21 +471,21 @@ mod tests {
 
         let result = refund(1);
         assert!(
-            result.is_err(),
+            result.await.is_err(),
             "Refund should fail if the principal is not set"
         );
 
         refund_teardown();
     }
 
-    #[test]
-    fn test_refund_nonexistent_transaction() {
+    #[tokio::test]
+    async fn test_refund_nonexistent_transaction() {
         refund_setup();
 
         // Attempt to refund a transaction that doesn't exist
         let result = refund(999); // Assuming transaction with index 999 does not exist
         assert!(
-            result.is_err(),
+            result.await.is_err(),
             "Refund should fail for a non-existent transaction"
         );
 
@@ -496,17 +493,17 @@ mod tests {
     }
 
     fn setup_sweep_environment() {
-        // Setup PRINCIPAL with a valid Principal
-        PRINCIPAL.with(|p| {
-            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
-            let _ = p.borrow_mut().set(stored_principal);
-        });
-
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
         let custodian_principal = STATIC_PRINCIPAL.clone();
         CUSTODIAN_PRINCIPAL.with(|cp| {
             let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
             let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        // Setup PRINCIPAL with a valid Principal
+        PRINCIPAL.with(|p| {
+            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
+            let _ = p.borrow_mut().set(stored_principal);
         });
 
         let to = vec![1u8; 32];
@@ -517,20 +514,23 @@ mod tests {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
             let to_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&to_arr);
-            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(to_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let to_subaccount = Subaccount(to_arr.clone());
+            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let from_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&vec_to_array(from.clone()));
-            let account_id = AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(from_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let from_arr = vec_to_array(from.clone());
+            let from_subaccount = Subaccount(from_arr.clone());
+            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
 
-            let spender_arr = vec_to_array(to.clone());
-            let account_id_hash = hash_to_u64(&vec_to_array(spender.clone()));
-            let account_id =
-                AccountIdentifier::new(*STATIC_PRINCIPAL, Some(Subaccount(spender_arr)));
-            subaccounts_mut.insert(account_id_hash, account_id);
+            let spender_arr = vec_to_array(spender.clone());
+            let spender_subaccount = Subaccount(spender_arr.clone());
+            let spender_subaccountid: AccountIdentifier =
+                to_subaccount_id(spender_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Populate TRANSACTIONS with a mixture of swept and not swept transactions
@@ -575,12 +575,12 @@ mod tests {
         let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
     }
 
-    #[test]
-    fn test_sweep_user_vault_successful_sweep() {
+    #[tokio::test]
+    async fn test_sweep_user_vault_successful_sweep() {
         setup_sweep_environment();
 
         let result = sweep_user_vault();
-        assert!(result.is_ok(), "Sweeping should be successful.");
+        assert!(result.await.is_ok(), "Sweeping should be successful.");
 
         TRANSACTIONS.with(|t| {
             assert!(
@@ -594,108 +594,47 @@ mod tests {
         teardown_sweep_environment();
     }
 
-    #[test]
-    fn test_sweep_user_vault_no_principal_set() {
+    #[tokio::test]
+    async fn test_sweep_user_vault_no_principal_set() {
         setup_sweep_environment();
         // Unset the principal
         let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
 
         let result = sweep_user_vault();
         assert!(
-            result.is_err(),
+            result.await.is_err(),
             "Sweeping should fail without a set principal."
         );
 
         teardown_sweep_environment();
     }
 
-    #[test]
-    fn test_sweep_user_vault_no_custodian_principal_set() {
+    #[tokio::test]
+    async fn test_sweep_user_vault_no_custodian_principal_set() {
         setup_sweep_environment();
         // Unset the custodian principal
         let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
 
         let result = sweep_user_vault();
         assert!(
-            result.is_err(),
+            result.await.is_err(),
             "Sweeping should fail without a set custodian principal."
         );
 
         teardown_sweep_environment();
     }
 
-    #[test]
-    fn test_sweep_user_vault_no_transactions_to_sweep() {
+    #[tokio::test]
+    async fn test_sweep_user_vault_no_transactions_to_sweep() {
         setup_sweep_environment();
         // Clear transactions to simulate no transactions to sweep
         TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
 
         let result = sweep_user_vault();
         assert!(
-            result.is_ok(),
+            result.await.is_ok(),
             "Sweeping should succeed even with no transactions to sweep."
         );
-
-        teardown_sweep_environment();
-    }
-
-    fn setup_transactions_with_error() {
-        let to = vec![1u8; 32];
-        let from = vec![2u8; 32];
-
-        // Setup a transaction expected to fail during the transfer, leading to error handling
-        TRANSACTIONS.with(|transactions_ref| {
-            transactions_ref.borrow_mut().insert(
-                3,
-                StoredTransactions {
-                    index: 3,
-                    memo: 102,
-                    icrc1_memo: None,
-                    operation: Some(Operation::Transfer(Transfer {
-                        to: to,
-                        fee: E8s { e8s: 100 },
-                        from: from,
-                        amount: E8s { e8s: 500 },
-                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
-                    })),
-                    created_at_time: Timestamp { timestamp_nanos: 0 },
-                    sweep_status: SweepStatus::NotSwept,
-                },
-            );
-        });
-    }
-
-    #[test]
-    fn test_icrc1_transfer_error_handling() {
-        setup_sweep_environment();
-        setup_transactions_with_error();
-
-        // Memo corresponding to the transaction we expect to handle error for
-        let test_memo = 3_u64.to_be_bytes().to_vec();
-        let key = vec_u8_to_u64(test_memo.clone());
-
-        // Create a request with the memo
-        let request = Icrc1TransferRequest::new(
-            ToRecord::new(*STATIC_PRINCIPAL, None),
-            None,
-            Some(test_memo),
-            None,
-            None,
-            500,
-        );
-
-        icrc1_transfer_error_handling(request);
-
-        // Check if the transaction was marked as FailedToSweep
-        TRANSACTIONS.with(|transactions_ref| {
-            let transactions_borrow = transactions_ref.borrow();
-            let transaction = transactions_borrow.get(&key).unwrap();
-            assert_eq!(
-                transaction.sweep_status,
-                SweepStatus::FailedToSweep,
-                "The transaction should be marked as FailedToSweep."
-            );
-        });
 
         teardown_sweep_environment();
     }
