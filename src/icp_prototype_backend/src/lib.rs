@@ -25,9 +25,10 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    IcCdkSpawnManager, IcCdkSpawnManagerTrait, InterCanisterCallManager,
-    InterCanisterCallManagerTrait, Operation, QueryBlocksRequest, QueryBlocksResponse,
-    StoredPrincipal, StoredTransactions, SweepStatus, TimerManager, TimerManagerTrait, Timestamp,
+    CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
+    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
+    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
+    TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
@@ -363,6 +364,13 @@ async fn call_query_blocks() {
 }
 
 #[cfg(not(test))]
+impl CanisterApiManagerTrait for CanisterApiManager {
+    fn id() -> Principal {
+        api::id()
+    }
+}
+
+#[cfg(not(test))]
 impl TimerManagerTrait for TimerManager {
     fn set_timer(interval: std::time::Duration) -> TimerId {
         ic_cdk::println!("Starting a periodic task with interval {:?}", interval);
@@ -413,7 +421,7 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_prin
 
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
-    let account = api::id();
+    let account = CanisterApiManager::id();
 
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
@@ -469,7 +477,7 @@ fn get_nonce() -> u32 {
 #[query]
 fn get_canister_principal() -> String {
     // Retrieve the principal ID of the canister
-    let principal_id = api::id();
+    let principal_id = CanisterApiManager::id();
 
     // Convert the Principal to a string to easily return or log it
     principal_id.to_string()
@@ -483,7 +491,7 @@ fn to_subaccount(nonce: u32) -> Subaccount {
 }
 
 fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
-    let principal_id = api::id();
+    let principal_id = CanisterApiManager::id();
     AccountIdentifier::new(&principal_id, &subaccount)
 }
 

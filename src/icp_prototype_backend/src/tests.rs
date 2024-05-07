@@ -44,6 +44,12 @@ mod tests {
         });
     }
 
+    impl CanisterApiManagerTrait for CanisterApiManager {
+        fn id() -> Principal {
+            STATIC_PRINCIPAL.clone()
+        }
+    }
+
     #[test]
     fn test_includes_hash_found() {
         setup();
@@ -354,13 +360,8 @@ mod tests {
             Ok((response,))
         }
 
-        async fn icrc1_transfer(
-            _ledger_principal: Principal,
-            _req: Icrc1TransferRequest,
-        ) -> CallResult<(Icrc1TransferResponse,)> {
-            // Example: A successful transfer response with a transaction ID
-            let response = Icrc1TransferResponse::Ok(12345); // Example transaction ID
-            Ok((response,))
+        async fn transfer(_args: TransferArgs) -> Result<BlockIndex, String> {
+            Ok(1)
         }
     }
 
@@ -576,10 +577,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sweep_user_vault_successful_sweep() {
+    async fn test_sweep_successful_sweep() {
         setup_sweep_environment();
 
-        let result = sweep_user_vault();
+        let result = sweep();
         assert!(result.await.is_ok(), "Sweeping should be successful.");
 
         TRANSACTIONS.with(|t| {
@@ -595,12 +596,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sweep_user_vault_no_principal_set() {
+    async fn test_sweep_no_principal_set() {
         setup_sweep_environment();
         // Unset the principal
         let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
 
-        let result = sweep_user_vault();
+        let result = sweep();
         assert!(
             result.await.is_err(),
             "Sweeping should fail without a set principal."
@@ -610,12 +611,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sweep_user_vault_no_custodian_principal_set() {
+    async fn test_sweep_no_custodian_principal_set() {
         setup_sweep_environment();
         // Unset the custodian principal
         let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
 
-        let result = sweep_user_vault();
+        let result = sweep();
         assert!(
             result.await.is_err(),
             "Sweeping should fail without a set custodian principal."
@@ -625,12 +626,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sweep_user_vault_no_transactions_to_sweep() {
+    async fn test_sweep_no_transactions_to_sweep() {
         setup_sweep_environment();
         // Clear transactions to simulate no transactions to sweep
         TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
 
-        let result = sweep_user_vault();
+        let result = sweep();
         assert!(
             result.await.is_ok(),
             "Sweeping should succeed even with no transactions to sweep."

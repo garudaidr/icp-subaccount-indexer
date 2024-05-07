@@ -288,6 +288,12 @@ pub trait TimerManagerTrait {
 
 pub struct TimerManager;
 
+pub trait CanisterApiManagerTrait {
+    fn id() -> Principal;
+}
+
+pub struct CanisterApiManager;
+
 pub trait InterCanisterCallManagerTrait {
     async fn query_blocks(
         ledger_principal: Principal,
