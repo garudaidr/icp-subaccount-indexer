@@ -1,6 +1,7 @@
 use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use futures::{stream::FuturesUnordered, StreamExt};
+use ic_cdk::api;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
@@ -8,20 +9,22 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
+use futures::future::join_all;
 
 mod memory;
 mod tests;
 mod types;
 
-use ic_ledger_types::{AccountIdentifier, Subaccount};
 use icrc_ledger_types::icrc1::transfer::{BlockIndex, TransferArg, TransferError};
+use ic_ledger_types::{AccountIdentifier, Subaccount, TransferArgs, Tokens, Memo, MAINNET_LEDGER_CANISTER_ID, BlockIndex};
+use ic_ledger_types;
 
 use memory::{
     CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
-    IcCdkSpawnManager, IcCdkSpawnManagerTrait, Icrc1TransferRequest, Icrc1TransferResponse,
+    IcCdkSpawnManager, IcCdkSpawnManagerTrait,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
     QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
     TimerManagerTrait, Timestamp,
@@ -110,6 +113,117 @@ impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
     }
 }
 
+fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
+    LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+        let subaccounts_borrow = subaccounts.borrow();
+        let account_id_hash = accountid.to_u64_hash();
+        // find matching hashkey
+        match subaccounts_borrow.get(&account_id_hash) {
+            Some(value) => Ok(*value),
+            None => Err(Error {
+                message: "Account not found".to_string(),
+            }),
+        }
+    })
+}
+
+fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
+    let custodian_id = get_custodian_id().map_err(|e| Error {message: e})?;
+    let operation = tx.operation.as_ref().ok_or(Error {message: "Operation is None".to_string(),})?;
+    match operation {
+        Operation::Transfer(data) => {
+            // construct sweep destination -> custodian id
+
+            // construct sweep source of funds
+            let topup_to = data.to.clone();
+            let topup_to = topup_to.as_slice();
+            let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err|{
+                ic_cdk::println!("Error: {:?}", err);
+                Error {message: "Error converting to to AccountIdentifier".to_string(),}
+            })?;
+            let result = get_subaccount(&sweep_from);
+            let sweep_source_subaccount = result.map_err(|err|{
+                ic_cdk::println!("Error: {:?}", err);
+                Error {message: "Error getting from_subaccount".to_string(),}
+            })?;
+
+            // calculate amount
+            let amount = data.amount.e8s - 10_000;
+
+            Ok(TransferArgs {
+                memo: Memo(0),
+                amount: Tokens::from_e8s(amount),
+                from_subaccount: Some(sweep_source_subaccount),
+                fee: Tokens::from_e8s(10_000),
+                to: custodian_id,
+                created_at_time: None,
+            })
+        },
+        _ => Err(Error {message: "Operation is not a transfer".to_string(),}),
+    } // end match
+}
+
+
+fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
+    let operation = tx.operation.as_ref().unwrap();
+    match operation {
+        Operation::Transfer(data) => {
+
+            // construct refund destination
+            let topup_from = data.from.clone();
+            let topup_from = topup_from.as_slice();
+            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err|{
+                ic_cdk::println!("Error: {:?}", err);
+                Error {message: "Error converting from to AccountIdentifier".to_string(),}
+            })?;
+            
+            // construct refund source of funds
+            let topup_to = data.to.clone();
+            let topup_to = topup_to.as_slice();
+            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err|{
+                ic_cdk::println!("Error: {:?}", err);
+                Error {message: "Error converting to to AccountIdentifier".to_string(),}
+            })?;
+            let result = get_subaccount(&refund_source);
+            let refund_source_subaccount = result.map_err(|err|{
+                ic_cdk::println!("Error: {:?}", err);
+                Error {message: "Error getting to_subaccount".to_string(),}
+            })?;
+
+            ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
+
+            let amount = data.amount.e8s - 10_000;
+            Ok(TransferArgs {
+                memo: Memo(0),
+                amount: Tokens::from_e8s(amount),
+                from_subaccount: Some(refund_source_subaccount),
+                fee: Tokens::from_e8s(10_000),
+                to: refund_to,
+                created_at_time: None,
+            })
+        },
+        _ => Err(Error {message: "Operation is not a transfer".to_string(),}),
+    } // end match
+}
+
+fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Error> {
+    let mut tx = tx.clone();
+    
+    tx.sweep_status = status;
+
+    let prev_tx = TRANSACTIONS.with(|transactions_ref| {
+        let mut transactions = transactions_ref.borrow_mut();
+        transactions.insert(tx.index, tx)
+    });
+
+    match prev_tx {
+        Some(_) => Ok(()),
+        None => Err(Error {
+            message: "Transaction not found when updating".to_string(),
+        }),
+    }
+}
+
 #[cfg(not(test))]
 impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     async fn query_blocks(
@@ -119,16 +233,16 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
         ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
     }
 
-    async fn icrc1_transfer(
-        ledger_principal: Principal,
-        req: Icrc1TransferRequest,
-    ) -> Result<BlockIndex, TransferError> {
-        ic_cdk::call::<(TransferArg,), (Result<BlockIndex, TransferError>,)>(
-            ledger_principal,
-            "icrc1_transfer",
-            (req.transfer_args,),
-        )
-        .await
+    async fn transfer(args: TransferArgs) -> Result<BlockIndex, String> {
+        let result = ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args)
+        .await;
+
+        let result = result.unwrap();
+
+        match result {
+            Ok(block_index) => Ok(block_index),
+            Err(e) => Err(format!("transfer error: {:?}", e.to_string())),       
+        }
     }
 }
 
@@ -235,57 +349,6 @@ async fn call_query_blocks() {
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
-async fn call_icrc1_transfer(
-    ledger_principal: Principal,
-    req: Icrc1TransferRequest,
-) -> Result<Option<StoredTransactions>, &'static str> {
-    ic_cdk::println!(
-        "Transferring {} tokens to account {}",
-        &req.transfer_args.amount,
-        &req.transfer_args.to,
-    );
-
-    let call_result = InterCanisterCallManager::icrc1_transfer(ledger_principal, req.clone()).await;
-
-    let key = match req.sweeped_index {
-        Some(data) => data,
-        None => {
-            ic_cdk::println!("Skipping state mutation because sweeped index is not supplied");
-            return Ok(None);
-        }
-    };
-
-    match call_result {
-        Ok(_) => TRANSACTIONS.with(|transactions_ref| {
-            let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
-                Some(transaction) => transaction,
-                None => {
-                    return Err("");
-                }
-            };
-
-            transaction.sweep_status = SweepStatus::Swept;
-
-            let mut transaction_borrow_mut = transactions_ref.borrow_mut();
-            transaction_borrow_mut.insert(key.clone(), transaction.clone());
-            Ok(Some(transaction))
-        }),
-        Err(_) => TRANSACTIONS.with(|transactions_ref| {
-            let mut transaction = match { transactions_ref.borrow().get(&key).clone() } {
-                Some(transaction) => transaction,
-                None => {
-                    return Err("");
-                }
-            };
-
-            transaction.sweep_status = SweepStatus::FailedToSweep;
-
-            let mut transaction_borrow_mut = transactions_ref.borrow_mut();
-            transaction_borrow_mut.insert(key.clone(), transaction.clone());
-            Ok(Some(transaction))
-        }),
-    }
-}
 
 #[cfg(not(test))]
 impl TimerManagerTrait for TimerManager {
@@ -338,10 +401,7 @@ async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_prin
 
 fn reconstruct_subaccounts() {
     let nonce: u32 = get_nonce();
-    let account = CUSTODIAN_PRINCIPAL
-        .with(|stored_ref| stored_ref.borrow().get().clone())
-        .get_principal()
-        .expect("Custodian principal is not set");
+    let account = api::id();
 
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
     for i in 0..nonce {
@@ -349,6 +409,9 @@ fn reconstruct_subaccounts() {
         let subaccount = to_subaccount(i);
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
+
+        ic_cdk::println!("hash: {} - {}", account_id_hash, subaccountid.to_hex());
+
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
@@ -391,6 +454,15 @@ fn get_nonce() -> u32 {
     LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
 }
 
+#[query]
+fn get_canister_principal() -> String {
+    // Retrieve the principal ID of the canister
+    let principal_id = api::id();
+    
+    // Convert the Principal to a string to easily return or log it
+    principal_id.to_string()
+}
+
 fn to_subaccount(nonce: u32) -> Subaccount {
     let mut subaccount = Subaccount([0; 32]);
     let nonce_bytes = nonce.to_be_bytes(); // Converts u32 to an array of 4 bytes
@@ -399,11 +471,8 @@ fn to_subaccount(nonce: u32) -> Subaccount {
 }
 
 fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
-    let account = CUSTODIAN_PRINCIPAL
-        .with(|stored_ref| stored_ref.borrow().get().clone())
-        .get_principal()
-        .expect("Custodian principal is not set");
-    AccountIdentifier::new(&account, &subaccount)
+    let principal_id = api::id();
+    AccountIdentifier::new(&principal_id, &subaccount)
 }
 
 fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
@@ -563,17 +632,6 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
-    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
-
-    let ledger_principal = match ledger_principal_opt.get_principal() {
-        Some(result) => result,
-        None => {
-            return Err(Error {
-                message: "Principal is not set".to_string(),
-            });
-        }
-    };
-
     let transaction_opt = TRANSACTIONS
         .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
 
@@ -586,108 +644,98 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
         }
     };
 
-    let subaccount = match transaction.operation {
-        Some(Operation::Transfer(data)) => {
-            let to = data.to.clone();
-            match &data.spender {
-                Some(spender) => (includes_hash(&to), to, spender.clone(), data.amount.e8s),
-                None => (false, to, vec![], data.amount.e8s),
-            }
-        }
-        _ => (false, vec![], vec![], 0),
-    };
+    // construct transfer args
+    let transfer_args = to_refund_args(&transaction)?;
 
-    if !subaccount.0 {
-        return Err(Error {
-            message: "Cannot confirm receiver and spender".to_string(),
-        });
-    }
+    InterCanisterCallManager::transfer(transfer_args)
+        .await
+        .map_err(|e| Error {
+            message: e,
+        })?;
 
-    let transfer_args: TransferArg = TransferArg {
-        memo: None,
-        amount: subaccount.3.into(),
-        from_subaccount: None,
-        fee: None,
-        to: Principal::from_slice(&subaccount.2).into(),
-        created_at_time: None,
-    };
-
-    let req = Icrc1TransferRequest::new(transfer_args, None);
-
-    let _ = call_icrc1_transfer(ledger_principal, req).await;
-
-    Ok("Refund is being requested".to_string())
+    update_status(&transaction, SweepStatus::Swept)?;
+    
+    Ok("Refund & tx update is successful".to_string())
 }
 
 #[update]
-async fn sweep_user_vault() -> Result<String, Error> {
-    let ledger_principal_opt = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+async fn sweep() -> Result<Vec<String>, Error> {
 
-    let ledger_principal = match ledger_principal_opt.get_principal() {
-        Some(result) => result,
-        None => {
-            return Err(Error {
-                message: "Principal is not set".to_string(),
-            });
-        }
-    };
+    let mut futures = Vec::new();
 
-    let custodian_principal_opt =
-        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
-
-    let custodian_principal = match custodian_principal_opt.get_principal() {
-        Some(result) => result,
-        None => {
-            return Err(Error {
-                message: "Custodian principal is not set".to_string(),
-            });
-        }
-    };
-
-    let mut icrc1_futures = FuturesUnordered::new();
-    let _ = TRANSACTIONS.with(|transactions_ref| {
-        let mut transactions: Vec<(u64, StoredTransactions)> = {
-            transactions_ref
-                .borrow()
-                .iter()
-                .filter(|transaction| transaction.1.sweep_status == SweepStatus::NotSwept)
-                .map(|(key, transaction)| (key.clone(), transaction.clone()))
-                .collect()
+    // get relevant txs
+    let txs = TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+    
+        ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
+    
+        // Filter transactions where sweep_status == NotSwept
+        let filtered_transactions: Vec<_> = transactions_borrow
+            .iter()
+            .filter(|(_key, value)| value.sweep_status == SweepStatus::NotSwept)
+            .collect();
+    
+        // If filtered_transactions.len() is less than up_to_count, return all transactions
+        // max concurrent calls allowed by the IC is 500
+        let up_to_count = 100;
+        let skip = if filtered_transactions.len() < up_to_count {
+            0
+        } else {
+            filtered_transactions.len() - up_to_count
         };
-
-        for (key, transaction) in transactions.iter_mut().map(|(k, t)| (*k, t.clone())) {
-            icrc1_futures.push(async move {
-                let subaccount = match transaction.operation {
-                    Some(Operation::Transfer(data)) => {
-                        let to = data.to.clone();
-                        (includes_hash(&to), to, data.amount.e8s)
-                    }
-                    _ => (false, vec![], 0),
-                };
-
-                if subaccount.0 {
-                    let transfer_args: TransferArg = TransferArg {
-                        memo: None,
-                        amount: subaccount.2.into(),
-                        from_subaccount: None,
-                        fee: None,
-                        to: custodian_principal.into(),
-                        created_at_time: None,
-                    };
-                    let req = Icrc1TransferRequest::new(transfer_args, Some(key));
-
-                    let _response = call_icrc1_transfer(ledger_principal, req).await;
-                }
-            });
-        }
+    
+        ic_cdk::println!("skip: {}", skip);
+        let result: Vec<_> = filtered_transactions
+            .iter()
+            .skip(skip as usize)
+            .take(up_to_count as usize)
+            .cloned()
+            .collect();
+        result
     });
 
-    // Await all futures to complete their operations
-    while let Some(_result) = icrc1_futures.next().await {
-        // Process result if necessary
+    for tx in txs.iter() {
+        let transfer_args = to_sweep_args(&tx.1)?;
+        let future = InterCanisterCallManager::transfer(transfer_args);
+        futures.push(future);
     }
 
-    Ok("Subaccounts are swept to vault".to_string())
+    let responses = join_all(futures).await;
+    
+    let mut results = Vec::<String>::new();
+
+    // Trigger subsequent process here
+    for (index, response) in responses.iter().enumerate() {
+        let tx = txs[index].1.clone();
+        match response {
+            Ok(_) => {           
+                let status_update = update_status(&tx, SweepStatus::Swept);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                } else {
+                    results.push(format!("tx: {}, sweep: ok, status_update: {}", tx.index, status_update.unwrap_err().message));
+                }
+            },
+            Err(e) => {
+                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                } else {
+                    results.push(format!("tx: {}, sweep: {}, status_update: {}", tx.index, e, status_update.unwrap_err().message));
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+fn get_custodian_id() -> Result<AccountIdentifier, String> {  
+    let custodian_principal_opt =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    let custodian_principal = custodian_principal_opt.get_principal().ok_or("Failed to get principal")?;
+    let subaccount = Subaccount([0; 32]);
+    Ok(AccountIdentifier::new(&custodian_principal, &subaccount))
 }
 
 #[query]

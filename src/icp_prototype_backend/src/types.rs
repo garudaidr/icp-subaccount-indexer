@@ -5,6 +5,7 @@ use ic_cdk_timers::TimerId;
 use icrc_ledger_types::icrc1::transfer::TransferArg;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
+use ic_ledger_types::{TransferArgs, BlockIndex};
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct QueryBlocksRequest {
@@ -31,12 +32,6 @@ impl Icrc1TransferRequest {
 pub struct ToRecord {
     owner: Principal,
     subaccount: Option<Vec<u8>>,
-}
-
-impl ToRecord {
-    pub fn new(owner: Principal, subaccount: Option<Vec<u8>>) -> Self {
-        Self { owner, subaccount }
-    }
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -298,10 +293,8 @@ pub trait InterCanisterCallManagerTrait {
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)>;
-    async fn icrc1_transfer(
-        ledger_principal: Principal,
-        req: Icrc1TransferRequest,
-    ) -> CallResult<(Icrc1TransferResponse,)>;
+
+    async fn transfer(args: TransferArgs) -> Result<BlockIndex, String>;
 }
 
 pub struct InterCanisterCallManager;
