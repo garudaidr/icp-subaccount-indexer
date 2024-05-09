@@ -177,39 +177,40 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
     match operation {
         Operation::Transfer(data) => {
             // construct refund destination
+            let topup_to = data.to.clone();
+            let topup_to = topup_to.as_slice();
+            let refund_to = AccountIdentifier::from_slice(topup_to).map_err(|err| {
+                ic_cdk::println!("Error1: {:?}", err);
+                Error {
+                    message: "Error converting to to AccountIdentifier".to_string(),
+                }
+            })?;
+
+            // construct refund source of funds
             let topup_from = data.from.clone();
             let topup_from = topup_from.as_slice();
-            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
+            let refund_from = AccountIdentifier::from_slice(topup_from).map_err(|err| {
+                ic_cdk::println!("Error2: {:?}", err);
                 Error {
                     message: "Error converting from to AccountIdentifier".to_string(),
                 }
             })?;
 
-            // construct refund source of funds
-            let topup_to = data.to.clone();
-            let topup_to = topup_to.as_slice();
-            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
-            })?;
-            let result = get_subaccount(&refund_source);
-            let refund_source_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
+            let result = get_subaccount(&refund_from);
+            let refund_from_subaccount = result.map_err(|err| {
+                ic_cdk::println!("Error3: {:?}", err);
                 Error {
                     message: "Error getting to_subaccount".to_string(),
                 }
             })?;
 
-            ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
+            ic_cdk::println!("refund_from_subaccount: {:?}", refund_from_subaccount);
 
             let amount = data.amount.e8s - 10_000;
             Ok(TransferArgs {
                 memo: Memo(0),
                 amount: Tokens::from_e8s(amount),
-                from_subaccount: Some(refund_source_subaccount),
+                from_subaccount: Some(refund_from_subaccount),
                 fee: Tokens::from_e8s(10_000),
                 to: refund_to,
                 created_at_time: None,

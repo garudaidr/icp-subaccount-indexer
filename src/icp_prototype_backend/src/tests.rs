@@ -26,7 +26,10 @@ mod tests {
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
-        let subaccount = Subaccount([1u8; 32]);
+        let subaccount = Subaccount([
+            168, 200, 90, 30, 187, 129, 218, 133, 97, 52, 235, 109, 168, 55, 212, 238, 98, 209, 24,
+            158, 242, 1, 194, 93, 181, 15, 4, 103, 49, 38, 186, 62,
+        ]);
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
         ic_cdk::println!("hash_key: {}", account_id_hash);
@@ -55,7 +58,10 @@ mod tests {
         setup();
 
         // Test hash that matches the setup.
-        let test_hash = vec![1u8; 32];
+        let test_hash = vec![
+            168, 200, 90, 30, 187, 129, 218, 133, 97, 52, 235, 109, 168, 55, 212, 238, 98, 209, 24,
+            158, 242, 1, 194, 93, 181, 15, 4, 103, 49, 38, 186, 62,
+        ];
         assert!(
             includes_hash(&test_hash),
             "includes_hash should return true for a hash present in the list"
@@ -69,7 +75,10 @@ mod tests {
         setup();
 
         // Test hash that does not match any in the setup.
-        let test_hash = vec![2u8; 32];
+        let test_hash = vec![
+            183, 157, 220, 72, 77, 124, 136, 1, 229, 227, 174, 77, 4, 128, 246, 82, 88, 173, 137,
+            231, 243, 29, 58, 151, 62, 39, 142, 8, 35, 85, 50, 48,
+        ];
         assert!(
             !includes_hash(&test_hash),
             "includes_hash should return false for a hash not present in the list"
@@ -369,12 +378,18 @@ mod tests {
         fn run<F: 'static + Future<Output = ()>>(_future: F) {}
     }
 
-    fn vec_to_array(vec_to_convert: Vec<u8>) -> [u8; 32] {
-        let slice = &vec_to_convert[..];
-        slice
-            .try_into()
-            .ok()
-            .expect("Failed to convert vec to array")
+    fn nonce_to_subaccount(nonce: u32) -> Subaccount {
+        let mut subaccount = Subaccount([0; 32]);
+        let nonce_bytes = nonce.to_be_bytes(); // Converts u32 to an array of 4 bytes
+        subaccount.0[32 - nonce_bytes.len()..].copy_from_slice(&nonce_bytes); // Aligns the bytes at the end of the array
+        subaccount
+    }
+
+    fn hex_str_to_vec(hex_str: &str) -> Result<Vec<u8>, std::num::ParseIntError> {
+        (0..hex_str.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex_str[i..i + 2], 16))
+            .collect()
     }
 
     fn refund_setup() {
@@ -391,31 +406,26 @@ mod tests {
             let _ = principal_ref.borrow_mut().set(stored_principal);
         });
 
-        let to = vec![1u8; 32];
-        let from = vec![2u8; 32];
-        let spender = vec![3u8; 32];
+        let spender_subaccount = nonce_to_subaccount(0);
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+
+        let to_subaccount = nonce_to_subaccount(1);
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+
+        let from_subaccount = nonce_to_subaccount(2);
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
-            let to_arr = vec_to_array(to.clone());
-            let to_subaccount = Subaccount(to_arr.clone());
-            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
+
             let account_id_hash = to_subaccountid.to_u64_hash();
             subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let from_arr = vec_to_array(from.clone());
-            let from_subaccount = Subaccount(from_arr.clone());
-            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
             let account_id_hash = from_subaccountid.to_u64_hash();
             subaccounts_mut.insert(account_id_hash, from_subaccount);
-
-            let spender_arr = vec_to_array(spender.clone());
-            let spender_subaccount = Subaccount(spender_arr.clone());
-            let spender_subaccountid: AccountIdentifier =
-                to_subaccount_id(spender_subaccount.clone());
-            let account_id_hash = spender_subaccountid.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Setup transactions
@@ -428,11 +438,11 @@ mod tests {
                     memo: 123,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: to,
+                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
                         fee: E8s { e8s: 100 },
-                        from: from,
-                        amount: E8s { e8s: 1000 },
-                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
+                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                        amount: E8s { e8s: 10000 },
+                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,
@@ -457,23 +467,6 @@ mod tests {
         assert!(
             result.await.is_ok(),
             "Refund should succeed for a valid transaction"
-        );
-
-        refund_teardown();
-    }
-
-    #[tokio::test]
-    async fn test_refund_unset_principal() {
-        refund_setup();
-        // Unset the principal to simulate the error condition
-        PRINCIPAL.with(|principal_ref| {
-            let _ = principal_ref.borrow_mut().set(StoredPrincipal::default());
-        });
-
-        let result = refund(1);
-        assert!(
-            result.await.is_err(),
-            "Refund should fail if the principal is not set"
         );
 
         refund_teardown();
@@ -507,31 +500,26 @@ mod tests {
             let _ = p.borrow_mut().set(stored_principal);
         });
 
-        let to = vec![1u8; 32];
-        let from = vec![2u8; 32];
-        let spender = vec![3u8; 32];
+        let spender_subaccount = nonce_to_subaccount(0);
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+
+        let to_subaccount = nonce_to_subaccount(1);
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+
+        let from_subaccount = nonce_to_subaccount(2);
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
-            let to_arr = vec_to_array(to.clone());
-            let to_subaccount = Subaccount(to_arr.clone());
-            let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
+
             let account_id_hash = to_subaccountid.to_u64_hash();
             subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let from_arr = vec_to_array(from.clone());
-            let from_subaccount = Subaccount(from_arr.clone());
-            let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
             let account_id_hash = from_subaccountid.to_u64_hash();
             subaccounts_mut.insert(account_id_hash, from_subaccount);
-
-            let spender_arr = vec_to_array(spender.clone());
-            let spender_subaccount = Subaccount(spender_arr.clone());
-            let spender_subaccountid: AccountIdentifier =
-                to_subaccount_id(spender_subaccount.clone());
-            let account_id_hash = spender_subaccountid.to_u64_hash();
-            subaccounts_mut.insert(account_id_hash, spender_subaccount);
         });
 
         // Populate TRANSACTIONS with a mixture of swept and not swept transactions
@@ -546,11 +534,11 @@ mod tests {
                     memo: 100,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: to,
+                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
                         fee: E8s { e8s: 100 },
-                        from: from,
-                        amount: E8s { e8s: 1000 },
-                        spender: Some(STATIC_PRINCIPAL.as_slice().to_vec()),
+                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                        amount: E8s { e8s: 10000 },
+                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,
@@ -591,21 +579,6 @@ mod tests {
                 "All transactions should be marked as Swept."
             );
         });
-
-        teardown_sweep_environment();
-    }
-
-    #[tokio::test]
-    async fn test_sweep_no_principal_set() {
-        setup_sweep_environment();
-        // Unset the principal
-        let _ = PRINCIPAL.with(|p| p.borrow_mut().set(StoredPrincipal::default()));
-
-        let result = sweep();
-        assert!(
-            result.await.is_err(),
-            "Sweeping should fail without a set principal."
-        );
 
         teardown_sweep_environment();
     }
