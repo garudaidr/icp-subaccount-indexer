@@ -2,6 +2,8 @@ use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
+use ic_ledger_types::{BlockIndex, TransferArgs};
+use icrc_ledger_types::icrc1::transfer::TransferArg;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
@@ -13,30 +15,15 @@ pub struct QueryBlocksRequest {
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct Icrc1TransferRequest {
-    to: ToRecord,
-    fee: Option<u64>,
-    pub memo: Option<Vec<u8>>,
-    from_subaccount: Option<Vec<u8>>,
-    created_at_time: Option<u64>,
-    amount: u64,
+    pub transfer_args: TransferArg,
+    pub sweeped_index: Option<u64>,
 }
 
 impl Icrc1TransferRequest {
-    pub fn new(
-        to: ToRecord,
-        fee: Option<u64>,
-        memo: Option<Vec<u8>>,
-        from_subaccount: Option<Vec<u8>>,
-        created_at_time: Option<u64>,
-        amount: u64,
-    ) -> Self {
+    pub fn new(transfer_args: TransferArg, sweeped_index: Option<u64>) -> Self {
         Self {
-            to,
-            fee,
-            memo,
-            from_subaccount,
-            created_at_time,
-            amount,
+            transfer_args,
+            sweeped_index,
         }
     }
 }
@@ -45,12 +32,6 @@ impl Icrc1TransferRequest {
 pub struct ToRecord {
     owner: Principal,
     subaccount: Option<Vec<u8>>,
-}
-
-impl ToRecord {
-    pub fn new(owner: Principal, subaccount: Option<Vec<u8>>) -> Self {
-        Self { owner, subaccount }
-    }
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -307,15 +288,19 @@ pub trait TimerManagerTrait {
 
 pub struct TimerManager;
 
+pub trait CanisterApiManagerTrait {
+    fn id() -> Principal;
+}
+
+pub struct CanisterApiManager;
+
 pub trait InterCanisterCallManagerTrait {
     async fn query_blocks(
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)>;
-    async fn icrc1_transfer(
-        ledger_principal: Principal,
-        req: Icrc1TransferRequest,
-    ) -> CallResult<(Icrc1TransferResponse,)>;
+
+    async fn transfer(args: TransferArgs) -> Result<BlockIndex, String>;
 }
 
 pub struct InterCanisterCallManager;
