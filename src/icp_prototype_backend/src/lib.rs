@@ -25,13 +25,14 @@ use memory::{
     TRANSACTIONS,
 };
 use types::{
-    CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
+    Network, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
     QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
     TimerManagerTrait, Timestamp,
 };
 
 thread_local! {
+    static NETWORK: RefCell<Network> = RefCell::new(Network::Local);
     static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, Subaccount>> = RefCell::default();
     static TIMERS: RefCell<TimerId> = RefCell::default();
 }
@@ -59,6 +60,33 @@ impl ToU64Hash for AccountIdentifier {
         let mut hasher = DefaultHasher::new();
         bytes.hash(&mut hasher);
         hasher.finish()
+    }
+}
+
+fn get_network() -> Network { 
+    NETWORK.with(|net| {
+        *net.borrow()
+    })
+}
+
+fn authenticate() -> Result<(), String> {
+    let network = get_network();
+    if network == Network::Local {
+        return Ok(());
+    }
+
+    let caller = api::caller();
+
+    let custodian_principal_opt =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    let custodian_principal = custodian_principal_opt
+        .get_principal()
+        .ok_or("Failed to get custodian principal")?;
+
+    if caller == custodian_principal {
+        Ok(())
+    } else {
+        Err("Unauthorized".to_string())
     }
 }
 
@@ -96,10 +124,12 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
 }
 
 #[update]
-async fn set_next_block(block: u64) {
+async fn set_next_block(block: u64) -> Result<u64, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
     NEXT_BLOCK.with(|next_block_ref| {
         let _ = next_block_ref.borrow_mut().set(block);
     });
+    Ok(block)
 }
 
 #[query]
@@ -386,7 +416,11 @@ impl TimerManagerTrait for TimerManager {
 }
 
 #[ic_cdk::init]
-async fn init(seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
+async fn init(network: Network, seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
+    NETWORK.with(|net| {
+        *net.borrow_mut() = network;
+    });
+    
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
     });
@@ -452,6 +486,9 @@ fn get_interval() -> Result<u64, Error> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
+
+    authenticate().map_err(|e| Error { message: e })?;
+
     TIMERS.with(|timers_ref| {
         TimerManager::clear_timer(timers_ref.borrow().clone());
     });
@@ -509,7 +546,10 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 }
 
 #[update]
-fn add_subaccount() -> String {
+fn add_subaccount() -> Result<String, Error> {
+
+    authenticate().map_err(|e| Error { message: e })?;
+
     let nonce = get_nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
     let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
@@ -523,7 +563,7 @@ fn add_subaccount() -> String {
         let _ = nonce_ref.borrow_mut().set(nonce + 1);
     });
 
-    subaccountid.to_hex()
+    Ok(subaccountid.to_hex())
 }
 
 #[query]
@@ -612,6 +652,9 @@ fn clear_transactions(
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
+
+    authenticate().map_err(|e| Error { message: e })?;
+
     // Get Data
     let up_to_index = match up_to_index {
         Some(index) => index,
@@ -653,6 +696,9 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
+
+    authenticate().map_err(|e| Error { message: e })?;
+
     let transaction_opt = TRANSACTIONS
         .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
 
@@ -679,6 +725,9 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
+
+    authenticate().map_err(|e| Error { message: e })?;
+
     let mut futures = Vec::new();
 
     // get relevant txs
