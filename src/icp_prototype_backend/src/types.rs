@@ -7,6 +7,12 @@ use icrc_ledger_types::icrc1::transfer::TransferArg;
 use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 
+#[derive(CandidType, Deserialize, Serialize, Debug, Copy, Clone, PartialEq)]
+pub enum Network {
+    Mainnet,
+    Local,
+}
+
 #[derive(CandidType, Deserialize, Serialize, Clone)]
 pub struct QueryBlocksRequest {
     pub start: u64,
