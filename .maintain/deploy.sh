@@ -36,4 +36,4 @@ export CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
 echo $CUSTODIAN_PRINCIPAL
 
 # Deploy a backend canister
-dfx deploy icp_prototype_backend --argument "(15 : nat64, 10 : nat32  , \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
+dfx deploy icp_prototype_backend --argument "(variant { Local }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"

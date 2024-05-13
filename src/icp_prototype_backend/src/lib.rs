@@ -28,7 +28,7 @@ use types::{
     Network, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
     QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp,
+    TimerManagerTrait, Timestamp, CallerGuard,
 };
 
 thread_local! {
@@ -83,11 +83,14 @@ fn authenticate() -> Result<(), String> {
         .get_principal()
         .ok_or("Failed to get custodian principal")?;
 
-    if caller == custodian_principal {
-        Ok(())
-    } else {
-        Err("Unauthorized".to_string())
+    if caller != custodian_principal {
+        return Err("Unauthorized".to_string()) 
     }
+
+    ic_cdk::println!("Caller: {:?}", caller);
+
+    let _guard = CallerGuard::new(caller).map_err(|e| e)?;
+    Ok(())
 }
 
 fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
@@ -464,8 +467,6 @@ fn reconstruct_subaccounts() {
         let subaccount = to_subaccount(i);
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
         let account_id_hash = subaccountid.to_u64_hash();
-
-        ic_cdk::println!("hash: {} - {}", account_id_hash, subaccountid.to_hex());
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
