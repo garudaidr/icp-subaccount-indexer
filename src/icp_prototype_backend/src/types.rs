@@ -22,6 +22,9 @@ thread_local! {
     pub static STATE: RefCell<State> = RefCell::new(State{pending_requests: BTreeSet::new()});
 }
 
+// CallerGuard section was inspired by or directly uses work done by AlphaCQ
+// Their original work can be found at https://github.com/AlphaCQ/IC_Utils
+
 #[derive(Deserialize, CandidType, Clone)]
 pub struct CallerGuard {
     principal: Principal,
