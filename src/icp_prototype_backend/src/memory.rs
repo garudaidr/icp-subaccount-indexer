@@ -3,7 +3,7 @@ use ic_stable_structures::DefaultMemoryImpl;
 use ic_stable_structures::{StableBTreeMap, StableCell};
 use std::cell::RefCell;
 
-use crate::types::{Memory, StoredPrincipal, StoredTransactions};
+use crate::types::{Memory, StoredPrincipal, StoredTransactions, Network};
 
 const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
@@ -11,6 +11,7 @@ const NEXT_BLOCK_MEMORY: MemoryId = MemoryId::new(2);
 const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(3);
 const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
 const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
+const NETWORK_MEMORY: MemoryId = MemoryId::new(6);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -51,5 +52,12 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(CUSTODIAN_PRINCIPAL_MEMORY)),
             StoredPrincipal::default() // TODO: add to init function
         ).expect("Initializing CUSTODIAN_PRINCIPAL StableCell failed")
+    );
+
+    pub static CONNECTED_NETWORK: RefCell<StableCell<Network, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(NETWORK_MEMORY)),
+            Network::Mainnet 
+        ).expect("Initializing NETWORK StableCell failed")
     );
 }

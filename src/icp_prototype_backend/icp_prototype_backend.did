@@ -11,6 +11,7 @@ type Burn = record { from : vec nat8; amount : E8s; spender : opt vec nat8 };
 type E8s = record { e8s : nat64 };
 type Error = record { message : text };
 type Mint = record { to : vec nat8; amount : E8s };
+type Network = variant { Mainnet; Local };
 type Operation = variant {
   Approve : Approve;
   Burn : Burn;
@@ -38,12 +39,13 @@ type Transfer = record {
   amount : E8s;
   spender : opt vec nat8;
 };
-service : (nat64, nat32, text, text) -> {
-  add_subaccount : () -> (text);
+service : (Network, nat64, nat32, text, text) -> {
+  add_subaccount : () -> (Result);
   canister_status : () -> (Result) query;
   clear_transactions : (opt nat64, opt Timestamp) -> (Result_1);
   get_canister_principal : () -> (text) query;
   get_interval : () -> (Result_2) query;
+  get_network : () -> (Network) query;
   get_next_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;
   get_oldest_block : () -> (opt nat64) query;
@@ -53,6 +55,6 @@ service : (nat64, nat32, text, text) -> {
   list_transactions : (opt nat64) -> (vec StoredTransactions) query;
   refund : (nat64) -> (Result);
   set_interval : (nat64) -> (Result_2);
-  set_next_block : (nat64) -> ();
+  set_next_block : (nat64) -> (Result_2);
   sweep : () -> (Result_3);
 }
