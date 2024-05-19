@@ -21,7 +21,7 @@ use ic_ledger_types::{
 };
 
 use memory::{
-    CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
+    CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
     TRANSACTIONS,
 };
 use types::{
@@ -63,6 +63,7 @@ impl ToU64Hash for AccountIdentifier {
     }
 }
 
+#[query]
 fn get_network() -> Network { 
     NETWORK.with(|net| {
         *net.borrow()
@@ -423,6 +424,10 @@ async fn init(network: Network, seconds: u64, nonce: u32, ledger_principal: Stri
     NETWORK.with(|net| {
         *net.borrow_mut() = network;
     });
+
+    CONNECTED_NETWORK.with(|network_ref| {
+        let _ = network_ref.borrow_mut().set(network);
+    });    
     
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
@@ -474,10 +479,22 @@ fn reconstruct_subaccounts() {
     }
 }
 
+fn get_stable_network() -> Network {
+    CONNECTED_NETWORK.with(|network_ref| *network_ref.borrow().get())
+}
+
+fn reconstruct_network() {
+    let network = get_stable_network();
+    NETWORK.with(|net| {
+        *net.borrow_mut() = network;
+    });
+}
+
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
     ic_cdk::println!("running post_upgrade...");
     reconstruct_subaccounts();
+    reconstruct_network();
 }
 
 #[query]

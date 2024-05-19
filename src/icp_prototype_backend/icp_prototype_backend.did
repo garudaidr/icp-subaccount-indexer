@@ -45,6 +45,7 @@ service : (Network, nat64, nat32, text, text) -> {
   clear_transactions : (opt nat64, opt Timestamp) -> (Result_1);
   get_canister_principal : () -> (text) query;
   get_interval : () -> (Result_2) query;
+  get_network : () -> (Network) query;
   get_next_block : () -> (nat64) query;
   get_nonce : () -> (nat32) query;
   get_oldest_block : () -> (opt nat64) query;

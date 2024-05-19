@@ -8,6 +8,12 @@ use serde::Serialize;
 use std::{borrow::Cow, collections::HashMap};
 use std::cell::RefCell;
 use std::collections::BTreeSet;
+use ic_stable_structures::{
+    memory_manager::VirtualMemory,
+    storable::{Bound, Storable},
+    DefaultMemoryImpl,
+};
+
 pub struct State {
     pending_requests: BTreeSet<Principal>,
 }
@@ -52,6 +58,21 @@ impl Drop for CallerGuard {
 pub enum Network {
     Mainnet,
     Local,
+}
+
+impl Storable for Network {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        candid::decode_one(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
 }
 
 #[derive(CandidType, Deserialize, Serialize, Clone)]
@@ -252,13 +273,6 @@ pub struct StoredTransactions {
     pub sweep_status: SweepStatus,
 }
 
-// #[derive(CandidType, Deserialize, Serialize, Clone)]
-// pub struct PrunedTransactions {
-//     pub index: u64,
-//     pub memo: u64,
-//     pub operation: Option<Operation>,
-// }
-
 impl StoredTransactions {
     pub fn new(index: u64, transaction: Transaction) -> Self {
         Self {
@@ -288,12 +302,6 @@ impl StoredPrincipal {
         self.principal
     }
 }
-
-use ic_stable_structures::{
-    memory_manager::VirtualMemory,
-    storable::{Bound, Storable},
-    DefaultMemoryImpl,
-};
 
 const MAX_VALUE_SIZE: u32 = 500;
 impl Storable for StoredTransactions {
