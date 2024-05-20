@@ -274,10 +274,11 @@ pub struct StoredTransactions {
     pub operation: Option<Operation>,
     pub created_at_time: Timestamp,
     pub sweep_status: SweepStatus,
+    pub tx_hash: String,
 }
 
 impl StoredTransactions {
-    pub fn new(index: u64, transaction: Transaction) -> Self {
+    pub fn new(index: u64, transaction: Transaction, hash: String) -> Self {
         Self {
             index,
             memo: transaction.memo,
@@ -285,6 +286,7 @@ impl StoredTransactions {
             operation: transaction.operation,
             created_at_time: transaction.created_at_time,
             sweep_status: SweepStatus::NotSwept,
+            tx_hash: hash,
         }
     }
 }

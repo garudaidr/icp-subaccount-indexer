@@ -9,6 +9,8 @@ use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
+use serde_cbor;
+use sha2::{Sha256, Digest};
 
 mod memory;
 mod tests;
@@ -28,7 +30,7 @@ use types::{
     Network, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
     InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
     QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp, CallerGuard,
+    TimerManagerTrait, Timestamp, CallerGuard, Transaction,
 };
 
 thread_local! {
@@ -103,9 +105,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
             match array_ref {
                 Some(array_ref) => {
                     let data: [u8; 32] = *array_ref;
-                    let subaccount = Subaccount(data);
-                    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-                    let hash_key = subaccountid.to_u64_hash();
+                    let hash_key = data.to_u64_hash();
 
                     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
                         let subaccounts_borrow = subaccounts.borrow();
@@ -295,6 +295,19 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     }
 }
 
+fn hash_transaction(tx: &Transaction) -> String {
+    let serialized = serde_cbor::ser::to_vec_packed(&tx).unwrap();
+
+    // Print the serialized CBOR data in hexadecimal format
+    println!("Serialized Transaction (CBOR): {:?}", hex::encode(&serialized));
+
+    let mut state = Sha256::new();
+    state.update(&serialized);
+
+    let result = state.finalize();
+    format!("{:x}", result)
+}
+
 async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
@@ -379,8 +392,10 @@ async fn call_query_blocks() {
                 TRANSACTIONS.with(|transactions_ref| {
                     let mut transactions = transactions_ref.borrow_mut();
 
+                    let hash = hash_transaction(&block.transaction);
+                    ic_cdk::println!("Hash: {:?}", hash);
                     let transaction =
-                        StoredTransactions::new(block_count, block.transaction.clone());
+                    StoredTransactions::new(block_count, block.transaction.clone(), hash);
 
                     if !transactions.contains_key(&block_count) {
                         // Filter keys that exist
@@ -474,6 +489,8 @@ fn reconstruct_subaccounts() {
         let account_id_hash = subaccountid.to_u64_hash();
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
+            // print hash + AccountIdentifier_hex
+            ic_cdk::println!("hash: {}, subaccountid: {}", account_id_hash, subaccountid.to_hex());
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
