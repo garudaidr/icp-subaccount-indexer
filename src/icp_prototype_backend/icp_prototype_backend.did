@@ -29,6 +29,7 @@ type StoredTransactions = record {
   operation : opt Operation;
   index : nat64;
   created_at_time : Timestamp;
+  tx_hash : text;
 };
 type SweepStatus = variant { Swept; FailedToSweep; NotSwept };
 type Timestamp = record { timestamp_nanos : nat64 };
