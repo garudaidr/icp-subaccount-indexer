@@ -35,5 +35,8 @@ dfx identity use custodian
 export CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
 echo $CUSTODIAN_PRINCIPAL
 
-# Deploy a backend canister
-dfx deploy icp_prototype_backend --argument "(variant { Local }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
+# Deploy a backend canister to mainnet
+dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
+
+# Deploy a backend canister to local
+dfx deploy icp_prototype_backend --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
