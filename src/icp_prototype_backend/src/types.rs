@@ -1,18 +1,20 @@
+use crate::ledger::{Operation, TimeStamp, Transaction};
 use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
-use ic_ledger_types::{BlockIndex, TransferArgs};
-use icrc_ledger_types::icrc1::transfer::TransferArg;
-use serde::Serialize;
-use std::{borrow::Cow, collections::HashMap};
-use std::cell::RefCell;
-use std::collections::BTreeSet;
+use ic_ledger_types::{BlockIndex, Memo, TransferArgs};
 use ic_stable_structures::{
     memory_manager::VirtualMemory,
     storable::{Bound, Storable},
     DefaultMemoryImpl,
 };
+use icrc_ledger_types::icrc1::transfer::TransferArg;
+use serde::Serialize;
+use serde_bytes::ByteBuf;
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::{borrow::Cow, collections::HashMap};
 
 pub struct State {
     pending_requests: BTreeSet<Principal>,
@@ -34,8 +36,11 @@ impl CallerGuard {
     pub fn new(principal: Principal) -> Result<Self, String> {
         STATE.with(|state| {
             let pending_requests = &mut state.borrow_mut().pending_requests;
-            if pending_requests.contains(&principal){
-                return Err(format!("Already processing a request for principal {:?}", &principal));
+            if pending_requests.contains(&principal) {
+                return Err(format!(
+                    "Already processing a request for principal {:?}",
+                    &principal
+                ));
             }
             pending_requests.insert(principal);
             Ok(Self { principal })
@@ -166,72 +171,8 @@ pub struct QueryBlocksResponse {
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct Block {
     pub transaction: Transaction,
-    pub timestamp: Timestamp,
+    pub timestamp: TimeStamp,
     pub parent_hash: Option<Vec<u8>>,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Transaction {
-    pub memo: u64,
-    pub icrc1_memo: Option<Vec<u8>>,
-    pub operation: Option<Operation>,
-    pub created_at_time: Timestamp,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Timestamp {
-    pub timestamp_nanos: u64,
-}
-impl Timestamp {
-    pub fn from_nanos(timestamp_nanos: u64) -> Self {
-        Self { timestamp_nanos }
-    }
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub enum Operation {
-    Approve(Approve),
-    Burn(Burn),
-    Mint(Mint),
-    Transfer(Transfer),
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Approve {
-    pub fee: E8s,
-    pub from: Vec<u8>,
-    pub allowance_e8s: i64,
-    pub allowance: E8s,
-    pub expected_allowance: Option<E8s>,
-    pub expires_at: Option<Timestamp>,
-    pub spender: Vec<u8>,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Burn {
-    pub from: Vec<u8>,
-    pub amount: E8s,
-    pub spender: Option<Vec<u8>>,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Mint {
-    pub to: Vec<u8>,
-    pub amount: E8s,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct Transfer {
-    pub to: Vec<u8>,
-    pub fee: E8s,
-    pub from: Vec<u8>,
-    pub amount: E8s,
-    pub spender: Option<Vec<u8>>,
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub struct E8s {
-    pub e8s: u64,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -269,10 +210,12 @@ pub enum SweepStatus {
 #[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct StoredTransactions {
     pub index: u64,
-    pub memo: u64,
-    pub icrc1_memo: Option<Vec<u8>>,
+    pub memo: Memo,
+    /// The time this transaction was created.
+    pub created_at_time: Option<TimeStamp>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icrc1_memo: Option<ByteBuf>,
     pub operation: Option<Operation>,
-    pub created_at_time: Timestamp,
     pub sweep_status: SweepStatus,
     pub tx_hash: String,
 }
@@ -283,7 +226,7 @@ impl StoredTransactions {
             index,
             memo: transaction.memo,
             icrc1_memo: transaction.icrc1_memo,
-            operation: transaction.operation,
+            operation: Some(transaction.operation),
             created_at_time: transaction.created_at_time,
             sweep_status: SweepStatus::NotSwept,
             tx_hash: hash,

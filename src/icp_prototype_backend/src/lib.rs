@@ -6,36 +6,39 @@ use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
+use serde_cbor;
+use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
-use serde_cbor;
-use sha2::{Sha256, Digest};
 
+mod hashof;
+mod ledger;
 mod memory;
 mod tests;
 mod types;
 
 use ic_ledger_types;
 use ic_ledger_types::{
-    AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs,
-    MAINNET_LEDGER_CANISTER_ID,
+    BlockIndex, Memo, Subaccount, Tokens, TransferArgs, MAINNET_LEDGER_CANISTER_ID,
 };
 
+use crate::ledger::{AccountIdentifier, Operation, TimeStamp, Transaction};
+
 use memory::{
-    CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
-    TRANSACTIONS,
+    CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
+    PRINCIPAL, TRANSACTIONS,
 };
 use types::{
-    Network, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
-    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
-    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp, CallerGuard, Transaction,
+    CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
+    IcCdkSpawnManagerTrait, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
+    QueryBlocksRequest, QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus,
+    TimerManager, TimerManagerTrait,
 };
 
 thread_local! {
     static NETWORK: RefCell<Network> = RefCell::new(Network::Local);
-    static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, Subaccount>> = RefCell::default();
+    static LIST_OF_SUBACCOUNTS: RefCell<HashMap<[u8; 28], Subaccount>> = RefCell::default();
     static TIMERS: RefCell<TimerId> = RefCell::default();
 }
 
@@ -90,7 +93,7 @@ fn authenticate() -> Result<(), String> {
         .ok_or("Failed to get custodian principal")?;
 
     if caller != custodian_principal {
-        return Err("Unauthorized".to_string()) 
+        return Err("Unauthorized".to_string());
     }
 
     ic_cdk::println!("Caller: {:?}", caller);
@@ -99,35 +102,15 @@ fn authenticate() -> Result<(), String> {
     Ok(())
 }
 
-fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
-    match vec_to_check.len() {
-        32 => {
-            let slice = &vec_to_check[..];
-            let array_ref: Option<&[u8; 32]> = slice.try_into().ok();
+fn includes_hash(account_identifier: &AccountIdentifier) -> bool {
+    LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+        let subaccounts_borrow = subaccounts.borrow();
 
-            match array_ref {
-                Some(array_ref) => {
-                    let data: [u8; 32] = *array_ref;
-                    let hash_key = data.to_u64_hash();
-
-                    LIST_OF_SUBACCOUNTS.with(|subaccounts| {
-                        let subaccounts_borrow = subaccounts.borrow();
-
-                        ic_cdk::println!("hash_key: {}", hash_key);
-                        match subaccounts_borrow.get(&hash_key) {
-                            Some(_) => true,
-                            None => false,
-                        }
-                    })
-                }
-                None => false,
-            }
+        match subaccounts_borrow.get(&account_identifier.hash) {
+            Some(_) => true,
+            None => false,
         }
-        other => {
-            ic_cdk::println!("vec_to_check len: {}", other);
-            false
-        }
-    }
+    })
 }
 
 #[update]
@@ -155,7 +138,7 @@ impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
 fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
-        let account_id_hash = accountid.to_u64_hash();
+        let account_id_hash = accountid.hash;
         // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
             Some(value) => Ok(*value),
@@ -172,12 +155,12 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
         message: "Operation is None".to_string(),
     })?;
     match operation {
-        Operation::Transfer(data) => {
+        Operation::Transfer { to, amount, .. } => {
             // construct sweep destination -> custodian id
 
             // construct sweep source of funds
-            let topup_to = data.to.clone();
-            let topup_to = topup_to.as_slice();
+            let topup_to = to.clone();
+            let topup_to = topup_to.hash.as_slice();
             let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
                 Error {
@@ -193,7 +176,7 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
             })?;
 
             // calculate amount
-            let amount = data.amount.e8s - 10_000;
+            let amount = amount.e8s() - 10_000;
 
             Ok(TransferArgs {
                 memo: Memo(0),
@@ -213,32 +196,43 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
 fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
     let operation = tx.operation.as_ref().unwrap();
     match operation {
-        Operation::Transfer(data) => {
-
+        Operation::Transfer {
+            from,
+            to,
+            amount,
+            fee,
+            spender,
+        } => {
             // construct refund destination
-            let topup_from = data.from.clone();
-            let topup_from = topup_from.as_slice();
-            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err|{
+            let topup_from = from.clone();
+            let topup_from = topup_from.hash.as_slice();
+            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error converting from to AccountIdentifier".to_string(),}
+                Error {
+                    message: "Error converting from to AccountIdentifier".to_string(),
+                }
             })?;
 
             // construct refund source of funds
-            let topup_to = data.to.clone();
-            let topup_to = topup_to.as_slice();
-            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err|{
+            let topup_to = to.clone();
+            let topup_to = topup_to.hash.as_slice();
+            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error converting to to AccountIdentifier".to_string(),}
+                Error {
+                    message: "Error converting to to AccountIdentifier".to_string(),
+                }
             })?;
             let result = get_subaccount(&refund_source);
-            let refund_source_subaccount = result.map_err(|err|{
+            let refund_source_subaccount = result.map_err(|err| {
                 ic_cdk::println!("Error: {:?}", err);
-                Error {message: "Error getting to_subaccount".to_string(),}
+                Error {
+                    message: "Error getting to_subaccount".to_string(),
+                }
             })?;
 
             ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
 
-            let amount = data.amount.e8s - 10_000;
+            let amount = amount.e8s() - 10_000;
             Ok(TransferArgs {
                 memo: Memo(0),
                 amount: Tokens::from_e8s(amount),
@@ -247,8 +241,10 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
                 to: refund_to,
                 created_at_time: None,
             })
-        },
-        _ => Err(Error {message: "Operation is not a transfer".to_string(),}),
+        }
+        _ => Err(Error {
+            message: "Operation is not a transfer".to_string(),
+        }),
     } // end match
 }
 
@@ -285,7 +281,7 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             Ok(Err(transfer_error)) => {
                 let error_message = format!("transfer error: {:?}", transfer_error);
                 Err(error_message)
-            },
+            }
             Err((error, message)) => {
                 let error_message = format!("unexpected error: {:?}, message: {}", error, message);
                 Err(error_message)
@@ -298,7 +294,10 @@ fn hash_transaction(tx: &Transaction) -> String {
     let serialized = serde_cbor::ser::to_vec_packed(&tx).unwrap();
 
     // Print the serialized CBOR data in hexadecimal format
-    println!("Serialized Transaction (CBOR): {:?}", hex::encode(&serialized));
+    println!(
+        "Serialized Transaction (CBOR): {:?}",
+        hex::encode(&serialized)
+    );
 
     let mut state = Sha256::new();
     state.update(&serialized);
@@ -341,71 +340,69 @@ async fn call_query_blocks() {
 
     let mut block_count = next_block;
     response.blocks.iter().for_each(|block| {
-        block.transaction.operation.as_ref().map(|operation| {
-            ic_cdk::println!("Operation: {:?}", operation);
+        ic_cdk::println!("Operation: {:?}", block.transaction.operation);
 
-            let subaccount_exist = match operation {
-                Operation::Approve(data) => {
-                    ic_cdk::println!("Approve detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        let spender = data.spender.clone();
-                        includes_hash(&spender)
+        let subaccount_exist = match block.transaction.operation {
+            Operation::Approve { from, spender, .. } => {
+                ic_cdk::println!("Approve detected");
+                let from = from.clone();
+                if includes_hash(&from) {
+                    true
+                } else {
+                    let spender = spender.clone();
+                    includes_hash(&spender)
+                }
+            }
+            Operation::Burn { from, spender, .. } => {
+                ic_cdk::println!("Burn detected");
+                let from = from.clone();
+                if includes_hash(&from) {
+                    true
+                } else {
+                    match &spender {
+                        Some(spender) => includes_hash(&spender),
+                        None => false,
                     }
                 }
-                Operation::Burn(data) => {
-                    ic_cdk::println!("Burn detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(&spender),
-                            None => false,
-                        }
+            }
+            Operation::Mint { to, .. } => {
+                ic_cdk::println!("Mint detected");
+                let to = to.clone();
+                includes_hash(&to)
+            }
+            Operation::Transfer { to, spender, .. } => {
+                ic_cdk::println!("Transfer detected");
+                let to = to.clone();
+                if includes_hash(&to) {
+                    true
+                } else {
+                    match &spender {
+                        Some(spender) => includes_hash(&spender),
+                        None => false,
                     }
                 }
-                Operation::Mint(data) => {
-                    ic_cdk::println!("Mint detected");
-                    let to = data.to.clone();
-                    includes_hash(&to)
-                }
-                Operation::Transfer(data) => {
-                    ic_cdk::println!("Transfer detected");
-                    let to = data.to.clone();
-                    if includes_hash(&to) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(&spender),
-                            None => false,
-                        }
-                    }
-                }
-            };
+            }
+        };
 
-            if subaccount_exist {
-                ic_cdk::println!("Subaccount exists");
-                TRANSACTIONS.with(|transactions_ref| {
-                    let mut transactions = transactions_ref.borrow_mut();
+        if subaccount_exist {
+            ic_cdk::println!("Subaccount exists");
+            TRANSACTIONS.with(|transactions_ref| {
+                let mut transactions = transactions_ref.borrow_mut();
 
-                    let hash = hash_transaction(&block.transaction);
-                    ic_cdk::println!("Hash: {:?}", hash);
-                    let transaction =
+                let hash = hash_transaction(&block.transaction);
+                ic_cdk::println!("Hash: {:?}", hash);
+                let transaction =
                     StoredTransactions::new(block_count, block.transaction.clone(), hash);
 
-                    if !transactions.contains_key(&block_count) {
-                        // Filter keys that exist
-                        ic_cdk::println!("Inserting transaction");
-                        let _ = transactions.insert(block_count, transaction);
-                    } else {
-                        ic_cdk::println!("Transaction already exists");
-                    }
-                });
-            }
-        });
+                if !transactions.contains_key(&block_count) {
+                    // Filter keys that exist
+                    ic_cdk::println!("Inserting transaction");
+                    let _ = transactions.insert(block_count, transaction);
+                } else {
+                    ic_cdk::println!("Transaction already exists");
+                }
+            });
+        }
         block_count += 1;
     });
 
@@ -434,15 +431,21 @@ impl TimerManagerTrait for TimerManager {
 }
 
 #[ic_cdk::init]
-async fn init(network: Network, seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
+async fn init(
+    network: Network,
+    seconds: u64,
+    nonce: u32,
+    ledger_principal: String,
+    custodian_principal: String,
+) {
     NETWORK.with(|net| {
         *net.borrow_mut() = network;
     });
 
     CONNECTED_NETWORK.with(|network_ref| {
         let _ = network_ref.borrow_mut().set(network);
-    });    
-    
+    });
+
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
     });
@@ -489,7 +492,11 @@ fn reconstruct_subaccounts() {
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             // print hash + AccountIdentifier_hex
-            ic_cdk::println!("hash: {}, subaccountid: {}", account_id_hash, subaccountid.to_hex());
+            ic_cdk::println!(
+                "hash: {}, subaccountid: {}",
+                account_id_hash,
+                subaccountid.to_hex()
+            );
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
@@ -521,7 +528,6 @@ fn get_interval() -> Result<u64, String> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     TIMERS.with(|timers_ref| {
@@ -584,7 +590,6 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 
 #[update]
 fn add_subaccount() -> Result<String, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let nonce = nonce();
@@ -694,9 +699,8 @@ fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>
 #[update]
 fn clear_transactions(
     up_to_index: Option<u64>,
-    up_to_timestamp: Option<Timestamp>,
+    up_to_timestamp: Option<TimeStamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     // Get Data
@@ -706,7 +710,7 @@ fn clear_transactions(
     };
     let up_to_timestamp = match up_to_timestamp {
         Some(timestamp) => timestamp,
-        None => Timestamp::from_nanos(0),
+        None => TimeStamp { timestamp_nanos: 0 },
     };
 
     TRANSACTIONS.with(|transactions_ref| {
@@ -740,7 +744,6 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let transaction_opt = TRANSACTIONS
@@ -769,7 +772,6 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let mut futures = Vec::new();
