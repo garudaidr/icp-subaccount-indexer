@@ -59,15 +59,6 @@ impl ToU64Hash for [u8; 32] {
     }
 }
 
-impl ToU64Hash for AccountIdentifier {
-    fn to_u64_hash(&self) -> u64 {
-        let bytes = from_hex(&self.to_hex()).unwrap();
-        let mut hasher = DefaultHasher::new();
-        bytes.hash(&mut hasher);
-        hasher.finish()
-    }
-}
-
 fn network() -> Network {
     NETWORK.with(|net| *net.borrow())
 }
@@ -135,10 +126,10 @@ impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
     }
 }
 
-fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
+fn get_subaccount(account_id: &AccountIdentifier) -> Result<Subaccount, Error> {
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
-        let account_id_hash = accountid.hash;
+        let account_id_hash = account_id.hash;
         // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
             Some(value) => Ok(*value),
@@ -183,7 +174,7 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
                 amount: Tokens::from_e8s(amount),
                 from_subaccount: Some(sweep_source_subaccount),
                 fee: Tokens::from_e8s(10_000),
-                to: custodian_id,
+                to: custodian_id.convert_to_ic_ledger_account_identifier(),
                 created_at_time: None,
             })
         }
@@ -238,7 +229,7 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
                 amount: Tokens::from_e8s(amount),
                 from_subaccount: Some(refund_source_subaccount),
                 fee: Tokens::from_e8s(10_000),
-                to: refund_to,
+                to: refund_to.convert_to_ic_ledger_account_identifier(),
                 created_at_time: None,
             })
         }
@@ -487,16 +478,10 @@ fn reconstruct_subaccounts() {
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
         let subaccount = to_subaccount(i);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-        let account_id_hash = subaccountid.to_u64_hash();
+        let subaccount_id: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let account_id_hash = subaccount_id.hash;
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            // print hash + AccountIdentifier_hex
-            ic_cdk::println!(
-                "hash: {}, subaccountid: {}",
-                account_id_hash,
-                subaccountid.to_hex()
-            );
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
@@ -594,8 +579,8 @@ fn add_subaccount() -> Result<String, Error> {
 
     let nonce = nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
-    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
-    let account_id_hash = subaccountid.to_u64_hash();
+    let subaccount_id: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
+    let account_id_hash = subaccount_id.hash;
 
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
         list_ref.borrow_mut().insert(account_id_hash, subaccount);
@@ -605,11 +590,11 @@ fn add_subaccount() -> Result<String, Error> {
         let _ = nonce_ref.borrow_mut().set(nonce + 1);
     });
 
-    Ok(subaccountid.to_hex())
+    Ok(subaccount_id.to_hex())
 }
 
 #[query]
-fn get_subaccountid(nonce: u32) -> Result<String, Error> {
+fn get_subaccount_id(nonce: u32) -> Result<String, Error> {
     authenticate().map_err(|e| Error { message: e })?;
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
@@ -621,14 +606,12 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
         }
 
         let subaccount = to_subaccount(nonce);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-        let account_id_hash = subaccountid.to_u64_hash();
-
-        ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
+        let subaccount_id: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let account_id_hash = subaccount_id.hash;
 
         // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
-            Some(_) => Ok(subaccountid.to_hex()),
+            Some(_) => Ok(subaccount_id.to_hex()),
             None => Err(Error {
                 message: "Account not found".to_string(),
             }),
@@ -723,8 +706,9 @@ fn clear_transactions(
                 // If up_to_timestamp is set then remove transactions with a timestamp less than up_to_timestamp
                 (up_to_index != 0 && transaction.1.index <= up_to_index)
                     || (up_to_timestamp.timestamp_nanos != 0
-                        && transaction.1.created_at_time.timestamp_nanos
-                            <= up_to_timestamp.timestamp_nanos)
+                        && transaction.1.created_at_time.map_or(false, |created_at| {
+                            created_at.timestamp_nanos <= up_to_timestamp.timestamp_nanos
+                        }))
             })
             .map(|(k, _)| k)
             .collect();

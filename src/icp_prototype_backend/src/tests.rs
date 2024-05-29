@@ -30,8 +30,8 @@ mod tests {
             168, 200, 90, 30, 187, 129, 218, 133, 97, 52, 235, 109, 168, 55, 212, 238, 98, 209, 24,
             158, 242, 1, 194, 93, 181, 15, 4, 103, 49, 38, 186, 62,
         ]);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-        let account_id_hash = subaccountid.to_u64_hash();
+        let subaccount_id: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let account_id_hash = subaccount_id.hash;
         ic_cdk::println!("hash_key: {}", account_id_hash);
 
         // Insert the test hash into LIST_OF_SUBACCOUNTS.
@@ -407,24 +407,24 @@ mod tests {
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccount_id: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccount_id: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccount_id: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
-            let account_id_hash = spender_subaccountid.to_u64_hash();
+            let account_id_hash = spender_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, spender_subaccount);
 
-            let account_id_hash = to_subaccountid.to_u64_hash();
+            let account_id_hash = to_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let account_id_hash = from_subaccountid.to_u64_hash();
+            let account_id_hash = from_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, from_subaccount);
         });
 
@@ -438,11 +438,11 @@ mod tests {
                     memo: 123,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                        to: hex_str_to_vec(&to_subaccount_id.to_hex()).unwrap(),
                         fee: E8s { e8s: 100 },
-                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                        from: hex_str_to_vec(&from_subaccount_id.to_hex()).unwrap(),
                         amount: E8s { e8s: 10000 },
-                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                        spender: Some(hex_str_to_vec(&spender_subaccount_id.to_hex()).unwrap()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,
@@ -501,24 +501,24 @@ mod tests {
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccount_id: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccount_id: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccount_id: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
 
-            let account_id_hash = spender_subaccountid.to_u64_hash();
+            let account_id_hash = spender_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, spender_subaccount);
 
-            let account_id_hash = to_subaccountid.to_u64_hash();
+            let account_id_hash = to_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, to_subaccount);
 
-            let account_id_hash = from_subaccountid.to_u64_hash();
+            let account_id_hash = from_subaccount_id.hash;
             subaccounts_mut.insert(account_id_hash, from_subaccount);
         });
 
@@ -534,11 +534,11 @@ mod tests {
                     memo: 100,
                     icrc1_memo: None,
                     operation: Some(Operation::Transfer(Transfer {
-                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                        to: hex_str_to_vec(&to_subaccount_id.to_hex()).unwrap(),
                         fee: E8s { e8s: 100 },
-                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                        from: hex_str_to_vec(&from_subaccount_id.to_hex()).unwrap(),
                         amount: E8s { e8s: 10000 },
-                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                        spender: Some(hex_str_to_vec(&spender_subaccount_id.to_hex()).unwrap()),
                     })),
                     created_at_time: Timestamp { timestamp_nanos: 0 },
                     sweep_status: SweepStatus::NotSwept,

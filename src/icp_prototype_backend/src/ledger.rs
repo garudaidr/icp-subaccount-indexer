@@ -1,5 +1,6 @@
 use crate::hashof::HashOf;
-use candid::CandidType;
+use candid::{CandidType, Principal};
+use ic_ledger_types::{AccountIdentifier as IcLedgerAccountIdentifier, Subaccount};
 use ic_ledger_types::{Memo, Tokens};
 use serde::{de, de::Error, Deserialize, Serialize};
 use serde_bytes::ByteBuf;
@@ -38,6 +39,29 @@ pub enum AccountIdParseError {
 }
 
 impl AccountIdentifier {
+    // Copied from https://docs.rs/ic-ledger-types/0.11.0/src/ic_ledger_types/lib.rs.html#159
+    pub fn new(owner: &Principal, subaccount: &Subaccount) -> Self {
+        let mut hasher = sha2::Sha224::new();
+        hasher.update(b"\x0Aaccount-id");
+        hasher.update(owner.as_slice());
+        hasher.update(&subaccount.0[..]);
+        let hash: [u8; 28] = hasher.finalize().into();
+
+        AccountIdentifier { hash }
+    }
+
+    pub fn convert_to_ic_ledger_account_identifier(&self) -> IcLedgerAccountIdentifier {
+        let mut hasher = crc32fast::Hasher::new();
+        hasher.update(&self.hash);
+        let crc32_bytes = hasher.finalize().to_be_bytes();
+
+        let mut result = [0u8; 32];
+        result[0..4].copy_from_slice(&crc32_bytes[..]);
+        result[4..32].copy_from_slice(self.hash.as_ref());
+        IcLedgerAccountIdentifier::from_slice(&result)
+            .expect("Account identifier conversion failed")
+    }
+
     pub fn from_hex(hex_str: &str) -> Result<AccountIdentifier, String> {
         let hex: Vec<u8> = hex::decode(hex_str).map_err(|e| e.to_string())?;
         Self::from_slice(&hex[..]).map_err(|err| match err {
