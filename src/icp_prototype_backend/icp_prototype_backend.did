@@ -19,9 +19,15 @@ type Operation = variant {
   Transfer : Transfer;
 };
 type Result = variant { Ok : text; Err : Error };
-type Result_1 = variant { Ok : vec StoredTransactions; Err : Error };
-type Result_2 = variant { Ok : nat64; Err : Error };
-type Result_3 = variant { Ok : vec text; Err : Error };
+type Result_1 = variant { Ok : text; Err : text };
+type Result_2 = variant { Ok : vec StoredTransactions; Err : Error };
+type Result_3 = variant { Ok : nat64; Err : text };
+type Result_4 = variant { Ok : Network; Err : text };
+type Result_5 = variant { Ok : nat32; Err : text };
+type Result_6 = variant { Ok : opt nat64; Err : text };
+type Result_7 = variant { Ok : vec StoredTransactions; Err : text };
+type Result_8 = variant { Ok : nat64; Err : Error };
+type Result_9 = variant { Ok : vec text; Err : Error };
 type StoredTransactions = record {
   sweep_status : SweepStatus;
   memo : nat64;
@@ -42,20 +48,20 @@ type Transfer = record {
 };
 service : (Network, nat64, nat32, text, text) -> {
   add_subaccount : () -> (Result);
-  canister_status : () -> (Result) query;
-  clear_transactions : (opt nat64, opt Timestamp) -> (Result_1);
-  get_canister_principal : () -> (text) query;
-  get_interval : () -> (Result_2) query;
-  get_network : () -> (Network) query;
-  get_next_block : () -> (nat64) query;
-  get_nonce : () -> (nat32) query;
-  get_oldest_block : () -> (opt nat64) query;
-  get_subaccount_count : () -> (nat32) query;
+  canister_status : () -> (Result_1) query;
+  clear_transactions : (opt nat64, opt Timestamp) -> (Result_2);
+  get_canister_principal : () -> (Result_1) query;
+  get_interval : () -> (Result_3) query;
+  get_network : () -> (Result_4) query;
+  get_next_block : () -> (Result_3) query;
+  get_nonce : () -> (Result_5) query;
+  get_oldest_block : () -> (Result_6) query;
+  get_subaccount_count : () -> (Result_5) query;
   get_subaccountid : (nat32) -> (Result) query;
-  get_transactions_count : () -> (nat32) query;
-  list_transactions : (opt nat64) -> (vec StoredTransactions) query;
+  get_transactions_count : () -> (Result_5) query;
+  list_transactions : (opt nat64) -> (Result_7) query;
   refund : (nat64) -> (Result);
-  set_interval : (nat64) -> (Result_2);
-  set_next_block : (nat64) -> (Result_2);
-  sweep : () -> (Result_3);
+  set_interval : (nat64) -> (Result_8);
+  set_next_block : (nat64) -> (Result_8);
+  sweep : () -> (Result_9);
 }

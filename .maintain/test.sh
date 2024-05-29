@@ -19,7 +19,7 @@ dfx canister --network local call ryjl3-tyaaa-aaaaa-aaaba-cai account_identifier
 
 
 # Transfer to canister subaccount-id 001
-dfx ledger transfer --network local --amount 1.25 --memo 001 a8c85a1ebb81da856134eb6da837d4ee62d1189ef201c25db50f04673126ba3e
+dfx ledger transfer --network local --amount 1.25 --memo 001 65f5bd3e9f479217d8ed2ae8bbdb9310a0f5d01a34dffba94d305274c002b88d
 
 # Transfer to canister subaccount-id 002
 dfx ledger transfer --network local --amount 2.75 --memo 002 b79ddc484d7c8801e5e3ae4d0480f65258ad89e7f31d3a973e278e0823553230

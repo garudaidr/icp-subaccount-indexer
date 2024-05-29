@@ -69,13 +69,18 @@ impl ToU64Hash for AccountIdentifier {
     }
 }
 
-#[query]
-fn get_network() -> Network {
+fn network() -> Network {
     NETWORK.with(|net| *net.borrow())
 }
 
+#[query]
+fn get_network() -> Result<Network, String> {
+    authenticate()?;
+    Ok(network())
+}
+
 fn authenticate() -> Result<(), String> {
-    let network = get_network();
+    let network = network();
     if network == Network::Local {
         return Ok(());
     }
@@ -139,8 +144,9 @@ async fn set_next_block(block: u64) -> Result<u64, Error> {
 }
 
 #[query]
-fn get_next_block() -> u64 {
-    NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get())
+fn get_next_block() -> Result<u64, String> {
+    authenticate()?;
+    Ok(NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get()))
 }
 
 #[cfg(not(test))]
@@ -213,40 +219,39 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
     match operation {
         Operation::Transfer(data) => {
             // construct refund destination
-            let topup_to = data.to.clone();
-            let topup_to = topup_to.as_slice();
-            let refund_to = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error1: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
-            })?;
-
-            // construct refund source of funds
             let topup_from = data.from.clone();
             let topup_from = topup_from.as_slice();
-            let refund_from = AccountIdentifier::from_slice(topup_from).map_err(|err| {
-                ic_cdk::println!("Error2: {:?}", err);
+            let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
+                ic_cdk::println!("Error: {:?}", err);
                 Error {
                     message: "Error converting from to AccountIdentifier".to_string(),
                 }
             })?;
 
-            let result = get_subaccount(&refund_from);
-            let refund_from_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error3: {:?}", err);
+            // construct refund source of funds
+            let topup_to = data.to.clone();
+            let topup_to = topup_to.as_slice();
+            let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
+                ic_cdk::println!("Error: {:?}", err);
+                Error {
+                    message: "Error converting to to AccountIdentifier".to_string(),
+                }
+            })?;
+            let result = get_subaccount(&refund_source);
+            let refund_source_subaccount = result.map_err(|err| {
+                ic_cdk::println!("Error: {:?}", err);
                 Error {
                     message: "Error getting to_subaccount".to_string(),
                 }
             })?;
 
-            ic_cdk::println!("refund_from_subaccount: {:?}", refund_from_subaccount);
+            ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
 
             let amount = data.amount.e8s - 10_000;
             Ok(TransferArgs {
                 memo: Memo(0),
                 amount: Tokens::from_e8s(amount),
-                from_subaccount: Some(refund_from_subaccount),
+                from_subaccount: Some(refund_source_subaccount),
                 fee: Tokens::from_e8s(10_000),
                 to: refund_to,
                 created_at_time: None,
@@ -286,13 +291,16 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     }
 
     async fn transfer(args: TransferArgs) -> Result<BlockIndex, String> {
-        let result = ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args).await;
-
-        let result = result.unwrap();
-
-        match result {
-            Ok(block_index) => Ok(block_index),
-            Err(e) => Err(format!("transfer error: {:?}", e.to_string())),
+        match ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args).await {
+            Ok(Ok(block_index)) => Ok(block_index),
+            Ok(Err(transfer_error)) => {
+                let error_message = format!("transfer error: {:?}", transfer_error);
+                Err(error_message)
+            }
+            Err((error, message)) => {
+                let error_message = format!("unexpected error: {:?}, message: {}", error, message);
+                Err(error_message)
+            }
         }
     }
 }
@@ -531,7 +539,7 @@ async fn init(
 }
 
 fn reconstruct_subaccounts() {
-    let nonce: u32 = get_nonce();
+    let nonce: u32 = nonce();
     let account = CanisterApiManager::id();
 
     ic_cdk::println!("Reconstructing subaccounts for account: {:?}", account);
@@ -572,8 +580,9 @@ async fn post_upgrade() {
 }
 
 #[query]
-fn get_interval() -> Result<u64, Error> {
-    INTERVAL_IN_SECONDS.with(|interval_ref| Ok(*interval_ref.borrow().get()))
+fn get_interval() -> Result<u64, String> {
+    authenticate()?;
+    Ok(INTERVAL_IN_SECONDS.with(|interval_ref| *interval_ref.borrow().get()))
 }
 
 #[update]
@@ -598,18 +607,20 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
     Ok(seconds)
 }
 
-#[query]
-fn get_nonce() -> u32 {
+fn nonce() -> u32 {
     LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
 }
 
 #[query]
-fn get_canister_principal() -> String {
-    // Retrieve the principal ID of the canister
-    let principal_id = CanisterApiManager::id();
+fn get_nonce() -> Result<u32, String> {
+    authenticate()?;
+    Ok(nonce())
+}
 
-    // Convert the Principal to a string to easily return or log it
-    principal_id.to_string()
+#[query]
+fn get_canister_principal() -> Result<String, String> {
+    authenticate()?;
+    Ok(CanisterApiManager::id().to_string())
 }
 
 fn to_subaccount(nonce: u32) -> Subaccount {
@@ -640,7 +651,7 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 fn add_subaccount() -> Result<String, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
-    let nonce = get_nonce();
+    let nonce = nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
     let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
     let account_id_hash = subaccountid.to_u64_hash();
@@ -658,6 +669,7 @@ fn add_subaccount() -> Result<String, Error> {
 
 #[query]
 fn get_subaccountid(nonce: u32) -> Result<String, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
 
@@ -684,25 +696,30 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
 }
 
 #[query]
-fn get_subaccount_count() -> u32 {
-    LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().len() as u32)
+fn get_subaccount_count() -> Result<u32, String> {
+    authenticate()?;
+    Ok(LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().len() as u32))
 }
 
 #[query]
-fn get_transactions_count() -> u32 {
-    TRANSACTIONS.with(|transactions_ref| transactions_ref.borrow().len() as u32)
+fn get_transactions_count() -> Result<u32, String> {
+    authenticate()?;
+    Ok(TRANSACTIONS.with(|transactions_ref| transactions_ref.borrow().len() as u32))
 }
 
 #[query]
-fn get_oldest_block() -> Option<u64> {
-    TRANSACTIONS.with(|transactions_ref| {
+fn get_oldest_block() -> Result<Option<u64>, String> {
+    authenticate()?;
+    Ok(TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
         transactions_borrow.iter().next().map(|(key, _value)| key)
-    })
+    }))
 }
 
 #[query]
-fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
+fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>, String> {
+    authenticate()?;
+
     // process argument
     let up_to_count = match up_to_count {
         Some(count) => count,
@@ -719,10 +736,10 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
 
         // If transactions_borrow.len() is less than up_to_count, return all transactions
-        let skip = if transactions_borrow.len() < up_to_count {
+        let skip = if (transactions_borrow.len() as u64) < up_to_count {
             0
         } else {
-            transactions_borrow.len() - up_to_count
+            (transactions_borrow.len() as u64) - up_to_count
         };
 
         ic_cdk::println!("skip: {}", skip);
@@ -733,8 +750,9 @@ fn list_transactions(up_to_count: Option<u64>) -> Vec<StoredTransactions> {
             .for_each(|(_key, value)| {
                 result.push(value.clone());
             });
-        result
-    })
+    });
+
+    Ok(result)
 }
 
 #[update]
@@ -850,6 +868,9 @@ async fn sweep() -> Result<Vec<String>, Error> {
 
     for tx in txs.iter() {
         let transfer_args = to_sweep_args(&tx.1)?;
+
+        ic_cdk::println!("transfer_args: {:?}", transfer_args);
+
         let future = InterCanisterCallManager::transfer(transfer_args);
         futures.push(future);
     }
@@ -904,8 +925,8 @@ fn get_custodian_id() -> Result<AccountIdentifier, String> {
 }
 
 #[query]
-fn canister_status() -> Result<String, Error> {
-    // Stub implementation - Return a placeholder JSON response
+fn canister_status() -> Result<String, String> {
+    authenticate()?;
     Ok(format!("{{\"message\": \"Canister is operational\"}}"))
 }
 

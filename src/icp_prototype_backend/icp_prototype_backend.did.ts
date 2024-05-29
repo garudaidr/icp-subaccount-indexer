@@ -33,9 +33,15 @@ export type Operation =
   | { Mint: Mint }
   | { Transfer: Transfer };
 export type Result = { Ok: string } | { Err: Error };
-export type Result_1 = { Ok: Array<StoredTransactions> } | { Err: Error };
-export type Result_2 = { Ok: bigint } | { Err: Error };
-export type Result_3 = { Ok: Array<string> } | { Err: Error };
+export type Result_1 = { Ok: string } | { Err: string };
+export type Result_2 = { Ok: Array<StoredTransactions> } | { Err: Error };
+export type Result_3 = { Ok: bigint } | { Err: string };
+export type Result_4 = { Ok: Network } | { Err: string };
+export type Result_5 = { Ok: number } | { Err: string };
+export type Result_6 = { Ok: [] | [bigint] } | { Err: string };
+export type Result_7 = { Ok: Array<StoredTransactions> } | { Err: string };
+export type Result_8 = { Ok: bigint } | { Err: Error };
+export type Result_9 = { Ok: Array<string> } | { Err: Error };
 export interface StoredTransactions {
   sweep_status: SweepStatus;
   memo: bigint;
@@ -61,22 +67,22 @@ export interface Transfer {
 }
 export interface _SERVICE {
   add_subaccount: ActorMethod<[], Result>;
-  canister_status: ActorMethod<[], Result>;
-  clear_transactions: ActorMethod<[[] | [bigint], [] | [Timestamp]], Result_1>;
-  get_canister_principal: ActorMethod<[], string>;
-  get_interval: ActorMethod<[], Result_2>;
-  get_network: ActorMethod<[], Network>;
-  get_next_block: ActorMethod<[], bigint>;
-  get_nonce: ActorMethod<[], number>;
-  get_oldest_block: ActorMethod<[], [] | [bigint]>;
-  get_subaccount_count: ActorMethod<[], number>;
+  canister_status: ActorMethod<[], Result_1>;
+  clear_transactions: ActorMethod<[[] | [bigint], [] | [Timestamp]], Result_2>;
+  get_canister_principal: ActorMethod<[], Result_1>;
+  get_interval: ActorMethod<[], Result_3>;
+  get_network: ActorMethod<[], Result_4>;
+  get_next_block: ActorMethod<[], Result_3>;
+  get_nonce: ActorMethod<[], Result_5>;
+  get_oldest_block: ActorMethod<[], Result_6>;
+  get_subaccount_count: ActorMethod<[], Result_5>;
   get_subaccountid: ActorMethod<[number], Result>;
-  get_transactions_count: ActorMethod<[], number>;
-  list_transactions: ActorMethod<[[] | [bigint]], Array<StoredTransactions>>;
+  get_transactions_count: ActorMethod<[], Result_5>;
+  list_transactions: ActorMethod<[[] | [bigint]], Result_7>;
   refund: ActorMethod<[bigint], Result>;
-  set_interval: ActorMethod<[bigint], Result_2>;
-  set_next_block: ActorMethod<[bigint], Result_2>;
-  sweep: ActorMethod<[], Result_3>;
+  set_interval: ActorMethod<[bigint], Result_8>;
+  set_next_block: ActorMethod<[bigint], Result_8>;
+  sweep: ActorMethod<[], Result_9>;
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
