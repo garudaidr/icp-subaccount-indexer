@@ -6,33 +6,35 @@ use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
+use serde_cbor;
+use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
-use serde_cbor;
-use sha2::{Sha256, Digest};
 
+mod hashof;
+mod ledger;
 mod memory;
 mod tests;
 mod types;
 
-use icp_prototype_backend::ledger;
+use hashof::*;
+use ledger::*;
 
-use ic_ledger_types;
 use ic_ledger_types::{
     AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs,
     MAINNET_LEDGER_CANISTER_ID,
 };
 
 use memory::{
-    CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK, PRINCIPAL,
-    TRANSACTIONS,
+    CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
+    PRINCIPAL, TRANSACTIONS,
 };
 use types::{
-    Network, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager, IcCdkSpawnManagerTrait,
-    InterCanisterCallManager, InterCanisterCallManagerTrait, Operation, QueryBlocksRequest,
-    QueryBlocksResponse, StoredPrincipal, StoredTransactions, SweepStatus, TimerManager,
-    TimerManagerTrait, Timestamp, CallerGuard, Transaction,
+    CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
+    IcCdkSpawnManagerTrait, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
+    Operation, QueryBlocksRequest, QueryBlocksResponse, StoredPrincipal, StoredTransactions,
+    SweepStatus, TimerManager, TimerManagerTrait, Timestamp, Transaction,
 };
 
 thread_local! {
@@ -68,10 +70,8 @@ impl ToU64Hash for AccountIdentifier {
 }
 
 #[query]
-fn get_network() -> Network { 
-    NETWORK.with(|net| {
-        *net.borrow()
-    })
+fn get_network() -> Network {
+    NETWORK.with(|net| *net.borrow())
 }
 
 fn authenticate() -> Result<(), String> {
@@ -89,7 +89,7 @@ fn authenticate() -> Result<(), String> {
         .ok_or("Failed to get custodian principal")?;
 
     if caller != custodian_principal {
-        return Err("Unauthorized".to_string()) 
+        return Err("Unauthorized".to_string());
     }
 
     ic_cdk::println!("Caller: {:?}", caller);
@@ -298,7 +298,7 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
 }
 
 fn hash_transaction(tx: &Transaction) -> Result<String, String> {
-    let transfer = match tx.operation {
+    let transfer = match &tx.operation {
         Some(Operation::Transfer(transfer)) => transfer,
         _ => unreachable!("tx.operation should always be Operation::Transfer"),
     };
@@ -306,7 +306,7 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let from_account = match ledger::AccountIdentifier::from_slice(sender_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create from: {}", e));
+            return Err(format!("Failed to create from: {:?}", e));
         }
     };
 
@@ -314,17 +314,17 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let to_account = match ledger::AccountIdentifier::from_slice(receiver_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create to: {}", e));
+            return Err(format!("Failed to create to: {:?}", e));
         }
     };
 
-    let spender = match transfer.spender {
+    let spender = match &transfer.spender {
         Some(spender) => {
             let spender_slice = spender.as_slice();
             match ledger::AccountIdentifier::from_slice(spender_slice) {
                 Ok(account) => Some(account),
                 Err(e) => {
-                    return Err(format!("Failed to create spender: {}", e));
+                    return Err(format!("Failed to create spender: {:?}", e));
                 }
             }
         }
@@ -343,14 +343,13 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
         Tokens::from_e8s(amount),
         Tokens::from_e8s(fee),
         Memo(memo),
-        created_at_time,
         ledger::TimeStamp {
             timestamp_nanos: created_at_time,
         },
-    ).hash();
+    )
+    .generate_hash();
 
-    Ok(tx_hash.to_hex())
-
+    Ok("tx_hash.to_hex()".to_string())
 }
 
 async fn call_query_blocks() {
@@ -443,7 +442,7 @@ async fn call_query_blocks() {
                     };
                     ic_cdk::println!("Hash: {:?}", hash);
                     let transaction =
-                    StoredTransactions::new(block_count, block.transaction.clone(), hash);
+                        StoredTransactions::new(block_count, block.transaction.clone(), hash);
 
                     if !transactions.contains_key(&block_count) {
                         // Filter keys that exist
@@ -483,15 +482,21 @@ impl TimerManagerTrait for TimerManager {
 }
 
 #[ic_cdk::init]
-async fn init(network: Network, seconds: u64, nonce: u32, ledger_principal: String, custodian_principal: String) {
+async fn init(
+    network: Network,
+    seconds: u64,
+    nonce: u32,
+    ledger_principal: String,
+    custodian_principal: String,
+) {
     NETWORK.with(|net| {
         *net.borrow_mut() = network;
     });
 
     CONNECTED_NETWORK.with(|network_ref| {
         let _ = network_ref.borrow_mut().set(network);
-    });    
-    
+    });
+
     INTERVAL_IN_SECONDS.with(|interval_ref| {
         let _ = interval_ref.borrow_mut().set(seconds);
     });
@@ -538,7 +543,11 @@ fn reconstruct_subaccounts() {
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             // print hash + AccountIdentifier_hex
-            ic_cdk::println!("hash: {}, subaccountid: {}", account_id_hash, subaccountid.to_hex());
+            ic_cdk::println!(
+                "hash: {}, subaccountid: {}",
+                account_id_hash,
+                subaccountid.to_hex()
+            );
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
     }
@@ -569,7 +578,6 @@ fn get_interval() -> Result<u64, Error> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     TIMERS.with(|timers_ref| {
@@ -630,7 +638,6 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 
 #[update]
 fn add_subaccount() -> Result<String, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let nonce = get_nonce();
@@ -735,7 +742,6 @@ fn clear_transactions(
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     // Get Data
@@ -779,7 +785,6 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let transaction_opt = TRANSACTIONS
@@ -808,7 +813,6 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
-
     authenticate().map_err(|e| Error { message: e })?;
 
     let mut futures = Vec::new();

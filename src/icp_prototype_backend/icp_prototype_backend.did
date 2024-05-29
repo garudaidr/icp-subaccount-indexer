@@ -1,16 +1,16 @@
 type Approve = record {
   fee : E8s;
-  from : vec nat8;
+  from : blob;
   allowance_e8s : int64;
   allowance : E8s;
   expected_allowance : opt E8s;
   expires_at : opt Timestamp;
-  spender : vec nat8;
+  spender : blob;
 };
-type Burn = record { from : vec nat8; amount : E8s; spender : opt vec nat8 };
+type Burn = record { from : blob; amount : E8s; spender : opt blob };
 type E8s = record { e8s : nat64 };
 type Error = record { message : text };
-type Mint = record { to : vec nat8; amount : E8s };
+type Mint = record { to : blob; amount : E8s };
 type Network = variant { Mainnet; Local };
 type Operation = variant {
   Approve : Approve;
@@ -25,7 +25,7 @@ type Result_3 = variant { Ok : vec text; Err : Error };
 type StoredTransactions = record {
   sweep_status : SweepStatus;
   memo : nat64;
-  icrc1_memo : opt vec nat8;
+  icrc1_memo : opt blob;
   operation : opt Operation;
   index : nat64;
   created_at_time : Timestamp;
@@ -34,11 +34,11 @@ type StoredTransactions = record {
 type SweepStatus = variant { Swept; FailedToSweep; NotSwept };
 type Timestamp = record { timestamp_nanos : nat64 };
 type Transfer = record {
-  to : vec nat8;
+  to : blob;
   fee : E8s;
-  from : vec nat8;
+  from : blob;
   amount : E8s;
-  spender : opt vec nat8;
+  spender : opt blob;
 };
 service : (Network, nat64, nat32, text, text) -> {
   add_subaccount : () -> (Result);

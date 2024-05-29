@@ -1,14 +1,14 @@
 use crate::hashof::HashOf;
-use sha2::{Sha256, Digest};
-use serde::{de, de::Error, Deserialize, Serialize};
-use ic_ledger_types::{ Tokens, Memo };
 use candid::CandidType;
-use strum_macros::IntoStaticStr;
+use ic_ledger_types::{Memo, Tokens};
+use serde::{de, de::Error, Deserialize, Serialize};
 use serde_bytes::ByteBuf;
+use sha2::{Digest, Sha256};
 use std::{
     convert::TryInto,
     fmt::{Display, Formatter},
 };
+use strum_macros::IntoStaticStr;
 
 const HASH_LENGTH: usize = 32;
 
@@ -147,7 +147,6 @@ impl Serialize for AccountIdentifier {
     }
 }
 
-
 /// An operation which modifies account balances
 #[derive(
     Serialize,
@@ -234,14 +233,14 @@ pub trait LedgerTransaction: Sized {
     // type Tokens: Tokens;
 
     /// Returns the hash of this transaction.
-    fn hash(&self) -> HashOf<Self>;
+    fn generate_hash(&self) -> HashOf<Self>;
 }
 
 impl LedgerTransaction for Transaction {
     type AccountId = AccountIdentifier;
     // type Tokens = Tokens;
 
-    fn hash(&self) -> HashOf<Self> {
+    fn generate_hash(&self) -> HashOf<Self> {
         let mut state = Sha256::new();
         state.update(&serde_cbor::ser::to_vec_packed(&self).unwrap());
         let result = state.finalize();
