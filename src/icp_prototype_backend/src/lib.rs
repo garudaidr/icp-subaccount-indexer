@@ -349,7 +349,7 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     )
     .generate_hash();
 
-    Ok("tx_hash.to_hex()".to_string())
+    Ok(tx_hash.to_hex())
 }
 
 async fn call_query_blocks() {

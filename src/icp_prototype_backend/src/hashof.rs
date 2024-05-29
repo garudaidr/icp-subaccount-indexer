@@ -46,6 +46,10 @@ impl<T> HashOf<T> {
     pub fn as_slice(&self) -> &[u8] {
         &self.inner
     }
+
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.as_slice())
+    }
 }
 
 impl<T> fmt::Display for HashOf<T> {
