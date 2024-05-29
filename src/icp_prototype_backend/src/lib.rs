@@ -16,6 +16,8 @@ mod memory;
 mod tests;
 mod types;
 
+use icp_prototype_backend::ledger;
+
 use ic_ledger_types;
 use ic_ledger_types::{
     AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs,
@@ -295,17 +297,60 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     }
 }
 
-fn hash_transaction(tx: &Transaction) -> String {
-    let serialized = serde_cbor::ser::to_vec_packed(&tx).unwrap();
+fn hash_transaction(tx: &Transaction) -> Result<String, String> {
+    let transfer = match tx.operation {
+        Some(Operation::Transfer(transfer)) => transfer,
+        _ => unreachable!("tx.operation should always be Operation::Transfer"),
+    };
+    let sender_slice = transfer.from.as_slice();
+    let from_account = match ledger::AccountIdentifier::from_slice(sender_slice) {
+        Ok(account) => account,
+        Err(e) => {
+            return Err(format!("Failed to create from: {}", e));
+        }
+    };
 
-    // Print the serialized CBOR data in hexadecimal format
-    println!("Serialized Transaction (CBOR): {:?}", hex::encode(&serialized));
+    let receiver_slice = transfer.to.as_slice();
+    let to_account = match ledger::AccountIdentifier::from_slice(receiver_slice) {
+        Ok(account) => account,
+        Err(e) => {
+            return Err(format!("Failed to create to: {}", e));
+        }
+    };
 
-    let mut state = Sha256::new();
-    state.update(&serialized);
+    let spender = match transfer.spender {
+        Some(spender) => {
+            let spender_slice = spender.as_slice();
+            match ledger::AccountIdentifier::from_slice(spender_slice) {
+                Ok(account) => Some(account),
+                Err(e) => {
+                    return Err(format!("Failed to create spender: {}", e));
+                }
+            }
+        }
+        None => None,
+    };
 
-    let result = state.finalize();
-    format!("{:x}", result)
+    let amount = transfer.amount.e8s;
+    let fee = transfer.fee.e8s;
+    let memo = tx.memo;
+    let created_at_time = tx.created_at_time.timestamp_nanos;
+
+    let tx_hash = ledger::Transaction::new(
+        from_account,
+        to_account,
+        spender,
+        Tokens::from_e8s(amount),
+        Tokens::from_e8s(fee),
+        Memo(memo),
+        created_at_time,
+        ledger::TimeStamp {
+            timestamp_nanos: created_at_time,
+        },
+    ).hash();
+
+    Ok(tx_hash.to_hex())
+
 }
 
 async fn call_query_blocks() {
@@ -392,7 +437,10 @@ async fn call_query_blocks() {
                 TRANSACTIONS.with(|transactions_ref| {
                     let mut transactions = transactions_ref.borrow_mut();
 
-                    let hash = hash_transaction(&block.transaction);
+                    let hash = match hash_transaction(&block.transaction) {
+                        Ok(content) => content,
+                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+                    };
                     ic_cdk::println!("Hash: {:?}", hash);
                     let transaction =
                     StoredTransactions::new(block_count, block.transaction.clone(), hash);

@@ -7,6 +7,7 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
+path = "src/mod.rs"
 
 [dev-dependencies]
 once_cell = "1.15"
@@ -18,7 +19,7 @@ serde = "1.0.197"
 serde_json = "1.0"
 sha2 = "0.10.8"
 crc32fast = "1.4.0"
-hex = "0.4.3"
+hex = { version = "0.4.3", features = ["serde"] }
 
 candid = "0.10"
 ic-cdk = "0.12"
@@ -28,3 +29,8 @@ ic-ledger-types = "0.10.0"
 ic-cdk-macros = "0.8.4"
 ic-stable-structures = "0.6.3"
 serde_cbor = "0.11.2"
+fmt = "0.1.0"
+num-traits = "0.2.19"
+serde-hex = "0.1.0"
+strum_macros = "0.26.2"
+serde_bytes = "0.11.14"
