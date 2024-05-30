@@ -3,7 +3,7 @@ use ic_stable_structures::DefaultMemoryImpl;
 use ic_stable_structures::{StableBTreeMap, StableCell};
 use std::cell::RefCell;
 
-use crate::types::{Memory, StoredPrincipal, StoredTransactions, Network};
+use crate::types::{Memory, Network, StoredPrincipal, StoredTransactions};
 
 const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
@@ -57,7 +57,7 @@ thread_local! {
     pub static CONNECTED_NETWORK: RefCell<StableCell<Network, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(NETWORK_MEMORY)),
-            Network::Mainnet 
+            Network::Mainnet
         ).expect("Initializing NETWORK StableCell failed")
     );
 }

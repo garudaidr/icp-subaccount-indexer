@@ -9,7 +9,8 @@
     "deploy:local": ".maintain/deploy.sh",
     "deploy:ic": "dfx deploy --network=ic",
     "generate": "npm run generate:did && dfx generate icp_prototype_backend",
-    "generate:did": "npm run generate:did:backend",
+    "generate:did": "npm run generate:did:backend && npm run generate:did:ts",
+    "generate:did:ts": "didc bind src/icp_prototype_backend/icp_prototype_backend.did -t ts > src/icp_prototype_backend/icp_prototype_backend.did.ts",
     "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_prototype_backend && candid-extractor target/wasm32-unknown-unknown/release/icp_prototype_backend.wasm > src/icp_prototype_backend/icp_prototype_backend.did",
     "format": "cargo fmt && prettier --write ."
   },

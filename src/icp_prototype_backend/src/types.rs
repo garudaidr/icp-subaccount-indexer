@@ -3,16 +3,16 @@ use core::future::Future;
 use ic_cdk::api::call::CallResult;
 use ic_cdk_timers::TimerId;
 use ic_ledger_types::{BlockIndex, TransferArgs};
-use icrc_ledger_types::icrc1::transfer::TransferArg;
-use serde::Serialize;
-use std::{borrow::Cow, collections::HashMap};
-use std::cell::RefCell;
-use std::collections::BTreeSet;
 use ic_stable_structures::{
     memory_manager::VirtualMemory,
     storable::{Bound, Storable},
     DefaultMemoryImpl,
 };
+use icrc_ledger_types::icrc1::transfer::TransferArg;
+use serde::Serialize;
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::{borrow::Cow, collections::HashMap};
 
 pub struct State {
     pending_requests: BTreeSet<Principal>,
@@ -34,8 +34,11 @@ impl CallerGuard {
     pub fn new(principal: Principal) -> Result<Self, String> {
         STATE.with(|state| {
             let pending_requests = &mut state.borrow_mut().pending_requests;
-            if pending_requests.contains(&principal){
-                return Err(format!("Already processing a request for principal {:?}", &principal));
+            if pending_requests.contains(&principal) {
+                return Err(format!(
+                    "Already processing a request for principal {:?}",
+                    &principal
+                ));
             }
             pending_requests.insert(principal);
             Ok(Self { principal })
