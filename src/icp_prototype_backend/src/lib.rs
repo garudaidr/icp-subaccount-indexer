@@ -6,8 +6,6 @@ use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
-use serde_cbor;
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
@@ -18,7 +16,6 @@ mod memory;
 mod tests;
 mod types;
 
-use hashof::*;
 use ledger::*;
 
 use ic_ledger_types::{
@@ -574,7 +571,16 @@ fn reconstruct_network() {
 
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
-    ic_cdk::println!("running post_upgrade...");
+    ic_cdk::println!("running post_upgrade...");   
+    let custodian_principal = "".to_string();
+
+    let custodian_principal =
+        Principal::from_text(&custodian_principal).expect("Invalid custodian principal");
+
+    CUSTODIAN_PRINCIPAL.with(|principal_ref| {
+        let stored_principal = StoredPrincipal::new(custodian_principal);
+        let _ = principal_ref.borrow_mut().set(stored_principal);
+    });
     reconstruct_subaccounts();
     reconstruct_network();
 }
