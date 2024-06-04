@@ -54,54 +54,6 @@ mod tests {
     }
 
     #[test]
-    fn test_includes_hash_found() {
-        setup();
-
-        // Test hash that matches the setup.
-        let test_hash = vec![
-            168, 200, 90, 30, 187, 129, 218, 133, 97, 52, 235, 109, 168, 55, 212, 238, 98, 209, 24,
-            158, 242, 1, 194, 93, 181, 15, 4, 103, 49, 38, 186, 62,
-        ];
-        assert!(
-            includes_hash(&test_hash),
-            "includes_hash should return true for a hash present in the list"
-        );
-
-        teardown();
-    }
-
-    #[test]
-    fn test_includes_hash_not_found() {
-        setup();
-
-        // Test hash that does not match any in the setup.
-        let test_hash = vec![
-            183, 157, 220, 72, 77, 124, 136, 1, 229, 227, 174, 77, 4, 128, 246, 82, 88, 173, 137,
-            231, 243, 29, 58, 151, 62, 39, 142, 8, 35, 85, 50, 48,
-        ];
-        assert!(
-            !includes_hash(&test_hash),
-            "includes_hash should return false for a hash not present in the list"
-        );
-
-        teardown();
-    }
-
-    #[test]
-    fn test_includes_hash_invalid_length() {
-        setup();
-
-        // Test hash with an invalid length.
-        let test_hash = vec![1u8; 31];
-        assert!(
-            !includes_hash(&test_hash),
-            "includes_hash should return false for a hash with an incorrect length"
-        );
-
-        teardown();
-    }
-
-    #[test]
     fn test_get_interval_initial_value() {
         // Initially, the interval might be unset, or you can set a known value.
         let expected_seconds: u64 = 0; // Assuming 0 is the default or initial value.
@@ -149,12 +101,50 @@ mod tests {
 
     #[test]
     fn create_stored_transactions() {
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        // Setup principal
+        PRINCIPAL.with(|principal_ref| {
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
+            let _ = principal_ref.borrow_mut().set(stored_principal);
+        });
+
+        let spender_subaccount = nonce_to_subaccount(0);
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+
+        let to_subaccount = nonce_to_subaccount(1);
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+
+        let from_subaccount = nonce_to_subaccount(2);
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
+
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
+
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
+        });
+
         let index = 1;
         let memo = 12345;
         let icrc1_memo = Some(vec![1, 2, 3, 4]);
-        let operation = Some(Operation::Mint(Mint {
-            to: vec![],
-            amount: E8s { e8s: 1000 },
+        let operation = Some(Operation::Transfer(Transfer {
+            to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+            fee: E8s { e8s: 100 },
+            from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+            amount: E8s { e8s: 10000 },
+            spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
         }));
         let created_at_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -170,7 +160,11 @@ mod tests {
             },
         };
 
-        let stored_transaction = StoredTransactions::new(index, transaction);
+        let hash = match hash_transaction(&transaction) {
+            Ok(content) => content,
+            Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+        };
+        let stored_transaction = StoredTransactions::new(index, transaction, hash);
 
         assert_eq!(stored_transaction.index, index);
         assert_eq!(stored_transaction.memo, memo);
@@ -193,6 +187,41 @@ mod tests {
 
     // Utility function to populate transactions for testing
     fn populate_transactions(count: u64, timestamp_nanos: Option<u64>) {
+        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
+        let custodian_principal = STATIC_PRINCIPAL.clone();
+        CUSTODIAN_PRINCIPAL.with(|cp| {
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let _ = cp.borrow_mut().set(stored_custodian_principal);
+        });
+
+        // Setup principal
+        PRINCIPAL.with(|principal_ref| {
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
+            let _ = principal_ref.borrow_mut().set(stored_principal);
+        });
+
+        let spender_subaccount = nonce_to_subaccount(0);
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+
+        let to_subaccount = nonce_to_subaccount(1);
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+
+        let from_subaccount = nonce_to_subaccount(2);
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+
+        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+            let mut subaccounts_mut = subaccounts.borrow_mut();
+
+            let account_id_hash = spender_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, spender_subaccount);
+
+            let account_id_hash = to_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, to_subaccount);
+
+            let account_id_hash = from_subaccountid.to_u64_hash();
+            subaccounts_mut.insert(account_id_hash, from_subaccount);
+        });
+
         let timestamp_nanos = match timestamp_nanos {
             Some(count) => count,
             None => 1000,
@@ -200,18 +229,25 @@ mod tests {
         TRANSACTIONS.with(|transactions_ref| {
             let mut transactions_borrow = transactions_ref.borrow_mut();
             for i in 1..=count {
-                transactions_borrow.insert(
-                    i,
-                    StoredTransactions::new(
-                        i,
-                        Transaction {
-                            memo: i,
-                            icrc1_memo: None,
-                            operation: None,
-                            created_at_time: Timestamp { timestamp_nanos },
-                        },
-                    ),
-                );
+                let transaction = Transaction {
+                    memo: i,
+                    icrc1_memo: None,
+                    operation: Some(Operation::Transfer(Transfer {
+                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                        fee: E8s { e8s: 100 },
+                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                        amount: E8s { e8s: 10000 },
+                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                    })),
+                    created_at_time: Timestamp { timestamp_nanos },
+                };
+
+                let hash = match hash_transaction(&transaction) {
+                    Ok(content) => content,
+                    Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+                };
+
+                transactions_borrow.insert(i, StoredTransactions::new(i, transaction, hash));
             }
         });
 
@@ -225,7 +261,7 @@ mod tests {
         populate_transactions(50, None); // Assuming this populates 50 transactions
 
         let transactions = list_transactions(None);
-        assert_eq!(transactions.len(), 50);
+        assert_eq!(transactions.unwrap().len(), 50);
     }
 
     #[test]
@@ -233,7 +269,7 @@ mod tests {
         populate_transactions(150, None); // Assuming this populates 150 transactions
 
         let transactions = list_transactions(None);
-        assert_eq!(transactions.len(), 100);
+        assert_eq!(transactions.unwrap().len(), 100);
     }
 
     #[test]
@@ -241,10 +277,10 @@ mod tests {
         populate_transactions(150, None); // Assuming this populates 150 transactions
 
         let transactions = list_transactions(Some(80));
-        assert_eq!(transactions.len(), 80);
+        assert_eq!(transactions.unwrap().len(), 80);
 
         let transactions = list_transactions(Some(150));
-        assert_eq!(transactions.len(), 150);
+        assert_eq!(transactions.unwrap().len(), 150);
     }
 
     #[test]
@@ -340,7 +376,7 @@ mod tests {
 
         let transactions = list_transactions(None);
         assert_eq!(
-            transactions.len(),
+            transactions.unwrap().len(),
             100,
             "Expected to list only the last 100 transactions from a large dataset"
         );
@@ -431,23 +467,24 @@ mod tests {
         // Setup transactions
         TRANSACTIONS.with(|t| {
             let mut transactions = t.borrow_mut();
-            transactions.insert(
-                1,
-                StoredTransactions {
-                    index: 1,
-                    memo: 123,
-                    icrc1_memo: None,
-                    operation: Some(Operation::Transfer(Transfer {
-                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
-                        fee: E8s { e8s: 100 },
-                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
-                        amount: E8s { e8s: 10000 },
-                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
-                    })),
-                    created_at_time: Timestamp { timestamp_nanos: 0 },
-                    sweep_status: SweepStatus::NotSwept,
-                },
-            );
+
+            let transaction = Transaction {
+                memo: 123,
+                icrc1_memo: None,
+                operation: Some(Operation::Transfer(Transfer {
+                    to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                    fee: E8s { e8s: 100 },
+                    from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                    amount: E8s { e8s: 10000 },
+                    spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                })),
+                created_at_time: Timestamp { timestamp_nanos: 0 },
+            };
+            let hash = match hash_transaction(&transaction) {
+                Ok(content) => content,
+                Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+            };
+            transactions.insert(1, StoredTransactions::new(1, transaction, hash));
         });
     }
 
@@ -527,34 +564,42 @@ mod tests {
 
         TRANSACTIONS.with(|t| {
             let mut transactions = t.borrow_mut();
-            transactions.insert(
-                1,
-                StoredTransactions {
-                    index: 1,
-                    memo: 100,
-                    icrc1_memo: None,
-                    operation: Some(Operation::Transfer(Transfer {
-                        to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
-                        fee: E8s { e8s: 100 },
-                        from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
-                        amount: E8s { e8s: 10000 },
-                        spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
-                    })),
-                    created_at_time: Timestamp { timestamp_nanos: 0 },
-                    sweep_status: SweepStatus::NotSwept,
-                },
-            );
-            transactions.insert(
-                2,
-                StoredTransactions {
-                    index: 2,
-                    memo: 101,
-                    icrc1_memo: None,
-                    operation: None, // Operation that should not be swept
-                    created_at_time: Timestamp { timestamp_nanos: 0 },
-                    sweep_status: SweepStatus::Swept,
-                },
-            );
+
+            let transaction = Transaction {
+                memo: 100,
+                icrc1_memo: None,
+                operation: Some(Operation::Transfer(Transfer {
+                    to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                    fee: E8s { e8s: 100 },
+                    from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                    amount: E8s { e8s: 10000 },
+                    spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                })),
+                created_at_time: Timestamp { timestamp_nanos: 0 },
+            };
+            let hash = match hash_transaction(&transaction) {
+                Ok(content) => content,
+                Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+            };
+            transactions.insert(1, StoredTransactions::new(1, transaction, hash));
+
+            let transaction = Transaction {
+                memo: 101,
+                icrc1_memo: None,
+                operation: Some(Operation::Transfer(Transfer {
+                    to: hex_str_to_vec(&to_subaccountid.to_hex()).unwrap(),
+                    fee: E8s { e8s: 100 },
+                    from: hex_str_to_vec(&from_subaccountid.to_hex()).unwrap(),
+                    amount: E8s { e8s: 10000 },
+                    spender: Some(hex_str_to_vec(&spender_subaccountid.to_hex()).unwrap()),
+                })),
+                created_at_time: Timestamp { timestamp_nanos: 0 },
+            };
+            let hash = match hash_transaction(&transaction) {
+                Ok(content) => content,
+                Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+            };
+            transactions.insert(2, StoredTransactions::new(2, transaction, hash));
         });
     }
 
