@@ -4,7 +4,6 @@ mod tests {
     use crate::*;
     use once_cell::sync::Lazy;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use tokio;
 
     impl TimerManagerTrait for TimerManager {
         fn set_timer(_interval: std::time::Duration) -> TimerId {
@@ -17,39 +16,9 @@ mod tests {
     static STATIC_PRINCIPAL: Lazy<Principal> =
         Lazy::new(|| Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap());
 
-    // Setup function to add a predefined hash to the LIST_OF_SUBACCOUNTS for testing.
-    fn setup() {
-        // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = STATIC_PRINCIPAL.clone();
-        CUSTODIAN_PRINCIPAL.with(|cp| {
-            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
-            let _ = cp.borrow_mut().set(stored_custodian_principal);
-        });
-
-        let subaccount = Subaccount([
-            168, 200, 90, 30, 187, 129, 218, 133, 97, 52, 235, 109, 168, 55, 212, 238, 98, 209, 24,
-            158, 242, 1, 194, 93, 181, 15, 4, 103, 49, 38, 186, 62,
-        ]);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
-        let account_id_hash = subaccountid.to_u64_hash();
-        ic_cdk::println!("hash_key: {}", account_id_hash);
-
-        // Insert the test hash into LIST_OF_SUBACCOUNTS.
-        LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            list_ref.borrow_mut().insert(account_id_hash, subaccount);
-        });
-    }
-
-    // Teardown function to clear the LIST_OF_SUBACCOUNTS after each test.
-    fn teardown() {
-        LIST_OF_SUBACCOUNTS.with(|subaccounts| {
-            subaccounts.borrow_mut().clear();
-        });
-    }
-
     impl CanisterApiManagerTrait for CanisterApiManager {
         fn id() -> Principal {
-            STATIC_PRINCIPAL.clone()
+            *STATIC_PRINCIPAL
         }
     }
 
@@ -102,9 +71,9 @@ mod tests {
     #[test]
     fn create_stored_transactions() {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = STATIC_PRINCIPAL.clone();
+        let custodian_principal = *STATIC_PRINCIPAL;
         CUSTODIAN_PRINCIPAL.with(|cp| {
-            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal);
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
@@ -115,13 +84,13 @@ mod tests {
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount);
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount);
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount);
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
@@ -180,7 +149,7 @@ mod tests {
 
     #[test]
     fn create_and_retrieve_stored_principal() {
-        let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
+        let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
 
         assert_eq!(stored_principal.get_principal(), Some(*STATIC_PRINCIPAL));
     }
@@ -188,9 +157,9 @@ mod tests {
     // Utility function to populate transactions for testing
     fn populate_transactions(count: u64, timestamp_nanos: Option<u64>) {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = STATIC_PRINCIPAL.clone();
+        let custodian_principal = *STATIC_PRINCIPAL;
         CUSTODIAN_PRINCIPAL.with(|cp| {
-            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal);
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
@@ -201,13 +170,13 @@ mod tests {
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount);
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount);
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount);
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
@@ -222,10 +191,7 @@ mod tests {
             subaccounts_mut.insert(account_id_hash, from_subaccount);
         });
 
-        let timestamp_nanos = match timestamp_nanos {
-            Some(count) => count,
-            None => 1000,
-        };
+        let timestamp_nanos = timestamp_nanos.unwrap_or(1000);
         TRANSACTIONS.with(|transactions_ref| {
             let mut transactions_borrow = transactions_ref.borrow_mut();
             for i in 1..=count {
@@ -430,9 +396,9 @@ mod tests {
 
     fn refund_setup() {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = STATIC_PRINCIPAL.clone();
+        let custodian_principal = *STATIC_PRINCIPAL;
         CUSTODIAN_PRINCIPAL.with(|cp| {
-            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal);
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
@@ -443,13 +409,13 @@ mod tests {
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount);
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount);
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount);
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();
@@ -525,26 +491,26 @@ mod tests {
 
     fn setup_sweep_environment() {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = STATIC_PRINCIPAL.clone();
+        let custodian_principal = *STATIC_PRINCIPAL;
         CUSTODIAN_PRINCIPAL.with(|cp| {
-            let stored_custodian_principal = StoredPrincipal::new(custodian_principal.clone());
+            let stored_custodian_principal = StoredPrincipal::new(custodian_principal);
             let _ = cp.borrow_mut().set(stored_custodian_principal);
         });
 
         // Setup PRINCIPAL with a valid Principal
         PRINCIPAL.with(|p| {
-            let stored_principal = StoredPrincipal::new(STATIC_PRINCIPAL.clone());
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
             let _ = p.borrow_mut().set(stored_principal);
         });
 
         let spender_subaccount = nonce_to_subaccount(0);
-        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount.clone());
+        let spender_subaccountid: AccountIdentifier = to_subaccount_id(spender_subaccount);
 
         let to_subaccount = nonce_to_subaccount(1);
-        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount.clone());
+        let to_subaccountid: AccountIdentifier = to_subaccount_id(to_subaccount);
 
         let from_subaccount = nonce_to_subaccount(2);
-        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount.clone());
+        let from_subaccountid: AccountIdentifier = to_subaccount_id(from_subaccount);
 
         LIST_OF_SUBACCOUNTS.with(|subaccounts| {
             let mut subaccounts_mut = subaccounts.borrow_mut();

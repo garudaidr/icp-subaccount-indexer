@@ -76,15 +76,15 @@ impl AccountIdentifier {
         }
     }
 
-    pub fn to_hex(&self) -> String {
+    pub fn to_hex(self) -> String {
         hex::encode(self.to_vec())
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub fn to_vec(self) -> Vec<u8> {
         [&self.generate_checksum()[..], &self.hash[..]].concat()
     }
 
-    pub fn generate_checksum(&self) -> [u8; 4] {
+    pub fn generate_checksum(self) -> [u8; 4] {
         let mut hasher = crc32fast::Hasher::new();
         hasher.update(&self.hash);
         hasher.finalize().to_be_bytes()

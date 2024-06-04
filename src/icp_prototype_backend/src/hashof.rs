@@ -32,7 +32,7 @@ impl<T> CandidType for HashOf<T> {
 impl<T: std::clone::Clone> Copy for HashOf<T> {}
 
 impl<T> HashOf<T> {
-    pub fn into_bytes(self) -> [u8; HASH_LENGTH] {
+    fn _into_bytes(self) -> [u8; HASH_LENGTH] {
         self.inner
     }
 
