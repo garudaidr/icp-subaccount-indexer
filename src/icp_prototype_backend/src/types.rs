@@ -45,9 +45,9 @@ impl CallerGuard {
         })
     }
 
-    pub fn unlock(principal: &Principal) {
+    fn _unlock(principal: &Principal) {
         STATE.with(|state| {
-            let flag = state.borrow_mut().pending_requests.remove(principal);
+            let _flag = state.borrow_mut().pending_requests.remove(principal);
         })
     }
 }
@@ -94,7 +94,7 @@ pub struct Icrc1TransferRequest {
 }
 
 impl Icrc1TransferRequest {
-    pub fn new(transfer_args: TransferArg, sweeped_index: Option<u64>) -> Self {
+    fn _new(transfer_args: TransferArg, sweeped_index: Option<u64>) -> Self {
         Self {
             transfer_args,
             sweeped_index,
@@ -116,7 +116,7 @@ pub enum Icrc1TransferResponse {
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum Error {
-    GenericError(GenericErrorRecord),
+    Generic(GenericErrorRecord),
     TemporarilyUnavailable,
     BadBurn(BadBurnRecord),
     Duplicate(DuplicateRecord),

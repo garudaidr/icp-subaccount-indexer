@@ -6,8 +6,6 @@ use ic_cdk::api::call::CallResult;
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
-use serde_cbor;
-use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
@@ -18,7 +16,6 @@ mod memory;
 mod tests;
 mod types;
 
-use hashof::*;
 use ledger::*;
 
 use ic_ledger_types::{
@@ -99,7 +96,7 @@ fn authenticate() -> Result<(), String> {
 
     ic_cdk::println!("Caller: {:?}", caller);
 
-    let _guard = CallerGuard::new(caller).map_err(|e| e)?;
+    let _guard = CallerGuard::new(caller)?;
     Ok(())
 }
 
@@ -118,10 +115,7 @@ fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
                         let subaccounts_borrow = subaccounts.borrow();
 
                         ic_cdk::println!("hash_key: {}", hash_key);
-                        match subaccounts_borrow.get(&hash_key) {
-                            Some(_) => true,
-                            None => false,
-                        }
+                        subaccounts_borrow.get(&hash_key).is_some()
                     })
                 }
                 None => false,
@@ -364,7 +358,7 @@ async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
-    let next_block = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow().get().clone());
+    let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
 
     let ledger_principal = match ledger_principal.get_principal() {
         Some(result) => result,
@@ -394,7 +388,7 @@ async fn call_query_blocks() {
 
     let mut block_count = next_block;
     response.blocks.iter().for_each(|block| {
-        block.transaction.operation.as_ref().map(|operation| {
+        if let Some(operation) = block.transaction.operation.as_ref() {
             ic_cdk::println!("Operation: {:?}", operation);
 
             let subaccount_exist = match operation {
@@ -415,7 +409,7 @@ async fn call_query_blocks() {
                         true
                     } else {
                         match &data.spender {
-                            Some(spender) => includes_hash(&spender),
+                            Some(spender) => includes_hash(spender),
                             None => false,
                         }
                     }
@@ -432,7 +426,7 @@ async fn call_query_blocks() {
                         true
                     } else {
                         match &data.spender {
-                            Some(spender) => includes_hash(&spender),
+                            Some(spender) => includes_hash(spender),
                             None => false,
                         }
                     }
@@ -461,7 +455,7 @@ async fn call_query_blocks() {
                     }
                 });
             }
-        });
+        };
         block_count += 1;
     });
 
@@ -513,7 +507,7 @@ async fn init(
         let _ = nonce_ref.borrow_mut().set(nonce);
     });
 
-    let principal = Principal::from_text(&ledger_principal).expect("Invalid ledger principal");
+    let principal = Principal::from_text(ledger_principal).expect("Invalid ledger principal");
 
     PRINCIPAL.with(|principal_ref| {
         let stored_principal = StoredPrincipal::new(principal);
@@ -521,7 +515,7 @@ async fn init(
     });
 
     let custodian_principal =
-        Principal::from_text(&custodian_principal).expect("Invalid custodian principal");
+        Principal::from_text(custodian_principal).expect("Invalid custodian principal");
 
     CUSTODIAN_PRINCIPAL.with(|principal_ref| {
         let stored_principal = StoredPrincipal::new(custodian_principal);
@@ -546,7 +540,7 @@ fn reconstruct_subaccounts() {
     for i in 0..nonce {
         ic_cdk::println!("nonce: {}", i);
         let subaccount = to_subaccount(i);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount);
         let account_id_hash = subaccountid.to_u64_hash();
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
@@ -590,7 +584,7 @@ fn set_interval(seconds: u64) -> Result<u64, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     TIMERS.with(|timers_ref| {
-        TimerManager::clear_timer(timers_ref.borrow().clone());
+        TimerManager::clear_timer(*timers_ref.borrow());
     });
 
     let interval = std::time::Duration::from_secs(seconds);
@@ -653,7 +647,7 @@ fn add_subaccount() -> Result<String, Error> {
 
     let nonce = nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
-    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone()); // needed to get the hashkey & to return to user
+    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount); // needed to get the hashkey & to return to user
     let account_id_hash = subaccountid.to_u64_hash();
 
     LIST_OF_SUBACCOUNTS.with(|list_ref| {
@@ -680,7 +674,7 @@ fn get_subaccountid(nonce: u32) -> Result<String, Error> {
         }
 
         let subaccount = to_subaccount(nonce);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount.clone());
+        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount);
         let account_id_hash = subaccountid.to_u64_hash();
 
         ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
@@ -721,10 +715,7 @@ fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>
     authenticate()?;
 
     // process argument
-    let up_to_count = match up_to_count {
-        Some(count) => count,
-        None => 100, // Default is 100
-    };
+    let up_to_count = up_to_count.unwrap_or(100);
 
     // get earliest block
     // if there are no transactions, return empty `result`
@@ -736,10 +727,10 @@ fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>
         ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
 
         // If transactions_borrow.len() is less than up_to_count, return all transactions
-        let skip = if (transactions_borrow.len() as u64) < up_to_count {
+        let skip = if transactions_borrow.len() < up_to_count {
             0
         } else {
-            (transactions_borrow.len() as u64) - up_to_count
+            transactions_borrow.len() - up_to_count
         };
 
         ic_cdk::println!("skip: {}", skip);
@@ -763,10 +754,7 @@ fn clear_transactions(
     authenticate().map_err(|e| Error { message: e })?;
 
     // Get Data
-    let up_to_index = match up_to_index {
-        Some(index) => index,
-        None => 0,
-    };
+    let up_to_index = up_to_index.unwrap_or(0);
     let up_to_timestamp = match up_to_timestamp {
         Some(timestamp) => timestamp,
         None => Timestamp::from_nanos(0),
@@ -859,8 +847,8 @@ async fn sweep() -> Result<Vec<String>, Error> {
         ic_cdk::println!("skip: {}", skip);
         let result: Vec<_> = filtered_transactions
             .iter()
-            .skip(skip as usize)
-            .take(up_to_count as usize)
+            .skip(skip)
+            .take(up_to_count)
             .cloned()
             .collect();
         result
@@ -927,7 +915,7 @@ fn get_custodian_id() -> Result<AccountIdentifier, String> {
 #[query]
 fn canister_status() -> Result<String, String> {
     authenticate()?;
-    Ok(format!("{{\"message\": \"Canister is operational\"}}"))
+    Ok("{{\"message\": \"Canister is operational\"}}".to_string())
 }
 
 // Enable Candid export
