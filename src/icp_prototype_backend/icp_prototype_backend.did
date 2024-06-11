@@ -63,5 +63,7 @@ service : (Network, nat64, nat32, text, text) -> {
   refund : (nat64) -> (Result);
   set_interval : (nat64) -> (Result_8);
   set_next_block : (nat64) -> (Result_8);
+  set_sweep_failed : (text) -> (Result_9);
+  single_sweep : (text) -> (Result_9);
   sweep : () -> (Result_9);
 }
