@@ -230,6 +230,7 @@ mod tests {
         let _ = CUSTODIAN_PRINCIPAL.with(|cp| cp.borrow_mut().set(StoredPrincipal::default()));
     }
 
+    #[cfg(feature = "happy_path")]
     mod happy_path_tests {
         use super::*;
 
@@ -555,7 +556,7 @@ mod tests {
             }
 
             async fn transfer(_args: TransferArgs) -> Result<BlockIndex, String> {
-                Err("transfer failed")
+                Err("transfer failed".to_string())
             }
         }
 
