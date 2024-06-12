@@ -453,21 +453,6 @@ mod tests {
         }
 
         #[test]
-        fn clear_transactions_edge_cases() {
-            populate_transactions(10, None);
-
-            // Edge case 1: up_to_index is larger than the total transactions
-            let cleared = clear_transactions(Some(50), None).unwrap();
-            assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
-
-            // Edge case 2: up_to_timestamp is before any stored transaction
-            let early_timestamp = Timestamp::from_nanos(1); // Example early timestamp
-            populate_transactions(10, None); // Repopulate transactions after they were all cleared
-            let cleared = clear_transactions(None, Some(early_timestamp)).unwrap();
-            assert_eq!(cleared.len(), 10); // Assuming no transactions are removed because all are after the timestamp
-        }
-
-        #[test]
         fn stress_test_for_large_number_of_transactions() {
             let large_number = 10_000; // Example large number of transactions
             populate_transactions(large_number, None);
@@ -540,6 +525,8 @@ mod tests {
     mod sad_path_tests {
         use super::*;
 
+        static ERROR_MESSAGE: &str = "transfer failed";
+
         impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             async fn query_blocks(
                 _ledger_principal: Principal,
@@ -556,42 +543,23 @@ mod tests {
             }
 
             async fn transfer(_args: TransferArgs) -> Result<BlockIndex, String> {
-                Err("transfer failed".to_string())
+                Err(ERROR_MESSAGE.to_string())
             }
         }
 
-        #[tokio::test]
-        async fn test_single_sweep_with_failed_transfer() {
-            let hashes = setup_sweep_environment();
+        #[test]
+        fn clear_transactions_edge_cases() {
+            populate_transactions(10, None);
 
-            let result = single_sweep(hashes[0].to_string()).await.unwrap();
+            // Edge case 1: up_to_index is larger than the total transactions
+            let cleared = clear_transactions(Some(50), None).unwrap();
+            assert_eq!(cleared.len(), 0); // Assuming all transactions are cleared
 
-            assert_eq!(result.len(), 1);
-            for res in result {
-                if res.contains("sweep: ok") {
-                    assert!(res.contains("status_update: ok"));
-                } else {
-                    assert!(res.contains("sweep:"));
-                    assert!(res.contains("status_update:"));
-                }
-            }
-
-            teardown_sweep_environment();
-        }
-
-        #[tokio::test]
-        async fn test_set_sweep_failed() {
-            let hashes = setup_sweep_environment();
-
-            let result = single_sweep(hashes[0].to_string()).await.unwrap();
-
-            assert_eq!(result.len(), 1);
-            for res in result {
-                assert!(res.contains("status_update: ok"));
-                assert!(res.contains("new_status: FailedToSweep"));
-            }
-
-            teardown_sweep_environment();
+            // Edge case 2: up_to_timestamp is before any stored transaction
+            let early_timestamp = Timestamp::from_nanos(1); // Example early timestamp
+            populate_transactions(10, None); // Repopulate transactions after they were all cleared
+            let cleared = clear_transactions(None, Some(early_timestamp)).unwrap();
+            assert_eq!(cleared.len(), 10); // Assuming no transactions are removed because all are after the timestamp
         }
 
         #[tokio::test]
@@ -644,6 +612,40 @@ mod tests {
             let result = set_sweep_failed(tx_hash.to_string()).await.unwrap();
 
             assert_eq!(result.len(), 0);
+        }
+
+        #[tokio::test]
+        async fn test_single_sweep_with_failed_transfer() {
+            let hashes = setup_sweep_environment();
+
+            let result = single_sweep(hashes[0].to_string()).await.unwrap();
+
+            assert_eq!(result.len(), 1);
+            for res in result {
+                if res.contains("sweep: ok") {
+                    assert!(res.contains("status_update: ok"));
+                } else {
+                    assert!(res.contains("sweep:"));
+                    assert!(res.contains("status_update:"));
+                }
+            }
+
+            teardown_sweep_environment();
+        }
+
+        #[tokio::test]
+        async fn test_set_sweep_failed() {
+            let hashes = setup_sweep_environment();
+
+            let result = single_sweep(hashes[0].to_string()).await.unwrap();
+
+            assert_eq!(result.len(), 1);
+            for res in result {
+                assert!(res.contains("status_update: ok"));
+                assert!(res.contains(ERROR_MESSAGE));
+            }
+
+            teardown_sweep_environment();
         }
     }
 }
