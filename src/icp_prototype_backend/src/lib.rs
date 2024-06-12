@@ -998,11 +998,7 @@ async fn set_sweep_failed(tx_hash_arg: String) -> Result<Vec<String>, Error> {
                 ));
             }
             Err(e) => {
-                results.push(format!(
-                    "tx: {}, status_update: {}",
-                    tx.1.index,
-                    e.message
-                ));
+                results.push(format!("tx: {}, status_update: {}", tx.1.index, e.message));
             }
         }
     }
