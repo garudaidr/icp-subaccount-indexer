@@ -902,6 +902,110 @@ async fn sweep() -> Result<Vec<String>, Error> {
     Ok(results)
 }
 
+#[update]
+async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+
+    let mut futures = Vec::new();
+
+    // get relevant txs
+    let txs = TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+
+        // Filter transactions where tx_hash == tx_hash_arg
+        let filtered_transactions: Vec<_> = transactions_borrow
+            .iter()
+            .filter(|(_key, value)| value.tx_hash == tx_hash_arg)
+            .collect();
+
+        filtered_transactions
+    });
+
+    for tx in txs.iter() {
+        let transfer_args = to_sweep_args(&tx.1)?;
+
+        ic_cdk::println!("transfer_args: {:?}", transfer_args);
+
+        let future = InterCanisterCallManager::transfer(transfer_args);
+        futures.push(future);
+    }
+
+    let responses = join_all(futures).await;
+
+    let mut results = Vec::<String>::new();
+
+    // Trigger subsequent process here
+    for (index, response) in responses.iter().enumerate() {
+        let tx = txs[index].1.clone();
+        match response {
+            Ok(_) => {
+                let status_update = update_status(&tx, SweepStatus::Swept);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                } else {
+                    results.push(format!(
+                        "tx: {}, sweep: ok, status_update: {}",
+                        tx.index,
+                        status_update.unwrap_err().message
+                    ));
+                }
+            }
+            Err(e) => {
+                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                } else {
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: {}",
+                        tx.index,
+                        e,
+                        status_update.unwrap_err().message
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+#[update]
+async fn set_sweep_failed(tx_hash_arg: String) -> Result<Vec<String>, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+
+    let txs = TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+
+        // Filter transactions where tx_hash == tx_hash_arg
+        let filtered_transactions: Vec<_> = transactions_borrow
+            .iter()
+            .filter(|(_key, value)| value.tx_hash == tx_hash_arg)
+            .collect();
+
+        filtered_transactions
+    });
+
+    let mut results = Vec::<String>::new();
+
+    for tx in txs.iter() {
+        let status_update = update_status(&tx.1, SweepStatus::FailedToSweep);
+        match status_update {
+            Ok(_) => {
+                results.push(format!(
+                    "tx: {}, status_update: ok, new_status: {:?}",
+                    tx.1.index,
+                    SweepStatus::FailedToSweep
+                ));
+            }
+            Err(e) => {
+                results.push(format!("tx: {}, status_update: {}", tx.1.index, e.message));
+            }
+        }
+    }
+
+    Ok(results)
+}
+
 fn get_custodian_id() -> Result<AccountIdentifier, String> {
     let custodian_principal_opt =
         CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
