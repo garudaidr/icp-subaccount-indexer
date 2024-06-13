@@ -82,6 +82,8 @@ export interface _SERVICE {
   refund: ActorMethod<[bigint], Result>;
   set_interval: ActorMethod<[bigint], Result_8>;
   set_next_block: ActorMethod<[bigint], Result_8>;
+  set_sweep_failed: ActorMethod<[string], Result_9>;
+  single_sweep: ActorMethod<[string], Result_9>;
   sweep: ActorMethod<[], Result_9>;
 }
 export declare const idlFactory: IDL.InterfaceFactory;
