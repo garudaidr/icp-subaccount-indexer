@@ -94,3 +94,7 @@ The following are some of the research documents during specification design:
 [Subaccount Derivation Mechanism](https://jagad.slab.com/posts/subaccount-derivation-mechanism-ebwjd334)
 
 [Sweeping Mechanism](https://jagad.slab.com/posts/sweeping-subaccounts-to-user-vaults-main-principal-m2pjvc1t)
+
+## License
+
+[MIT](./LICENSE.md) © [Jagad](https://t.me/jagadofficial)
