@@ -64,7 +64,7 @@ ICSI is built with a focus on modularity and extensibility. The core components 
 
 ## Canister Methods
 The canister provides several methods to assist with ICP-token deposit management. The complete methods can be observed inside
-[Candid File](https://github.com/garudaidr/icp-subaccount-indexer/blob/main/src/icp_prototype_backend/icp_prototype_backend.did)
+[Candid File](./src/icp_prototype_backend/icp_prototype_backend.did)
 
 ```
 add_subaccount : () -> (variant { Ok : text; Err : Error });
@@ -82,7 +82,7 @@ single_sweep : (text) -> (variant { Ok : vec text; Err : Error });
 This method forwards ICP-token that was transacted within a single tx_hash provided in the argument
 
 ## Usage
-The complete step-by-step guide to deploy the Canister are outline on this [Deployment Guide](https://github.com/garudaidr/icp-subaccount-indexer/blob/main/canister-deployment-guideline.md)
+The complete step-by-step guide to deploy the Canister are outline on this [Deployment Guide](./docs/canister-deployment-guideline.md)
 
 ## Conclusion
 
