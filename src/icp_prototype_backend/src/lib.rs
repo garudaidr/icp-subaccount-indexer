@@ -2,7 +2,10 @@ use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use futures::future::join_all;
 use ic_cdk::api;
-use ic_cdk::api::call::CallResult;
+use ic_cdk::api::{
+    call::CallResult,
+    management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpMethod},
+};
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
@@ -354,6 +357,60 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     Ok(tx_hash.to_hex())
 }
 
+async fn send_webhook(tx_hash: String) -> String {
+    // Retrieve the URL from WEBHOOK_URL
+    let url = WEBHOOK_URL.with(|cell| cell.borrow().get().clone());
+
+    // If the URL is empty, return immediately
+    if url.is_empty() {
+        return "Webhook URL is not set.".to_string();
+    }
+
+    // Add tx_hash as a query parameter to the URL
+    let url_with_param = match Url::parse(&url) {
+        Ok(mut parsed_url) => {
+            parsed_url
+                .query_pairs_mut()
+                .append_pair("tx_hash", &tx_hash);
+            parsed_url.to_string()
+        }
+        Err(_) => {
+            return format!("Invalid webhook URL: {}", url);
+        }
+    };
+
+    let request = CanisterHttpRequestArgument {
+        url: url_with_param.clone(),
+        max_response_bytes: Some(2_000_000), // Max response size as to not waste too many cycles per call
+        method: HttpMethod::POST,
+        headers: vec![], // No need to manually add headers
+        body: None,
+        transform: None,
+    };
+
+    // Current calculations is 260k cycles as a base fee +
+    // 1k cycles per bytes (2MB means 2m cycles) round it up
+    // to around 2.5m cycles.
+    match http_request(request, 2_500_000).await {
+        Ok((response,)) => match String::from_utf8(response.body) {
+            Ok(str_body) => {
+                ic_cdk::api::print(format!("{:?}", str_body));
+                format!(
+                    "{}. See more info of the request sent at: {}/inspect",
+                    str_body, url_with_param
+                )
+            }
+            Err(_) => "Response body is not UTF-8 encoded.".to_string(),
+        },
+        Err((r, m)) => {
+            format!(
+                "The http_request resulted in an error. RejectionCode: {:?}, Error: {}",
+                r, m
+            )
+        }
+    }
+}
+
 async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
@@ -443,13 +500,19 @@ async fn call_query_blocks() {
                         Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
                     };
                     ic_cdk::println!("Hash: {:?}", hash);
-                    let transaction =
-                        StoredTransactions::new(block_count, block.transaction.clone(), hash);
+                    let transaction = StoredTransactions::new(
+                        block_count,
+                        block.transaction.clone(),
+                        hash.clone(),
+                    );
 
                     if !transactions.contains_key(&block_count) {
                         // Filter keys that exist
                         ic_cdk::println!("Inserting transaction");
                         let _ = transactions.insert(block_count, transaction);
+
+                        #[allow(clippy::let_underscore_future)]
+                        let _ = send_webhook(hash);
                     } else {
                         ic_cdk::println!("Transaction already exists");
                     }
