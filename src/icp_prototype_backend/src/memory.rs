@@ -63,7 +63,7 @@ thread_local! {
     pub static WEBHOOK_URL: RefCell<StableCell<String, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(WEBHOOK_URL_MEMORY)),
-            String::default() // TODO: add to init function
+            String::default()
         ).expect("Initializing WEBHOOK_URL StableCell failed")
     );
 }
