@@ -78,11 +78,13 @@ export interface _SERVICE {
   get_subaccount_count: ActorMethod<[], Result_5>;
   get_subaccountid: ActorMethod<[number], Result>;
   get_transactions_count: ActorMethod<[], Result_5>;
+  get_webhook_url: ActorMethod<[], Result_1>;
   list_transactions: ActorMethod<[[] | [bigint]], Result_7>;
   refund: ActorMethod<[bigint], Result>;
   set_interval: ActorMethod<[bigint], Result_8>;
   set_next_block: ActorMethod<[bigint], Result_8>;
   set_sweep_failed: ActorMethod<[string], Result_9>;
+  set_webhook_url: ActorMethod<[string], Result>;
   single_sweep: ActorMethod<[string], Result_9>;
   sweep: ActorMethod<[], Result_9>;
 }

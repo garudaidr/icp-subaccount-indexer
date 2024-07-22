@@ -59,11 +59,13 @@ service : (Network, nat64, nat32, text, text) -> {
   get_subaccount_count : () -> (Result_5) query;
   get_subaccountid : (nat32) -> (Result) query;
   get_transactions_count : () -> (Result_5) query;
+  get_webhook_url : () -> (Result_1) query;
   list_transactions : (opt nat64) -> (Result_7) query;
   refund : (nat64) -> (Result);
   set_interval : (nat64) -> (Result_8);
   set_next_block : (nat64) -> (Result_8);
   set_sweep_failed : (text) -> (Result_9);
+  set_webhook_url : (text) -> (Result);
   single_sweep : (text) -> (Result_9);
   sweep : () -> (Result_9);
 }
