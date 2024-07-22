@@ -519,6 +519,29 @@ mod tests {
 
             teardown_sweep_environment();
         }
+
+        #[tokio::test]
+        async fn test_set_and_get_webhook_url_valid() {
+            let valid_url = "https://example.com/webhook".to_string();
+            let result = set_webhook_url(valid_url.clone()).await;
+
+            assert!(result.is_ok(), "Setting a valid webhook URL should succeed");
+            assert_eq!(
+                result.unwrap(),
+                valid_url,
+                "The function should return the set URL"
+            );
+
+            // Verify that the URL was actually set
+            let result = get_webhook_url();
+
+            assert!(result.is_ok(), "Getting the webhook URL should succeed");
+            assert_eq!(
+                result.unwrap(),
+                valid_url,
+                "The function should return the correct URL"
+            );
+        }
     }
 
     #[cfg(feature = "sad_path")]
@@ -646,6 +669,34 @@ mod tests {
             }
 
             teardown_sweep_environment();
+        }
+
+        #[tokio::test]
+        async fn test_set_webhook_url_invalid() {
+            let invalid_urls = vec!["not_a_url", "http://", "ftp://example.com", "https://", ""];
+
+            for invalid_url in invalid_urls {
+                let result = set_webhook_url(invalid_url.to_string()).await;
+                assert!(
+                    result.is_err(),
+                    "Setting an invalid webhook URL should fail: {}",
+                    invalid_url
+                );
+                let error = result.unwrap_err();
+                assert!(
+                    error.message.contains("Invalid URL"),
+                    "Error should indicate invalid URL"
+                );
+            }
+
+            let result = get_webhook_url();
+
+            assert!(result.is_ok(), "Getting the webhook URL should succeed");
+            assert_eq!(
+                result.unwrap(),
+                String::default(),
+                "The function should return the default String"
+            );
         }
     }
 }

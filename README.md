@@ -7,9 +7,11 @@ Streamline the management and indexing of principal sub-accounts for ICRC transa
 [![Build and Test ICP Prototype Backend](https://github.com/garudaidr/icp-subaccount-indexer/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/garudaidr/icp-subaccount-indexer/actions/workflows/build-and-test.yml)
 
 ## Overview
+
 ICSI (ICP Sub-Account Indexer) is a robust solution designed to streamline the management and indexing of sub-accounts within the ICP (Internet Computer Protocol) ecosystem. This project aims to enhance the efficiency, security, and scalability of handling multiple sub-accounts under a single principal, making it easier for users and administrators to manage their ICP assets.
 
 The ICSI canister provides methods that allow organization to primarily carry several operations:
+
 - To generate sub-account-id in the form of hex_string
 - To track incoming ICP-token transfer into created sub-account-ids
 - To manage ICP-tokens that reside in the sub-account-ids
@@ -18,9 +20,9 @@ The ICSI canister provides methods that allow organization to primarily carry se
 
 If you are interested in learning more from the builders of ICSI, you can watch the product pitch and presentation in the attached videos below:
 
-- [Jagad ICSI - Product Pitch](https://youtu.be/dxknHHXws-w)  
+- [Jagad ICSI - Product Pitch](https://youtu.be/dxknHHXws-w)
 - [Jagad Presentation in ICP Office Hour - Stephen Antoni](https://youtu.be/uwZGl-OaPNI)
-- [Jagad App Short Product Demo](https://youtu.be/mMKuJmFbFAY)  
+- [Jagad App Short Product Demo](https://youtu.be/mMKuJmFbFAY)
 
 ## Description
 
@@ -63,25 +65,30 @@ ICSI is built with a focus on modularity and extensibility. The core components 
 - **Security Features**: Integration with third-party services for transaction validation and illicit activity detection.
 
 ## Canister Methods
+
 The canister provides several methods to assist with ICP-token deposit management. The complete methods can be observed inside
 [Candid File](./src/icp_prototype_backend/icp_prototype_backend.did)
 
 ```
 add_subaccount : () -> (variant { Ok : text; Err : Error });
 ```
-This method returns sub-account-id in hex_string format. 
+
+This method returns sub-account-id in hex_string format.
 
 ```
 sweep : () -> (variant { Ok : vec text; Err : Error });
 ```
+
 This method forwards ICP-token that are sitting on each sub-account-ids
 
 ```
 single_sweep : (text) -> (variant { Ok : vec text; Err : Error });
 ```
+
 This method forwards ICP-token that was transacted within a single tx_hash provided in the argument
 
 ## Usage
+
 The complete step-by-step guide to deploy the Canister are outline on this [Deployment Guide](./docs/canister-deployment-guideline.md)
 
 ## Conclusion
@@ -89,6 +96,7 @@ The complete step-by-step guide to deploy the Canister are outline on this [Depl
 ICSI represents a significant advancement in the management of ICP sub-accounts, offering simplicity, security, and scalability. By leveraging advanced indexing and transaction handling techniques, ICSI provides a reliable and user-friendly solution for managing ICP assets.
 
 ## Research Documents
+
 The following are some of the research documents during specification design:
 
 [Subaccount Derivation Mechanism](https://jagad.slab.com/posts/subaccount-derivation-mechanism-ebwjd334)
