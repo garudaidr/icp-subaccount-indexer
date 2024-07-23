@@ -12,6 +12,7 @@ const INTERVAL_IN_SECONDS_MEMORY: MemoryId = MemoryId::new(3);
 const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
 const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
 const NETWORK_MEMORY: MemoryId = MemoryId::new(6);
+const WEBHOOK_URL_MEMORY: MemoryId = MemoryId::new(7);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -53,11 +54,16 @@ thread_local! {
             StoredPrincipal::default() // TODO: add to init function
         ).expect("Initializing CUSTODIAN_PRINCIPAL StableCell failed")
     );
-
     pub static CONNECTED_NETWORK: RefCell<StableCell<Network, Memory>> = RefCell::new(
         StableCell::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(NETWORK_MEMORY)),
             Network::Mainnet
         ).expect("Initializing NETWORK StableCell failed")
+    );
+    pub static WEBHOOK_URL: RefCell<StableCell<String, Memory>> = RefCell::new(
+        StableCell::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(WEBHOOK_URL_MEMORY)),
+            String::default()
+        ).expect("Initializing WEBHOOK_URL StableCell failed")
     );
 }

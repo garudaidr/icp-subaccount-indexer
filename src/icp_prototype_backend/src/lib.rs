@@ -28,7 +28,7 @@ use ic_ledger_types::{
 
 use memory::{
     CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
-    PRINCIPAL, TRANSACTIONS,
+    PRINCIPAL, TRANSACTIONS, WEBHOOK_URL,
 };
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
@@ -144,6 +144,50 @@ async fn set_next_block(block: u64) -> Result<u64, Error> {
 fn get_next_block() -> Result<u64, String> {
     authenticate()?;
     Ok(NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get()))
+}
+
+use url::Url;
+
+#[update]
+async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
+    authenticate().map_err(|e| Error {
+        message: e.to_string(),
+    })?;
+
+    // Validate the URL
+    match Url::parse(&webhook_url) {
+        Ok(url) => {
+            // Check if the scheme is http or https
+            if url.scheme() != "http" && url.scheme() != "https" {
+                return Err(Error {
+                    message: "Invalid URL scheme. Must be http or https.".to_string(),
+                });
+            }
+
+            // Check if the host is present
+            if url.host().is_none() {
+                return Err(Error {
+                    message: "Invalid URL. Host is missing.".to_string(),
+                });
+            }
+
+            // If all checks pass, set the webhook URL
+            WEBHOOK_URL.with(|webhook_url_ref| {
+                let _ = webhook_url_ref.borrow_mut().set(webhook_url.clone());
+            });
+
+            Ok(webhook_url)
+        }
+        Err(_) => Err(Error {
+            message: "Invalid URL format.".to_string(),
+        }),
+    }
+}
+
+#[query]
+fn get_webhook_url() -> Result<String, String> {
+    authenticate()?;
+    Ok(WEBHOOK_URL.with(|webhook_url_ref| webhook_url_ref.borrow().get().to_string()))
 }
 
 #[cfg(not(test))]
