@@ -557,7 +557,7 @@ async fn call_query_blocks() {
                         let _ = transactions.insert(block_count, transaction);
 
                         // Track the first block hash in the iter
-                        if block_count == next_block {
+                        if first_block_hash.is_empty() {
                             ic_cdk::println!("Setting webhook tx_hash: {:?}", hash);
                             first_block_hash = hash;
                         }
