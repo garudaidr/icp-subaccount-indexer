@@ -10,11 +10,11 @@ Streamline the management and indexing of principal sub-accounts for ICRC transa
 
 ICSI (ICP Sub-Account Indexer) is a robust solution designed to streamline the management and indexing of sub-accounts within the ICP (Internet Computer Protocol) ecosystem. This project aims to enhance the efficiency, security, and scalability of handling multiple sub-accounts under a single principal, making it easier for users and administrators to manage their ICP assets.
 
-The ICSI canister provides methods that allow organization to primarily carry several operations:
+The ICSI canister provides methods that allow organizations to primarily carry out several operations:
 
-- To generate sub-account-id in the form of hex_string
-- To track incoming ICP-token transfer into created sub-account-ids
-- To manage ICP-tokens that reside in the sub-account-ids
+- Generate sub-account-id in the form of hex_string
+- Track incoming ICP-token transfers into created sub-account-ids
+- Manage ICP-tokens that reside in the sub-account-ids
 
 ### Video Demo
 
@@ -89,7 +89,61 @@ This method forwards ICP-token that was transacted within a single tx_hash provi
 
 ## Usage
 
-The complete step-by-step guide to deploy the Canister are outline on this [Deployment Guide](./docs/canister-deployment-guideline.md)
+### Deployment
+
+To deploy the ICSI canister, use the `deploy.sh` script. This script supports both local and IC network deployments.
+
+```bash
+# Deploy to local network
+.maintain/deploy.sh --network local
+
+# Deploy to IC network
+.maintain/deploy.sh --network ic
+```
+
+For a clean start on the local network, use the `--clean` flag:
+
+```bash
+.maintain/deploy.sh --network local --clean
+```
+
+For a complete step-by-step guide to deploying the Canister, refer to the [Deployment Guide](./docs/canister-deployment-guideline.md).
+
+### Testing
+
+The `test.sh` script provides a comprehensive test suite for the ICSI canister. It can be run with or without deployment:
+
+```bash
+# Run tests with deployment
+.maintain/test.sh --network local
+
+# Run tests without deployment
+.maintain/test.sh --network local --skip-deploy
+```
+
+### Interactive CLI
+
+The `index.js` file provides an interactive CLI for interacting with the ICSI canister. It can be used in two modes:
+
+1. Interactive mode:
+
+   ```bash
+   node .maintain/script/index.js
+   ```
+
+   This will present a menu of available operations.
+
+2. CLI mode:
+
+   ```bash
+   # Add a subaccount
+   node .maintain/script/index.js --cli add_subaccount
+
+   # Set webhook URL
+   node .maintain/script/index.js --cli set_webhook_url https://example.com/webhook
+   ```
+
+For a comprehensive explanations for the scripts, refer to the [ICSI Scripts Guideline](./.maintain/README.md).
 
 ## Conclusion
 
