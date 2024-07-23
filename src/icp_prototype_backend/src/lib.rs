@@ -2,7 +2,10 @@ use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
 use futures::future::join_all;
 use ic_cdk::api;
-use ic_cdk::api::call::CallResult;
+use ic_cdk::api::{
+    call::CallResult,
+    management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpMethod},
+};
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
 use serde::Serialize;
@@ -398,6 +401,60 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     Ok(tx_hash.to_hex())
 }
 
+async fn send_webhook(tx_hash: String) -> String {
+    // Retrieve the URL from WEBHOOK_URL
+    let url = WEBHOOK_URL.with(|cell| cell.borrow().get().clone());
+
+    // If the URL is empty, return immediately
+    if url.is_empty() {
+        return "Webhook URL is not set.".to_string();
+    }
+
+    // Add tx_hash as a query parameter to the URL
+    let url_with_param = match Url::parse(&url) {
+        Ok(mut parsed_url) => {
+            parsed_url
+                .query_pairs_mut()
+                .append_pair("tx_hash", &tx_hash);
+            parsed_url.to_string()
+        }
+        Err(_) => {
+            return format!("Invalid webhook URL: {}", url);
+        }
+    };
+
+    let request = CanisterHttpRequestArgument {
+        url: url_with_param.clone(),
+        max_response_bytes: None,
+        method: HttpMethod::POST,
+        headers: vec![], // No need to manually add headers
+        body: None,
+        transform: None,
+    };
+
+    // Maximum around 2.5 bilion cycles per call.
+    // Check final cost here: https://internetcomputer.org/docs/current/developer-docs/gas-cost#units-and-fiat-value
+    ic_cdk::println!("Sending HTTP outcall to: {}", url_with_param);
+    match http_request(request, 2_500_000_000).await {
+        Ok((response,)) => match String::from_utf8(response.body) {
+            Ok(str_body) => {
+                ic_cdk::println!("{}", format!("{:?}", str_body));
+                format!(
+                    "{}. See more info of the request sent at: {}/inspect",
+                    str_body, url_with_param
+                )
+            }
+            Err(_) => "Response body is not UTF-8 encoded.".to_string(),
+        },
+        Err((r, m)) => {
+            format!(
+                "The http_request resulted in an error. RejectionCode: {:?}, Error: {}",
+                r, m
+            )
+        }
+    }
+}
+
 async fn call_query_blocks() {
     ic_cdk::println!("Calling query_blocks");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
@@ -430,6 +487,7 @@ async fn call_query_blocks() {
 
     ic_cdk::println!("Response: {:?}", response);
 
+    let mut first_block_hash = String::default();
     let mut block_count = next_block;
     response.blocks.iter().for_each(|block| {
         if let Some(operation) = block.transaction.operation.as_ref() {
@@ -487,13 +545,22 @@ async fn call_query_blocks() {
                         Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
                     };
                     ic_cdk::println!("Hash: {:?}", hash);
-                    let transaction =
-                        StoredTransactions::new(block_count, block.transaction.clone(), hash);
+                    let transaction = StoredTransactions::new(
+                        block_count,
+                        block.transaction.clone(),
+                        hash.clone(),
+                    );
 
                     if !transactions.contains_key(&block_count) {
                         // Filter keys that exist
                         ic_cdk::println!("Inserting transaction");
                         let _ = transactions.insert(block_count, transaction);
+
+                        // Track the first block hash in the iter
+                        if first_block_hash.is_empty() {
+                            ic_cdk::println!("Setting webhook tx_hash: {:?}", hash);
+                            first_block_hash = hash;
+                        }
                     } else {
                         ic_cdk::println!("Transaction already exists");
                     }
@@ -502,6 +569,13 @@ async fn call_query_blocks() {
         };
         block_count += 1;
     });
+
+    // If the first block hash in not empty
+    // Send the webhook
+    if !first_block_hash.is_empty() {
+        let res = send_webhook(first_block_hash).await;
+        ic_cdk::println!("HTTP Outcall result: {}", res);
+    }
 
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
