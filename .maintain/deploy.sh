@@ -36,14 +36,6 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-if [ "$NETWORK" = "local" ]; then
-  export DFX_CONFIG="dfx.local.json"
-else
-  export DFX_CONFIG="dfx.json"
-fi
-
-print_colored "$YELLOW" "Using configuration file: $DFX_CONFIG"
-
 # Start the local ICP network if deploying locally
 if [ "$NETWORK" = "local" ]; then
     if [ "$CLEAN_START" = true ]; then
