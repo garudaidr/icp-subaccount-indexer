@@ -487,6 +487,7 @@ async fn call_query_blocks() {
 
     ic_cdk::println!("Response: {:?}", response);
 
+    let mut first_block_hash = String::default();
     let mut block_count = next_block;
     response.blocks.iter().for_each(|block| {
         if let Some(operation) = block.transaction.operation.as_ref() {
@@ -555,8 +556,10 @@ async fn call_query_blocks() {
                         ic_cdk::println!("Inserting transaction");
                         let _ = transactions.insert(block_count, transaction);
 
-                        #[allow(clippy::let_underscore_future)]
-                        let _ = send_webhook(hash);
+                        // Track the first block hash in the iter
+                        if block_count == next_block {
+                            first_block_hash = hash;
+                        }
                     } else {
                         ic_cdk::println!("Transaction already exists");
                     }
@@ -566,6 +569,7 @@ async fn call_query_blocks() {
         block_count += 1;
     });
 
+    let _ = send_webhook(first_block_hash).await;
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
