@@ -1,5 +1,5 @@
 # Start a local ICP network
-dfx start --clean --background
+# dfx start --clean --background
 
 dfx identity new minter
 dfx identity use minter
@@ -36,7 +36,7 @@ export CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
 echo $CUSTODIAN_PRINCIPAL
 
 # Deploy a backend canister to mainnet
-dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
+# dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
 
 # Deploy a backend canister to local
 dfx deploy icp_prototype_backend --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
