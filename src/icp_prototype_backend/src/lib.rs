@@ -425,20 +425,20 @@ async fn send_webhook(tx_hash: String) -> String {
 
     let request = CanisterHttpRequestArgument {
         url: url_with_param.clone(),
-        max_response_bytes: Some(2_000_000), // Max response size as to not waste too many cycles per call
+        max_response_bytes: None,
         method: HttpMethod::POST,
         headers: vec![], // No need to manually add headers
         body: None,
         transform: None,
     };
 
-    // Current calculations is 260k cycles as a base fee +
-    // 1k cycles per bytes (2MB means 2m cycles) round it up
-    // to around 2.5m cycles.
-    match http_request(request, 2_500_000).await {
+    // Maximum around 2.5 bilion cycles per call.
+    // Check final cost here: https://internetcomputer.org/docs/current/developer-docs/gas-cost#units-and-fiat-value
+    ic_cdk::println!("Sending HTTP outcall to: {}", url_with_param);
+    match http_request(request, 2_500_000_000).await {
         Ok((response,)) => match String::from_utf8(response.body) {
             Ok(str_body) => {
-                ic_cdk::api::print(format!("{:?}", str_body));
+                ic_cdk::println!("{}", format!("{:?}", str_body));
                 format!(
                     "{}. See more info of the request sent at: {}/inspect",
                     str_body, url_with_param
@@ -558,6 +558,7 @@ async fn call_query_blocks() {
 
                         // Track the first block hash in the iter
                         if block_count == next_block {
+                            ic_cdk::println!("Setting webhook tx_hash: {:?}", hash);
                             first_block_hash = hash;
                         }
                     } else {
@@ -569,7 +570,13 @@ async fn call_query_blocks() {
         block_count += 1;
     });
 
-    let _ = send_webhook(first_block_hash).await;
+    // If the first block hash in not empty
+    // Send the webhook
+    if !first_block_hash.is_empty() {
+        let res = send_webhook(first_block_hash).await;
+        ic_cdk::println!("HTTP Outcall result: {}", res);
+    }
+
     let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
 }
 
