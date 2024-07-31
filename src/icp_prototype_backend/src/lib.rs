@@ -4,7 +4,7 @@ use futures::future::join_all;
 use ic_cdk::api;
 use ic_cdk::api::{
     call::CallResult,
-    management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpMethod},
+    management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpMethod, TransformArgs, HttpResponse, TransformContext},
 };
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
@@ -410,6 +410,8 @@ async fn send_webhook(tx_hash: String) -> String {
         return "Webhook URL is not set.".to_string();
     }
 
+    ic_cdk::println!("Original URL: {}", url);
+
     // Add tx_hash as a query parameter to the URL
     let url_with_param = match Url::parse(&url) {
         Ok(mut parsed_url) => {
@@ -423,19 +425,21 @@ async fn send_webhook(tx_hash: String) -> String {
         }
     };
 
+    ic_cdk::println!("URL with tx_hash parameter: {}", url_with_param);
+
     let request = CanisterHttpRequestArgument {
         url: url_with_param.clone(),
         max_response_bytes: None,
         method: HttpMethod::POST,
         headers: vec![], // No need to manually add headers
         body: None,
-        transform: None,
+        transform: Some(TransformContext::from_name("transform".to_string(), vec![])),
     };
 
     // Maximum around 2.5 bilion cycles per call.
     // Check final cost here: https://internetcomputer.org/docs/current/developer-docs/gas-cost#units-and-fiat-value
     ic_cdk::println!("Sending HTTP outcall to: {}", url_with_param);
-    match http_request(request, 2_500_000_000).await {
+    match http_request(request, 50_850_050_000).await {
         Ok((response,)) => match String::from_utf8(response.body) {
             Ok(str_body) => {
                 ic_cdk::println!("{}", format!("{:?}", str_body));
@@ -453,6 +457,11 @@ async fn send_webhook(tx_hash: String) -> String {
             )
         }
     }
+}
+
+#[ic_cdk::query]
+fn transform(args: TransformArgs) -> HttpResponse {
+    args.response
 }
 
 async fn call_query_blocks() {
