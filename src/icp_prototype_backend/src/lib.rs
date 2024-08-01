@@ -4,7 +4,10 @@ use futures::future::join_all;
 use ic_cdk::api;
 use ic_cdk::api::{
     call::CallResult,
-    management_canister::http_request::{http_request, CanisterHttpRequestArgument, HttpMethod, TransformArgs, HttpResponse, TransformContext},
+    management_canister::http_request::{
+        http_request, CanisterHttpRequestArgument, HttpMethod, HttpResponse, TransformArgs,
+        TransformContext,
+    },
 };
 use ic_cdk_macros::*;
 use ic_cdk_timers::TimerId;
