@@ -10,9 +10,9 @@
         }
       }
     },
-    "icp_prototype_backend": {
-      "candid": "src/icp_prototype_backend/icp_prototype_backend.did",
-      "package": "icp_prototype_backend",
+    "icp_subaccount_indexer": {
+      "candid": "src/icp_subaccount_indexer/icp_subaccount_indexer.did",
+      "package": "icp_subaccount_indexer",
       "type": "rust"
     }
   },
@@ -31,14 +31,14 @@
   "environments": {
     "local": {
       "canisters": {
-        "icp_prototype_backend": {
+        "icp_subaccount_indexer": {
           "dependencies": ["icp_ledger_canister"]
         }
       }
     },
     "ic": {
       "canisters": {
-        "icp_prototype_backend": {}
+        "icp_subaccount_indexer": {}
       }
     }
   },

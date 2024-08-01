@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "src/icp_prototype_backend"
+    "src/icp_subaccount_indexer"
 ]
 resolver = "2"

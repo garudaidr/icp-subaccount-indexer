@@ -57,7 +57,7 @@ Create or modify `canister_ids.json` in the project root:
 
 ```json
 {
-  "icp_prototype_backend": {
+  "icp_subaccount_indexer": {
     "ic": "upy4y-myaaa-aaaaal-qjbxa-cai"
   }
 }
@@ -97,7 +97,7 @@ Use the `deploy.sh` script for deployment:
 Alternatively, you can use the dfx command directly:
 
 ```bash
-dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
+dfx deploy icp_subaccount_indexer --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
 ```
 
 Note: If you encounter issues with the `wasm32-unknown-unknown` target, install it:
