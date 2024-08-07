@@ -1100,6 +1100,41 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
 }
 
 #[update]
+async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<BlockIndex, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+
+    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
+
+    let matching_subaccount = LIST_OF_SUBACCOUNTS.with(|subaccounts| {
+        subaccounts
+            .borrow()
+            .iter()
+            .find(|(_, subaccount)| {
+                let subaccountid = to_subaccount_id(**subaccount);
+                subaccountid.to_hex() == subaccountid_hex
+            })
+            .map(|(_, &subaccount)| subaccount)
+    });
+
+    let subaccount = matching_subaccount.ok_or_else(|| Error {
+        message: "Subaccount not found".to_string(),
+    })?;
+
+    let transfer_args = TransferArgs {
+        memo: Memo(0),
+        amount: Tokens::from_e8s(amount),
+        fee: Tokens::from_e8s(10_000),
+        from_subaccount: Some(subaccount),
+        to: custodian_id,
+        created_at_time: None,
+    };
+
+    InterCanisterCallManager::transfer(transfer_args)
+        .await
+        .map_err(|e| Error { message: e })
+}
+
+#[update]
 async fn set_sweep_failed(tx_hash_arg: String) -> Result<Vec<String>, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
