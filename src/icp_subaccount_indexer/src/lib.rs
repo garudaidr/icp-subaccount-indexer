@@ -1131,7 +1131,6 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<u64, 
 
     InterCanisterCallManager::transfer(transfer_args)
         .await
-        .map(|block_index| block_index as u64)
         .map_err(|e| Error { message: e })
 }
 
