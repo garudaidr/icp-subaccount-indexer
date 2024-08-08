@@ -542,6 +542,37 @@ mod tests {
                 "The function should return the correct URL"
             );
         }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_successful() {
+            // Setup
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+            let amount = 1000000; // 1 ICP
+
+            // Execute
+            let result = sweep_subaccount(subaccountid_hex, amount).await;
+
+            // Assert
+            assert!(result.is_ok(), "Sweeping subaccount should succeed");
+            assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_zero_amount() {
+            // Setup
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+            let amount = 0;
+
+            // Execute
+            let result = sweep_subaccount(subaccountid_hex, amount).await;
+
+            // Assert
+            assert!(result.is_ok(), "Sweeping with zero amount should succeed");
+            assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
+        }
+
     }
 
     #[cfg(feature = "sad_path")]
@@ -698,5 +729,47 @@ mod tests {
                 "The function should return the default String"
             );
         }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_nonexistent() {
+            setup_sweep_environment();
+            let (_, to_subaccountid, _) = setup_principals();
+
+            // Setup
+            let nonexistent_subaccountid = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+            let amount = 1000000; // 1 ICP
+
+            // Execute
+            let result = sweep_subaccount(nonexistent_subaccountid.to_string(), amount).await;
+
+            // Assert
+            assert!(result.is_err(), "Sweeping nonexistent subaccount should fail");
+            assert_eq!(
+                result.unwrap_err().message,
+                "Subaccount not found",
+                "Error message should indicate subaccount not found"
+            );
+            teardown_sweep_environment();
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_transfer_failure() {
+            // Setup
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+            let amount = 1000000; // 1 ICP
+
+            // Execute
+            let result = sweep_subaccount(subaccountid_hex, amount).await;
+
+            // Assert
+            assert!(result.is_err(), "Sweeping should fail due to transfer failure");
+            assert_eq!(
+                result.unwrap_err().message,
+                "transfer failed",
+                "Error message should indicate transfer failure"
+            );
+        }
+
     }
 }
