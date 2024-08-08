@@ -557,7 +557,6 @@ mod tests {
             assert!(result.is_ok(), "Sweeping subaccount should succeed");
             assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
         }
-
     }
 
     #[cfg(feature = "sad_path")]
@@ -721,14 +720,18 @@ mod tests {
             let (_, to_subaccountid, _) = setup_principals();
 
             // Setup
-            let nonexistent_subaccountid = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+            let nonexistent_subaccountid =
+                "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
             let amount = 1000000; // 1 ICP
 
             // Execute
             let result = sweep_subaccount(nonexistent_subaccountid.to_string(), amount).await;
 
             // Assert
-            assert!(result.is_err(), "Sweeping nonexistent subaccount should fail");
+            assert!(
+                result.is_err(),
+                "Sweeping nonexistent subaccount should fail"
+            );
             assert_eq!(
                 result.unwrap_err().message,
                 "Subaccount not found",
@@ -748,13 +751,15 @@ mod tests {
             let result = sweep_subaccount(subaccountid_hex, amount).await;
 
             // Assert
-            assert!(result.is_err(), "Sweeping should fail due to transfer failure");
+            assert!(
+                result.is_err(),
+                "Sweeping should fail due to transfer failure"
+            );
             assert_eq!(
                 result.unwrap_err().message,
                 "transfer failed",
                 "Error message should indicate transfer failure"
             );
         }
-
     }
 }
