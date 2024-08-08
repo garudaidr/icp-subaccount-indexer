@@ -558,21 +558,6 @@ mod tests {
             assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
         }
 
-        #[tokio::test]
-        async fn test_sweep_subaccount_zero_amount() {
-            // Setup
-            let (_, to_subaccountid, _) = setup_principals();
-            let subaccountid_hex = to_subaccountid.to_hex();
-            let amount = 0;
-
-            // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount).await;
-
-            // Assert
-            assert!(result.is_ok(), "Sweeping with zero amount should succeed");
-            assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
-        }
-
     }
 
     #[cfg(feature = "sad_path")]

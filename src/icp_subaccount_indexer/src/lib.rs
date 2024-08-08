@@ -1100,7 +1100,7 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
 }
 
 #[update]
-async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<BlockIndex, Error> {
+async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<u64, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
@@ -1131,6 +1131,7 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<Block
 
     InterCanisterCallManager::transfer(transfer_args)
         .await
+        .map(|block_index| block_index as u64)
         .map_err(|e| Error { message: e })
 }
 
