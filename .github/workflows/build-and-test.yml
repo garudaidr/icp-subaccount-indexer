@@ -33,7 +33,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build with cargo
-        run: cargo build --release --target wasm32-unknown-unknown --package icp_prototype_backend
+        run: cargo build --release --target wasm32-unknown-unknown --package icp_subaccount_indexer
 
       - name: Run tests with cargo
         run: cargo test --features "happy_path" && cargo test --features "sad_path"

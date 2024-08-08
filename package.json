@@ -1,5 +1,5 @@
 {
-  "name": "icp_prototype",
+  "name": "icp_subaccount_indexer",
   "type": "module",
   "scripts": {
     "build": "webpack",
@@ -8,10 +8,10 @@
     "start:local:env": "dfx start --clean --host 127.0.0.1:8000 --use-old-metering",
     "deploy:local": ".maintain/deploy.sh",
     "deploy:ic": "dfx deploy --network=ic",
-    "generate": "npm run generate:did && dfx generate icp_prototype_backend",
+    "generate": "npm run generate:did && dfx generate icp_subaccount_indexer",
     "generate:did": "npm run generate:did:backend && npm run generate:did:ts",
-    "generate:did:ts": "didc bind src/icp_prototype_backend/icp_prototype_backend.did -t ts > src/icp_prototype_backend/icp_prototype_backend.did.ts",
-    "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_prototype_backend && candid-extractor target/wasm32-unknown-unknown/release/icp_prototype_backend.wasm > src/icp_prototype_backend/icp_prototype_backend.did",
+    "generate:did:ts": "didc bind src/icp_subaccount_indexer/icp_subaccount_indexer.did -t ts > src/icp_subaccount_indexer/icp_subaccount_indexer.did.ts",
+    "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_subaccount_indexer && candid-extractor target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm > src/icp_subaccount_indexer/icp_subaccount_indexer.did",
     "format": "cargo fmt && prettier --write .",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",

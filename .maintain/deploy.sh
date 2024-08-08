@@ -105,9 +105,9 @@ print_colored "$GREEN" "Custodian Principal: $CUSTODIAN_PRINCIPAL"
 # Deploy the backend canister
 print_colored "$YELLOW" "Deploying backend canister..."
 if [ "$NETWORK" = "ic" ]; then
-    dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
+    dfx deploy icp_subaccount_indexer --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
 else
-    dfx deploy icp_prototype_backend --network "$NETWORK" --argument "(variant { Local }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
+    dfx deploy icp_subaccount_indexer --network "$NETWORK" --argument "(variant { Local }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
 fi
 check_command "Deploy backend canister"
 

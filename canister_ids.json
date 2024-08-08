@@ -1,8 +1,5 @@
 {
-  "icp_prototype_backend": {
+  "icp_subaccount_indexer": {
     "ic": "uiz2m-baaaa-aaaal-qjbxq-cai"
-  },
-  "www": {
-    "ic": "upy4y-myaaa-aaaal-qjbxa-cai"
   }
 }

@@ -85,7 +85,7 @@ Within your project’s root directory, add or adjust the following file `canist
 
 ```json
 {
-  "icp_prototype_backend": {
+  "icp_subaccount_indexer": {
     "ic": "upy4y-myaaa-aaaal-qjbxa-cai"
   }
 }
@@ -112,7 +112,7 @@ dfx cycles convert 0.3 --network ic
 Ensure the currently active identity is the correct `custodian` identity linked as the controller on NNS from previous steps. Don’t forget to export the value for `CUSTODIAN_PRINCIPAL` using the sub-step from step 5.
 
 ```bash
-dfx deploy icp_prototype_backend --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
+dfx deploy icp_subaccount_indexer --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$(echo $CUSTODIAN_PRINCIPAL)\")"
 ```
 
 Some roadblocks you may encounter:

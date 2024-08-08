@@ -1,5 +1,5 @@
 [package]
-name = "icp_prototype_backend"
+name = "icp_subaccount_indexer"
 version = "0.1.0"
 edition = "2021"
 

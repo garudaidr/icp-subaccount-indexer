@@ -67,7 +67,7 @@ ICSI is built with a focus on modularity and extensibility. The core components 
 ## Canister Methods
 
 The canister provides several methods to assist with ICP-token deposit management. The complete methods can be observed inside
-[Candid File](./src/icp_prototype_backend/icp_prototype_backend.did)
+[Candid File](./src/icp_subaccount_indexer/icp_subaccount_indexer.did)
 
 ```
 add_subaccount : () -> (variant { Ok : text; Err : Error });
