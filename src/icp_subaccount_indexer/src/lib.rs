@@ -1120,9 +1120,14 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<u64, 
         message: "Subaccount not found".to_string(),
     })?;
 
+    // Convert amount to e8s, checking for overflow
+    let amount_e8s = amount.checked_mul(100_000_000).ok_or_else(|| Error {
+        message: "Amount overflow occurred".to_string(),
+    })?;
+
     let transfer_args = TransferArgs {
         memo: Memo(0),
-        amount: Tokens::from_e8s(amount),
+        amount: Tokens::from_e8s(amount_e8s),
         fee: Tokens::from_e8s(10_000),
         from_subaccount: Some(subaccount),
         to: custodian_id,
