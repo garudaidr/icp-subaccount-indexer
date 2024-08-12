@@ -1122,7 +1122,7 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: f64) -> Result<u64, 
 
     // Convert amount to e8s, handling potential precision issues
     let amount_e8s = (amount * 100_000_000.0).round() as u64;
-    
+
     // Check for potential overflow or underflow
     if amount_e8s == u64::MAX || amount < 0.0 {
         return Err(Error {
