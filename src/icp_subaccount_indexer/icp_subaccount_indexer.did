@@ -68,4 +68,5 @@ service : (Network, nat64, nat32, text, text) -> {
   set_webhook_url : (text) -> (Result);
   single_sweep : (text) -> (Result_9);
   sweep : () -> (Result_9);
+  sweep_subaccount : (text, float64) -> (Result_8);
 }
