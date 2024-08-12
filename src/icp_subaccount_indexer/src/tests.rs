@@ -544,17 +544,20 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn test_sweep_subaccount_successful() {
+        async fn test_sweep_subaccount_decimal_amount() {
             // Setup
             let (_, to_subaccountid, _) = setup_principals();
             let subaccountid_hex = to_subaccountid.to_hex();
-            let amount = 1000000; // 1 ICP
+            let amount = 1.25; // 1.25 ICP
 
             // Execute
             let result = sweep_subaccount(subaccountid_hex, amount).await;
 
             // Assert
-            assert!(result.is_ok(), "Sweeping subaccount should succeed");
+            assert!(
+                result.is_ok(),
+                "Sweeping subaccount with decimal amount should succeed"
+            );
             assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
         }
     }
@@ -759,6 +762,44 @@ mod tests {
                 result.unwrap_err().message,
                 "transfer failed",
                 "Error message should indicate transfer failure"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_negative_amount() {
+            // Setup
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+            let amount = -1.0;
+
+            // Execute
+            let result = sweep_subaccount(subaccountid_hex, amount).await;
+
+            // Assert
+            assert!(result.is_err(), "Sweeping with negative amount should fail");
+            assert_eq!(
+                result.unwrap_err().message,
+                "Invalid amount: overflow or negative value",
+                "Error message should indicate invalid amount"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_overflow_amount() {
+            // Setup
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+            let amount = f64::MAX;
+
+            // Execute
+            let result = sweep_subaccount(subaccountid_hex, amount).await;
+
+            // Assert
+            assert!(result.is_err(), "Sweeping with overflow amount should fail");
+            assert_eq!(
+                result.unwrap_err().message,
+                "Invalid amount: overflow or negative value",
+                "Error message should indicate invalid amount"
             );
         }
     }

@@ -1100,7 +1100,7 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
 }
 
 #[update]
-async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<u64, Error> {
+async fn sweep_subaccount(subaccountid_hex: String, amount: f64) -> Result<u64, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
@@ -1120,10 +1120,15 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: u64) -> Result<u64, 
         message: "Subaccount not found".to_string(),
     })?;
 
-    // Convert amount to e8s, checking for overflow
-    let amount_e8s = amount.checked_mul(100_000_000).ok_or_else(|| Error {
-        message: "Amount overflow occurred".to_string(),
-    })?;
+    // Convert amount to e8s, handling potential precision issues
+    let amount_e8s = (amount * 100_000_000.0).round() as u64;
+    
+    // Check for potential overflow or underflow
+    if amount_e8s == u64::MAX || amount < 0.0 {
+        return Err(Error {
+            message: "Invalid amount: overflow or negative value".to_string(),
+        });
+    }
 
     let transfer_args = TransferArgs {
         memo: Memo(0),
