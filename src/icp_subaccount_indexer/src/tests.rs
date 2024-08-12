@@ -725,7 +725,7 @@ mod tests {
             // Setup
             let nonexistent_subaccountid =
                 "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-            let amount = 1.25; 
+            let amount = 1.25;
 
             // Execute
             let result = sweep_subaccount(nonexistent_subaccountid.to_string(), amount).await;
@@ -748,7 +748,7 @@ mod tests {
             // Setup
             let (_, to_subaccountid, _) = setup_principals();
             let subaccountid_hex = to_subaccountid.to_hex();
-            let amount = 1.25; 
+            let amount = 1.25;
 
             // Execute
             let result = sweep_subaccount(subaccountid_hex, amount).await;
