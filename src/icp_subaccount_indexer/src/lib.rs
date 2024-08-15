@@ -699,6 +699,15 @@ fn reconstruct_network() {
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
     ic_cdk::println!("running post_upgrade...");
+
+    let custodian_principal =
+        Principal::from_text("custodian_principal").expect("Invalid custodian principal");
+
+    CUSTODIAN_PRINCIPAL.with(|principal_ref| {
+        let stored_principal = StoredPrincipal::new(custodian_principal);
+        let _ = principal_ref.borrow_mut().set(stored_principal);
+    });
+
     reconstruct_subaccounts();
     reconstruct_network();
 }
