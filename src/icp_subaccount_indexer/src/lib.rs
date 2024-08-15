@@ -701,7 +701,8 @@ async fn post_upgrade() {
     ic_cdk::println!("running post_upgrade...");
 
     let custodian_principal =
-        Principal::from_text("custodian_principal").expect("Invalid custodian principal");
+        Principal::from_text("a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae")
+            .expect("Invalid custodian principal");
 
     CUSTODIAN_PRINCIPAL.with(|principal_ref| {
         let stored_principal = StoredPrincipal::new(custodian_principal);
