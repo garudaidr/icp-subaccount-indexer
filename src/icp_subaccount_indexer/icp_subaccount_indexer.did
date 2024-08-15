@@ -10,6 +10,12 @@ type Approve = record {
 type Burn = record { from : blob; amount : E8s; spender : opt blob };
 type E8s = record { e8s : nat64 };
 type Error = record { message : text };
+type HttpHeader = record { value : text; name : text };
+type HttpResponse = record {
+  status : nat;
+  body : blob;
+  headers : vec HttpHeader;
+};
 type Mint = record { to : blob; amount : E8s };
 type Network = variant { Mainnet; Local };
 type Operation = variant {
@@ -46,6 +52,7 @@ type Transfer = record {
   amount : E8s;
   spender : opt blob;
 };
+type TransformArgs = record { context : blob; response : HttpResponse };
 service : (Network, nat64, nat32, text, text) -> {
   add_subaccount : () -> (Result);
   canister_status : () -> (Result_1) query;
@@ -69,4 +76,5 @@ service : (Network, nat64, nat32, text, text) -> {
   single_sweep : (text) -> (Result_9);
   sweep : () -> (Result_9);
   sweep_subaccount : (text, float64) -> (Result_8);
+  transform : (TransformArgs) -> (HttpResponse) query;
 }

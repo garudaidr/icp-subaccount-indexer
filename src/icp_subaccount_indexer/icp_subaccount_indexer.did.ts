@@ -22,6 +22,15 @@ export interface E8s {
 export interface Error {
   message: string;
 }
+export interface HttpHeader {
+  value: string;
+  name: string;
+}
+export interface HttpResponse {
+  status: bigint;
+  body: Uint8Array | number[];
+  headers: Array<HttpHeader>;
+}
 export interface Mint {
   to: Uint8Array | number[];
   amount: E8s;
@@ -65,6 +74,10 @@ export interface Transfer {
   amount: E8s;
   spender: [] | [Uint8Array | number[]];
 }
+export interface TransformArgs {
+  context: Uint8Array | number[];
+  response: HttpResponse;
+}
 export interface _SERVICE {
   add_subaccount: ActorMethod<[], Result>;
   canister_status: ActorMethod<[], Result_1>;
@@ -87,6 +100,8 @@ export interface _SERVICE {
   set_webhook_url: ActorMethod<[string], Result>;
   single_sweep: ActorMethod<[string], Result_9>;
   sweep: ActorMethod<[], Result_9>;
+  sweep_subaccount: ActorMethod<[string, number], Result_8>;
+  transform: ActorMethod<[TransformArgs], HttpResponse>;
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
