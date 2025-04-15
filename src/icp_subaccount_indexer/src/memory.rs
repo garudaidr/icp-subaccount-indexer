@@ -3,7 +3,7 @@ use ic_stable_structures::DefaultMemoryImpl;
 use ic_stable_structures::{StableBTreeMap, StableCell};
 use std::cell::RefCell;
 
-use crate::types::{Memory, Network, StoredPrincipal, StoredTransactions};
+use crate::types::{Memory, Network, StoredPrincipal, StoredTransactions, TokenType};
 
 const PRINCIPAL_MEMORY: MemoryId = MemoryId::new(0);
 const LAST_SUBACCOUNT_NONCE_MEMORY: MemoryId = MemoryId::new(1);
@@ -13,6 +13,7 @@ const TRANSACTIONS_MEMORY: MemoryId = MemoryId::new(4);
 const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
 const NETWORK_MEMORY: MemoryId = MemoryId::new(6);
 const WEBHOOK_URL_MEMORY: MemoryId = MemoryId::new(7);
+const TOKEN_LEDGER_MEMORY: MemoryId = MemoryId::new(8);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -65,5 +66,10 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(WEBHOOK_URL_MEMORY)),
             String::default()
         ).expect("Initializing WEBHOOK_URL StableCell failed")
+    );
+    pub static TOKEN_LEDGER_PRINCIPALS: RefCell<StableBTreeMap<u64, (TokenType, candid::Principal), Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(TOKEN_LEDGER_MEMORY))
+        )
     );
 }

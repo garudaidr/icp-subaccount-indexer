@@ -87,7 +87,16 @@ mod tests {
                     Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
                 };
 
-                transactions_borrow.insert(i, StoredTransactions::new(i, transaction, hash));
+                transactions_borrow.insert(
+                    i,
+                    StoredTransactions::new(
+                        i,
+                        transaction,
+                        hash,
+                        TokenType::ICP,
+                        *STATIC_PRINCIPAL,
+                    ),
+                );
             }
         });
 
@@ -137,7 +146,10 @@ mod tests {
                 Ok(content) => content,
                 Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
             };
-            transactions.insert(1, StoredTransactions::new(1, transaction, hash));
+            transactions.insert(
+                1,
+                StoredTransactions::new(1, transaction, hash, TokenType::ICP, *STATIC_PRINCIPAL),
+            );
         });
     }
 
@@ -175,7 +187,13 @@ mod tests {
             };
             transactions.insert(
                 1,
-                StoredTransactions::new(1, transaction, first_hash.clone()),
+                StoredTransactions::new(
+                    1,
+                    transaction,
+                    first_hash.clone(),
+                    TokenType::ICP,
+                    *STATIC_PRINCIPAL,
+                ),
             );
 
             let transaction = Transaction {
@@ -196,7 +214,13 @@ mod tests {
             };
             transactions.insert(
                 2,
-                StoredTransactions::new(2, transaction, second_hash.clone()),
+                StoredTransactions::new(
+                    2,
+                    transaction,
+                    second_hash.clone(),
+                    TokenType::ICP,
+                    *STATIC_PRINCIPAL,
+                ),
             );
 
             let transaction = Transaction {
@@ -217,7 +241,13 @@ mod tests {
             };
             transactions.insert(
                 3,
-                StoredTransactions::new(3, transaction, third_hash.clone()),
+                StoredTransactions::new(
+                    3,
+                    transaction,
+                    third_hash.clone(),
+                    TokenType::ICP,
+                    *STATIC_PRINCIPAL,
+                ),
             );
 
             vec![first_hash, second_hash, third_hash]
@@ -249,7 +279,10 @@ mod tests {
                 Ok((response,))
             }
 
-            async fn transfer(_args: TransferArgs) -> Result<BlockIndex, String> {
+            async fn transfer(
+                _args: TransferArgs,
+                _token_ledger_canister_id: Principal,
+            ) -> Result<BlockIndex, String> {
                 Ok(1)
             }
         }
@@ -333,7 +366,13 @@ mod tests {
                 Ok(content) => content,
                 Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
             };
-            let stored_transaction = StoredTransactions::new(index, transaction, hash);
+            let stored_transaction = StoredTransactions::new(
+                index,
+                transaction,
+                hash,
+                TokenType::ICP,
+                *STATIC_PRINCIPAL,
+            );
 
             assert_eq!(stored_transaction.index, index);
             assert_eq!(stored_transaction.memo, memo);
@@ -551,7 +590,7 @@ mod tests {
             let amount = 1.25; // 1.25 ICP
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
 
             // Assert
             assert!(
@@ -583,7 +622,10 @@ mod tests {
                 Ok((response,))
             }
 
-            async fn transfer(_args: TransferArgs) -> Result<BlockIndex, String> {
+            async fn transfer(
+                _args: TransferArgs,
+                _token_ledger_canister_id: Principal,
+            ) -> Result<BlockIndex, String> {
                 Err(ERROR_MESSAGE.to_string())
             }
         }
@@ -728,7 +770,9 @@ mod tests {
             let amount = 1.25;
 
             // Execute
-            let result = sweep_subaccount(nonexistent_subaccountid.to_string(), amount).await;
+            let result =
+                sweep_subaccount(nonexistent_subaccountid.to_string(), amount, TokenType::ICP)
+                    .await;
 
             // Assert
             assert!(
@@ -751,7 +795,7 @@ mod tests {
             let amount = 1.25;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
 
             // Assert
             assert!(
@@ -773,7 +817,7 @@ mod tests {
             let amount = -1.0;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
 
             // Assert
             assert!(result.is_err(), "Sweeping with negative amount should fail");
@@ -792,7 +836,7 @@ mod tests {
             let amount = f64::MAX;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
 
             // Assert
             assert!(result.is_err(), "Sweeping with overflow amount should fail");

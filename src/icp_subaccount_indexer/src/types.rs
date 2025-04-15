@@ -269,6 +269,28 @@ pub enum SweepStatus {
     NotSwept,
 }
 
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum TokenType {
+    ICP,
+    CKUSDC,
+    CKUSDT,
+}
+
+impl Storable for TokenType {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        candid::decode_one(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
 #[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct StoredTransactions {
     pub index: u64,
@@ -278,10 +300,18 @@ pub struct StoredTransactions {
     pub created_at_time: Timestamp,
     pub sweep_status: SweepStatus,
     pub tx_hash: String,
+    pub token_type: TokenType,
+    pub token_ledger_canister_id: Principal,
 }
 
 impl StoredTransactions {
-    pub fn new(index: u64, transaction: Transaction, hash: String) -> Self {
+    pub fn new(
+        index: u64,
+        transaction: Transaction,
+        hash: String,
+        token_type: TokenType,
+        token_ledger_canister_id: Principal,
+    ) -> Self {
         Self {
             index,
             memo: transaction.memo,
@@ -290,6 +320,8 @@ impl StoredTransactions {
             created_at_time: transaction.created_at_time,
             sweep_status: SweepStatus::NotSwept,
             tx_hash: hash,
+            token_type,
+            token_ledger_canister_id,
         }
     }
 }
@@ -363,7 +395,10 @@ pub trait InterCanisterCallManagerTrait {
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)>;
 
-    async fn transfer(args: TransferArgs) -> Result<BlockIndex, String>;
+    async fn transfer(
+        args: TransferArgs,
+        token_ledger_canister_id: Principal,
+    ) -> Result<BlockIndex, String>;
 }
 
 pub struct InterCanisterCallManager;
