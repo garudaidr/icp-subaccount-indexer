@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "src/icp_subaccount_indexer"
+    "src/icp_subaccount_indexer",
+    "src/principal_converter"
 ]
 resolver = "2"
