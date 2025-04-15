@@ -262,6 +262,7 @@ mod tests {
     #[cfg(feature = "happy_path")]
     mod happy_path_tests {
         use super::*;
+        use std::time::{SystemTime, UNIX_EPOCH};
 
         impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             async fn query_blocks(
