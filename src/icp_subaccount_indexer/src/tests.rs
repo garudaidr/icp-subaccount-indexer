@@ -3,7 +3,6 @@ mod tests {
     use crate::types::*;
     use crate::*;
     use once_cell::sync::Lazy;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     impl TimerManagerTrait for TimerManager {
         fn set_timer(_interval: std::time::Duration) -> TimerId {
@@ -762,7 +761,7 @@ mod tests {
         #[tokio::test]
         async fn test_sweep_subaccount_nonexistent() {
             setup_sweep_environment();
-            let (_, to_subaccountid, _) = setup_principals();
+            let (_, _to_subaccountid, _) = setup_principals();
 
             // Setup
             let nonexistent_subaccountid =

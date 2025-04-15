@@ -51,7 +51,7 @@ use types::{
 };
 
 thread_local! {
-    static NETWORK: RefCell<Network> = RefCell::new(Network::Local);
+    static NETWORK: RefCell<Network> = const { RefCell::new(Network::Local) };
     static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, Subaccount>> = RefCell::default();
     static TIMERS: RefCell<TimerId> = RefCell::default();
     static TOKEN_LEDGER_TIMERS: RefCell<HashMap<TokenType, TimerId>> = RefCell::default();
@@ -117,11 +117,10 @@ fn authenticate() -> Result<(), String> {
     Ok(())
 }
 
-fn includes_hash(vec_to_check: &Vec<u8>) -> bool {
+fn includes_hash(vec_to_check: &[u8]) -> bool {
     match vec_to_check.len() {
         32 => {
-            let slice = &vec_to_check[..];
-            let array_ref: Option<&[u8; 32]> = slice.try_into().ok();
+            let array_ref: Option<&[u8; 32]> = vec_to_check.try_into().ok();
 
             match array_ref {
                 Some(array_ref) => {
@@ -348,7 +347,7 @@ fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Err
     }
 }
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "happy_path", feature = "sad_path")))]
 impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     async fn query_blocks(
         ledger_principal: Principal,
@@ -651,7 +650,7 @@ async fn call_query_blocks() {
         for (_, (token_type, token_principal)) in tl.borrow().iter() {
             ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
             let token_type_clone = token_type.clone();
-            let token_principal_clone = token_principal.clone();
+            let token_principal_clone = token_principal;
             IcCdkSpawnManager::run(async move {
                 query_token_ledger(token_type_clone, token_principal_clone).await;
             });
@@ -1429,7 +1428,7 @@ fn get_token_ledger_canister_id(token_type: &TokenType) -> Principal {
         let tl_borrow = tl.borrow();
         for (_, (registered_type, principal)) in tl_borrow.iter() {
             if registered_type == *token_type {
-                return Some(principal.clone());
+                return Some(principal);
             }
         }
         None

@@ -19,7 +19,7 @@ pub struct State {
 }
 
 thread_local! {
-    pub static STATE: RefCell<State> = RefCell::new(State{pending_requests: BTreeSet::new()});
+    pub static STATE: RefCell<State> = const { RefCell::new(State{pending_requests: BTreeSet::new()}) };
 }
 
 // CallerGuard section was inspired by or directly uses work done by AlphaCQ
@@ -270,6 +270,7 @@ pub enum SweepStatus {
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TokenType {
     ICP,
     CKUSDC,
