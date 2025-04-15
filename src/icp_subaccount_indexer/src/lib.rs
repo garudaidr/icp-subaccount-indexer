@@ -37,12 +37,13 @@ use memory::{
 };
 
 // Canister IDs for ICRC tokens
-const CKUSDC_LEDGER_CANISTER_ID: Principal = Principal::from_slice(&[
-    0, 0, 0, 0, 0, 0, 0, 16, 1, 1, 101, 112, 197, 234, 46, 58, 1, 1,
-]);
-const CKUSDT_LEDGER_CANISTER_ID: Principal = Principal::from_slice(&[
-    0, 0, 0, 0, 0, 0, 0, 16, 1, 1, 150, 254, 176, 157, 160, 186, 1, 1,
-]);
+// xevnm-gaaaa-aaaar-qafnq-cai
+const CKUSDC_LEDGER_CANISTER_ID: Principal =
+    Principal::from_slice(&[0, 0, 0, 0, 2, 48, 1, 91, 1, 1]);
+// cngnf-vqaaa-aaaar-qag4q-cai
+const CKUSDT_LEDGER_CANISTER_ID: Principal =
+    Principal::from_slice(&[0, 0, 0, 0, 2, 48, 1, 185, 1, 1]);
+
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
     IcCdkSpawnManagerTrait, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
