@@ -264,6 +264,16 @@ mod tests {
         use super::*;
         use std::time::{SystemTime, UNIX_EPOCH};
 
+        #[test]
+        fn test_canister_id_matches() {
+            // Check that the slice-based constants match the text versions
+            let text_ckusdc = Principal::from_text("xevnm-gaaaa-aaaar-qafnq-cai").unwrap();
+            let text_ckusdt = Principal::from_text("cngnf-vqaaa-aaaar-qag4q-cai").unwrap();
+
+            assert_eq!(CKUSDC_LEDGER_CANISTER_ID, text_ckusdc, "CKUSDC ID mismatch");
+            assert_eq!(CKUSDT_LEDGER_CANISTER_ID, text_ckusdt, "CKUSDT ID mismatch");
+        }
+
         impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             async fn query_blocks(
                 _ledger_principal: Principal,
