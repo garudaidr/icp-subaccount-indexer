@@ -12,12 +12,14 @@ This CLI tool is designed to interact with the ICSI (ICP Sub-Account Indexer) ca
 ## Installation
 
 1. Clone the repository:
+
    ```
    git clone <repository-url>
    cd <project-directory>
    ```
 
 2. Install dependencies:
+
    ```
    npm install
    ```
@@ -54,16 +56,19 @@ node index.js --cli <method_name> [arguments]
 #### Available Commands:
 
 1. Add a subaccount:
+
    ```
    node index.js --cli add_subaccount
    ```
 
 2. Set webhook URL:
+
    ```
    node index.js --cli set_webhook_url https://example.com/webhook
    ```
 
 3. Other available methods:
+
    - get_account_identifier_transactions
    - query_blocks
    - get_network
@@ -85,6 +90,7 @@ node index.js --cli <method_name> [arguments]
    - get_webhook_url
 
    Example usage:
+
    ```
    node index.js --cli get_network
    ```
