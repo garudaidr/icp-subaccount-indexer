@@ -242,7 +242,7 @@ impl LedgerTransaction for Transaction {
 
     fn generate_hash(&self) -> HashOf<Self> {
         let mut state = Sha256::new();
-        state.update(&serde_cbor::ser::to_vec_packed(&self).unwrap());
+        state.update(serde_cbor::ser::to_vec_packed(&self).unwrap());
         let result = state.finalize();
         let fixed_result: [u8; HASH_LENGTH] = result.into();
         HashOf::new(fixed_result)
