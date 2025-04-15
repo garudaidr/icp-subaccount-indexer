@@ -29,10 +29,20 @@ use ic_ledger_types::{
     MAINNET_LEDGER_CANISTER_ID,
 };
 
+use types::TokenType;
+
 use memory::{
     CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
-    PRINCIPAL, TRANSACTIONS, WEBHOOK_URL,
+    PRINCIPAL, TOKEN_LEDGER_PRINCIPALS, TRANSACTIONS, WEBHOOK_URL,
 };
+
+// Canister IDs for ICRC tokens
+const CKUSDC_LEDGER_CANISTER_ID: Principal = Principal::from_slice(&[
+    0, 0, 0, 0, 0, 0, 0, 16, 1, 1, 101, 112, 197, 234, 46, 58, 1, 1,
+]);
+const CKUSDT_LEDGER_CANISTER_ID: Principal = Principal::from_slice(&[
+    0, 0, 0, 0, 0, 0, 0, 16, 1, 1, 150, 254, 176, 157, 160, 186, 1, 1,
+]);
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
     IcCdkSpawnManagerTrait, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
@@ -44,6 +54,7 @@ thread_local! {
     static NETWORK: RefCell<Network> = RefCell::new(Network::Local);
     static LIST_OF_SUBACCOUNTS: RefCell<HashMap<u64, Subaccount>> = RefCell::default();
     static TIMERS: RefCell<TimerId> = RefCell::default();
+    static TOKEN_LEDGER_TIMERS: RefCell<HashMap<TokenType, TimerId>> = RefCell::default();
 }
 
 #[derive(Debug, CandidType, Deserialize, Serialize)]
@@ -214,7 +225,7 @@ fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
     })
 }
 
-fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
+fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), Error> {
     let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
     let operation = tx.operation.as_ref().ok_or(Error {
         message: "Operation is None".to_string(),
@@ -243,14 +254,20 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
             // calculate amount
             let amount = data.amount.e8s - 10_000;
 
-            Ok(TransferArgs {
-                memo: Memo(0),
-                amount: Tokens::from_e8s(amount),
-                from_subaccount: Some(sweep_source_subaccount),
-                fee: Tokens::from_e8s(10_000),
-                to: custodian_id,
-                created_at_time: None,
-            })
+            // Get the ledger canister ID for the token type
+            let token_ledger_canister_id = get_token_ledger_canister_id(&tx.token_type);
+
+            Ok((
+                TransferArgs {
+                    memo: Memo(0),
+                    amount: Tokens::from_e8s(amount),
+                    from_subaccount: Some(sweep_source_subaccount),
+                    fee: Tokens::from_e8s(10_000),
+                    to: custodian_id,
+                    created_at_time: None,
+                },
+                token_ledger_canister_id,
+            ))
         }
         _ => Err(Error {
             message: "Operation is not a transfer".to_string(),
@@ -258,7 +275,7 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
     } // end match
 }
 
-fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
+fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), Error> {
     let operation = tx.operation.as_ref().unwrap();
     match operation {
         Operation::Transfer(data) => {
@@ -291,15 +308,21 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<TransferArgs, Error> {
 
             ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
 
+            // Get the ledger canister ID for the token type
+            let token_ledger_canister_id = get_token_ledger_canister_id(&tx.token_type);
+
             let amount = data.amount.e8s - 10_000;
-            Ok(TransferArgs {
-                memo: Memo(0),
-                amount: Tokens::from_e8s(amount),
-                from_subaccount: Some(refund_source_subaccount),
-                fee: Tokens::from_e8s(10_000),
-                to: refund_to,
-                created_at_time: None,
-            })
+            Ok((
+                TransferArgs {
+                    memo: Memo(0),
+                    amount: Tokens::from_e8s(amount),
+                    from_subaccount: Some(refund_source_subaccount),
+                    fee: Tokens::from_e8s(10_000),
+                    to: refund_to,
+                    created_at_time: None,
+                },
+                token_ledger_canister_id,
+            ))
         }
         _ => Err(Error {
             message: "Operation is not a transfer".to_string(),
@@ -334,8 +357,11 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
         ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
     }
 
-    async fn transfer(args: TransferArgs) -> Result<BlockIndex, String> {
-        match ic_ledger_types::transfer(MAINNET_LEDGER_CANISTER_ID, args).await {
+    async fn transfer(
+        args: TransferArgs,
+        token_ledger_canister_id: Principal,
+    ) -> Result<BlockIndex, String> {
+        match ic_ledger_types::transfer(token_ledger_canister_id, args).await {
             Ok(Ok(block_index)) => Ok(block_index),
             Ok(Err(transfer_error)) => {
                 let error_message = format!("transfer error: {:?}", transfer_error);
@@ -467,8 +493,131 @@ fn transform(args: TransformArgs) -> HttpResponse {
     args.response
 }
 
+async fn query_token_ledger(token_type: TokenType, token_principal: Principal) {
+    ic_cdk::println!("Querying token ledger for {:?}", token_type);
+
+    let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
+
+    let req = QueryBlocksRequest {
+        start: next_block,
+        length: 100,
+    };
+
+    let call_result: CallResult<(QueryBlocksResponse,)> =
+        InterCanisterCallManager::query_blocks(token_principal, req).await;
+
+    let response = match call_result {
+        Ok((response,)) => response,
+        Err(_) => {
+            ic_cdk::println!("query_blocks error occurred for {:?}", token_type);
+            return;
+        }
+    };
+
+    ic_cdk::println!("Response for {:?}: {:?}", token_type, response);
+
+    let mut first_block_hash = String::default();
+    let mut block_count = next_block;
+    response.blocks.iter().for_each(|block| {
+        if let Some(operation) = block.transaction.operation.as_ref() {
+            ic_cdk::println!("Operation for {:?}: {:?}", token_type, operation);
+
+            let subaccount_exist = match operation {
+                Operation::Approve(data) => {
+                    ic_cdk::println!("Approve detected for {:?}", token_type);
+                    let from = data.from.clone();
+                    if includes_hash(&from) {
+                        true
+                    } else {
+                        let spender = data.spender.clone();
+                        includes_hash(&spender)
+                    }
+                }
+                Operation::Burn(data) => {
+                    ic_cdk::println!("Burn detected for {:?}", token_type);
+                    let from = data.from.clone();
+                    if includes_hash(&from) {
+                        true
+                    } else {
+                        match &data.spender {
+                            Some(spender) => includes_hash(spender),
+                            None => false,
+                        }
+                    }
+                }
+                Operation::Mint(data) => {
+                    ic_cdk::println!("Mint detected for {:?}", token_type);
+                    let to = data.to.clone();
+                    includes_hash(&to)
+                }
+                Operation::Transfer(data) => {
+                    ic_cdk::println!("Transfer detected for {:?}", token_type);
+                    let to = data.to.clone();
+                    if includes_hash(&to) {
+                        true
+                    } else {
+                        match &data.spender {
+                            Some(spender) => includes_hash(spender),
+                            None => false,
+                        }
+                    }
+                }
+            };
+
+            if subaccount_exist {
+                ic_cdk::println!("Subaccount exists for {:?}", token_type);
+                TRANSACTIONS.with(|transactions_ref| {
+                    let mut transactions = transactions_ref.borrow_mut();
+
+                    let hash = match hash_transaction(&block.transaction) {
+                        Ok(content) => content,
+                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+                    };
+                    ic_cdk::println!("Hash for {:?}: {:?}", token_type, hash);
+
+                    let transaction = StoredTransactions::new(
+                        block_count,
+                        block.transaction.clone(),
+                        hash.clone(),
+                        token_type.clone(),
+                        token_principal,
+                    );
+
+                    if !transactions.contains_key(&block_count) {
+                        // Filter keys that exist
+                        ic_cdk::println!("Inserting transaction for {:?}", token_type);
+                        let _ = transactions.insert(block_count, transaction);
+
+                        // Track the first block hash in the iter
+                        if first_block_hash.is_empty() {
+                            ic_cdk::println!(
+                                "Setting webhook tx_hash for {:?}: {:?}",
+                                token_type,
+                                hash
+                            );
+                            first_block_hash = hash;
+                        }
+                    } else {
+                        ic_cdk::println!("Transaction already exists for {:?}", token_type);
+                    }
+                });
+            }
+        };
+        block_count += 1;
+    });
+
+    // If the first block hash in not empty
+    // Send the webhook
+    if !first_block_hash.is_empty() {
+        let res = send_webhook(first_block_hash).await;
+        ic_cdk::println!("HTTP Outcall result for {:?}: {}", token_type, res);
+    }
+
+    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
+}
+
 async fn call_query_blocks() {
-    ic_cdk::println!("Calling query_blocks");
+    ic_cdk::println!("Calling query_blocks for ICP");
     let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
 
     let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
@@ -496,6 +645,18 @@ async fn call_query_blocks() {
             return;
         }
     };
+
+    // Also query registered token ledgers
+    TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+        for (_, (token_type, token_principal)) in tl.borrow().iter() {
+            ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
+            let token_type_clone = token_type.clone();
+            let token_principal_clone = token_principal.clone();
+            IcCdkSpawnManager::run(async move {
+                query_token_ledger(token_type_clone, token_principal_clone).await;
+            });
+        }
+    });
 
     ic_cdk::println!("Response: {:?}", response);
 
@@ -557,10 +718,29 @@ async fn call_query_blocks() {
                         Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
                     };
                     ic_cdk::println!("Hash: {:?}", hash);
+                    // Get the ledger principal to determine token type
+                    let ledger_principal = PRINCIPAL
+                        .with(|stored_ref| stored_ref.borrow().get().clone())
+                        .get_principal()
+                        .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
+
+                    // Determine token type based on ledger principal
+                    let token_type = if ledger_principal == MAINNET_LEDGER_CANISTER_ID {
+                        TokenType::ICP
+                    } else if ledger_principal == CKUSDC_LEDGER_CANISTER_ID {
+                        TokenType::CKUSDC
+                    } else if ledger_principal == CKUSDT_LEDGER_CANISTER_ID {
+                        TokenType::CKUSDT
+                    } else {
+                        TokenType::ICP // Default to ICP if unknown
+                    };
+
                     let transaction = StoredTransactions::new(
                         block_count,
                         block.transaction.clone(),
                         hash.clone(),
+                        token_type,
+                        ledger_principal,
                     );
 
                     if !transactions.contains_key(&block_count) {
@@ -936,9 +1116,9 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
     };
 
     // construct transfer args
-    let transfer_args = to_refund_args(&transaction)?;
+    let (transfer_args, token_ledger_canister_id) = to_refund_args(&transaction)?;
 
-    InterCanisterCallManager::transfer(transfer_args)
+    InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
         .await
         .map_err(|e| Error { message: e })?;
 
@@ -985,11 +1165,15 @@ async fn sweep() -> Result<Vec<String>, Error> {
     });
 
     for tx in txs.iter() {
-        let transfer_args = to_sweep_args(&tx.1)?;
+        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
 
-        ic_cdk::println!("transfer_args: {:?}", transfer_args);
+        ic_cdk::println!(
+            "transfer_args: {:?}, token_type: {:?}",
+            transfer_args,
+            tx.1.token_type
+        );
 
-        let future = InterCanisterCallManager::transfer(transfer_args);
+        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
         futures.push(future);
     }
 
@@ -1052,11 +1236,15 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
     });
 
     for tx in txs.iter() {
-        let transfer_args = to_sweep_args(&tx.1)?;
+        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
 
-        ic_cdk::println!("transfer_args: {:?}", transfer_args);
+        ic_cdk::println!(
+            "transfer_args: {:?}, token_type: {:?}",
+            transfer_args,
+            tx.1.token_type
+        );
 
-        let future = InterCanisterCallManager::transfer(transfer_args);
+        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
         futures.push(future);
     }
 
@@ -1100,7 +1288,11 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
 }
 
 #[update]
-async fn sweep_subaccount(subaccountid_hex: String, amount: f64) -> Result<u64, Error> {
+async fn sweep_subaccount(
+    subaccountid_hex: String,
+    amount: f64,
+    token_type: TokenType,
+) -> Result<u64, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
@@ -1130,6 +1322,13 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: f64) -> Result<u64, 
         });
     }
 
+    // Get the ledger canister ID for the token type
+    let token_ledger_canister_id = match token_type {
+        TokenType::ICP => MAINNET_LEDGER_CANISTER_ID,
+        TokenType::CKUSDC => CKUSDC_LEDGER_CANISTER_ID,
+        TokenType::CKUSDT => CKUSDT_LEDGER_CANISTER_ID,
+    };
+
     let transfer_args = TransferArgs {
         memo: Memo(0),
         amount: Tokens::from_e8s(amount_e8s),
@@ -1139,7 +1338,7 @@ async fn sweep_subaccount(subaccountid_hex: String, amount: f64) -> Result<u64, 
         created_at_time: None,
     };
 
-    InterCanisterCallManager::transfer(transfer_args)
+    InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
         .await
         .map_err(|e| Error { message: e })
 }
@@ -1195,6 +1394,174 @@ fn get_custodian_id() -> Result<AccountIdentifier, String> {
 fn canister_status() -> Result<String, String> {
     authenticate()?;
     Ok("{{\"message\": \"Canister is operational\"}}".to_string())
+}
+
+#[query]
+fn get_transaction_token_type(tx_hash: String) -> Result<TokenType, String> {
+    authenticate()?;
+    TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+        for (_, tx) in transactions_borrow.iter() {
+            if tx.tx_hash == tx_hash {
+                return Ok(tx.token_type.clone());
+            }
+        }
+        Err("Transaction not found".to_string())
+    })
+}
+
+#[query]
+fn get_registered_tokens() -> Result<Vec<(TokenType, String)>, String> {
+    authenticate()?;
+    TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+        let tl_borrow = tl.borrow();
+        let mut result = Vec::new();
+        for (_, (token_type, principal)) in tl_borrow.iter() {
+            result.push((token_type.clone(), principal.to_string()));
+        }
+        Ok(result)
+    })
+}
+
+fn get_token_ledger_canister_id(token_type: &TokenType) -> Principal {
+    // First check in registered tokens
+    let registered_id = TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+        let tl_borrow = tl.borrow();
+        for (_, (registered_type, principal)) in tl_borrow.iter() {
+            if registered_type == *token_type {
+                return Some(principal.clone());
+            }
+        }
+        None
+    });
+
+    if let Some(id) = registered_id {
+        return id;
+    }
+
+    // Fallback to hardcoded constants
+    match token_type {
+        TokenType::ICP => MAINNET_LEDGER_CANISTER_ID,
+        TokenType::CKUSDC => CKUSDC_LEDGER_CANISTER_ID,
+        TokenType::CKUSDT => CKUSDT_LEDGER_CANISTER_ID,
+    }
+}
+
+#[update]
+async fn register_token(
+    token_type: TokenType,
+    token_ledger_principal: String,
+) -> Result<(), Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+
+    let principal = Principal::from_text(token_ledger_principal).map_err(|e| Error {
+        message: format!("Invalid principal: {}", e),
+    })?;
+
+    // Store the token type and its ledger canister ID
+    let token_id = match token_type {
+        TokenType::ICP => 1,
+        TokenType::CKUSDC => 2,
+        TokenType::CKUSDT => 3,
+    };
+
+    TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+        let mut tl_mut = tl.borrow_mut();
+        tl_mut.insert(token_id, (token_type, principal));
+    });
+
+    Ok(())
+}
+
+#[update]
+async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+
+    let mut futures = Vec::new();
+
+    // get relevant txs
+    let txs = TRANSACTIONS.with(|transactions_ref| {
+        let transactions_borrow = transactions_ref.borrow();
+
+        ic_cdk::println!("transactions_len: {}", transactions_borrow.len());
+
+        // Filter transactions where sweep_status == NotSwept and token_type matches
+        let filtered_transactions: Vec<_> = transactions_borrow
+            .iter()
+            .filter(|(_key, value)| {
+                value.sweep_status == SweepStatus::NotSwept && value.token_type == token_type
+            })
+            .collect();
+
+        // If filtered_transactions.len() is less than up_to_count, return all transactions
+        // max concurrent calls allowed by the IC is 500
+        let up_to_count = 100;
+        let skip = if filtered_transactions.len() < up_to_count {
+            0
+        } else {
+            filtered_transactions.len() - up_to_count
+        };
+
+        ic_cdk::println!("skip: {}", skip);
+        let result: Vec<_> = filtered_transactions
+            .iter()
+            .skip(skip)
+            .take(up_to_count)
+            .cloned()
+            .collect();
+        result
+    });
+
+    for tx in txs.iter() {
+        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
+
+        ic_cdk::println!(
+            "transfer_args: {:?}, token_type: {:?}",
+            transfer_args,
+            tx.1.token_type
+        );
+
+        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
+        futures.push(future);
+    }
+
+    let responses = join_all(futures).await;
+
+    let mut results = Vec::<String>::new();
+
+    // Trigger subsequent process here
+    for (index, response) in responses.iter().enumerate() {
+        let tx = txs[index].1.clone();
+        match response {
+            Ok(_) => {
+                let status_update = update_status(&tx, SweepStatus::Swept);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                } else {
+                    results.push(format!(
+                        "tx: {}, sweep: ok, status_update: {}",
+                        tx.index,
+                        status_update.unwrap_err().message
+                    ));
+                }
+            }
+            Err(e) => {
+                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                if status_update.is_ok() {
+                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                } else {
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: {}",
+                        tx.index,
+                        e,
+                        status_update.unwrap_err().message
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(results)
 }
 
 // Enable Candid export
