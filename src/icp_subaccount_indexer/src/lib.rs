@@ -46,7 +46,7 @@ const CKUSDT_LEDGER_CANISTER_ID: Principal =
 
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
-    IcCdkSpawnManagerTrait, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
+    IcCdkSpawnManagerTrait, IcrcAccount, InterCanisterCallManager, InterCanisterCallManagerTrait, Network,
     Operation, QueryBlocksRequest, QueryBlocksResponse, StoredPrincipal, StoredTransactions,
     SweepStatus, TimerManager, TimerManagerTrait, Timestamp, Transaction,
 };
@@ -853,12 +853,20 @@ fn reconstruct_subaccounts() {
         let subaccountid: AccountIdentifier = to_subaccount_id(subaccount);
         let account_id_hash = subaccountid.to_u64_hash();
 
+        // Check if this is for an ICRC-1 token and get the text representation
+        let display_account_id = if account == CKUSDC_LEDGER_CANISTER_ID || account == CKUSDT_LEDGER_CANISTER_ID {
+            let icrc_account = IcrcAccount::from_principal_and_index(account, i);
+            icrc_account.to_text()
+        } else {
+            subaccountid.to_hex()
+        };
+
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
-            // print hash + AccountIdentifier_hex
+            // print hash + AccountIdentifier_hex or ICRC-1 textual representation
             ic_cdk::println!(
                 "hash: {}, subaccountid: {}",
                 account_id_hash,
-                subaccountid.to_hex()
+                display_account_id
             );
             list_ref.borrow_mut().insert(account_id_hash, subaccount);
         });
@@ -968,35 +976,72 @@ fn add_subaccount() -> Result<String, Error> {
         let _ = nonce_ref.borrow_mut().set(nonce + 1);
     });
 
+    // Check if this is for an ICRC-1 token
+    let canister_id = CanisterApiManager::id();
+    if canister_id == CKUSDC_LEDGER_CANISTER_ID || canister_id == CKUSDT_LEDGER_CANISTER_ID {
+        let icrc_account = IcrcAccount::from_principal_and_index(canister_id, nonce);
+        return Ok(icrc_account.to_text());
+    }
+
+    // Otherwise return the traditional account ID
     Ok(subaccountid.to_hex())
 }
 
 #[query]
 fn get_subaccountid(nonce: u32) -> Result<String, Error> {
     authenticate().map_err(|e| Error { message: e })?;
+    
+    if nonce >= nonce() {
+        return Err(Error {
+            message: "Index out of bounds".to_string(),
+        });
+    }
+    
+    // First, get the traditional account ID for compatibility with existing code
+    let subaccount = to_subaccount(nonce);
+    let subaccountid: AccountIdentifier = to_subaccount_id(subaccount);
+    let account_id_hash = subaccountid.to_u64_hash();
+    
     LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         let subaccounts_borrow = subaccounts.borrow();
-
-        if nonce as usize >= subaccounts_borrow.len() {
-            return Err(Error {
-                message: "Index out of bounds".to_string(),
-            });
-        }
-
-        let subaccount = to_subaccount(nonce);
-        let subaccountid: AccountIdentifier = to_subaccount_id(subaccount);
-        let account_id_hash = subaccountid.to_u64_hash();
-
+        
         ic_cdk::println!("account_id_hash to search: {}", account_id_hash);
-
-        // find matching hashkey
+        
+        // Check if the subaccount exists in our store
         match subaccounts_borrow.get(&account_id_hash) {
-            Some(_) => Ok(subaccountid.to_hex()),
+            Some(_) => {
+                // For ICRC-1 tokens, we use the ICRC-1 account formatting
+                let token_type = CanisterApiManager::id();
+                let icrc_account = IcrcAccount::from_principal_and_index(token_type, nonce);
+                
+                // For ICP, use the traditional account ID 
+                // For ICRC-1 tokens (ckUSDC/ckUSDT), use the ICRC-1 textual representation
+                if token_type == CKUSDC_LEDGER_CANISTER_ID || token_type == CKUSDT_LEDGER_CANISTER_ID {
+                    Ok(icrc_account.to_text())
+                } else {
+                    Ok(subaccountid.to_hex())
+                }
+            },
             None => Err(Error {
                 message: "Account not found".to_string(),
             }),
         }
     })
+}
+
+#[query]
+fn get_icrc_account(nonce: u32) -> Result<String, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+    
+    if nonce >= nonce() {
+        return Err(Error {
+            message: "Index out of bounds".to_string(),
+        });
+    }
+    
+    let principal = CanisterApiManager::id();
+    let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+    Ok(icrc_account.to_text())
 }
 
 #[query]
@@ -1562,6 +1607,54 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
     }
 
     Ok(results)
+}
+
+#[query]
+fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+    
+    // Decode the account hex
+    let account_bytes = match hex::decode(&account_hex) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(Error {
+            message: "Invalid hex encoding".to_string(),
+        }),
+    };
+    
+    if account_bytes.len() != 32 {
+        return Err(Error {
+            message: format!("Invalid account length: {}, expected 32", account_bytes.len()),
+        });
+    }
+    
+    // Try to find the nonce that generated this account
+    let canister_id = CanisterApiManager::id();
+    let nonce_count = nonce();
+    
+    for i in 0..nonce_count {
+        let test_subaccount = to_subaccount(i);
+        let test_account_id = to_subaccount_id(test_subaccount);
+        
+        if test_account_id.to_hex() == account_hex {
+            // Found the matching nonce
+            let icrc_account = IcrcAccount::from_principal_and_index(canister_id, i);
+            return Ok(icrc_account.to_text());
+        }
+    }
+    
+    Err(Error {
+        message: "Account not found in generated subaccounts".to_string(),
+    })
+}
+
+#[query]
+fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
+    authenticate().map_err(|e| Error { message: e })?;
+    
+    match IcrcAccount::from_text(&icrc_account_text) {
+        Ok(_) => Ok(true),
+        Err(e) => Err(Error { message: e }),
+    }
 }
 
 // Enable Candid export
