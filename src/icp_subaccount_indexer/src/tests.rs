@@ -12,18 +12,19 @@ mod tests {
         fn clear_timer(_timer_id: TimerId) {}
     }
 
-    static STATIC_PRINCIPAL: Lazy<Principal> =
-        Lazy::new(|| Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap());
+    static STATIC_PRINCIPAL: Lazy<std::sync::Mutex<Principal>> = Lazy::new(|| {
+        std::sync::Mutex::new(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").unwrap())
+    });
 
     impl CanisterApiManagerTrait for CanisterApiManager {
         fn id() -> Principal {
-            *STATIC_PRINCIPAL
+            *STATIC_PRINCIPAL.lock().unwrap()
         }
     }
 
     fn setup_principals() -> (AccountIdentifier, AccountIdentifier, AccountIdentifier) {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
-        let custodian_principal = *STATIC_PRINCIPAL;
+        let custodian_principal = *STATIC_PRINCIPAL.lock().unwrap();
         CUSTODIAN_PRINCIPAL.with(|cp| {
             let stored_custodian_principal = StoredPrincipal::new(custodian_principal);
             let _ = cp.borrow_mut().set(stored_custodian_principal);
@@ -31,7 +32,7 @@ mod tests {
 
         // Setup principal
         PRINCIPAL.with(|principal_ref| {
-            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL.lock().unwrap());
             let _ = principal_ref.borrow_mut().set(stored_principal);
         });
 
@@ -93,7 +94,7 @@ mod tests {
                         transaction,
                         hash,
                         TokenType::ICP,
-                        *STATIC_PRINCIPAL,
+                        *STATIC_PRINCIPAL.lock().unwrap(),
                     ),
                 );
             }
@@ -147,7 +148,13 @@ mod tests {
             };
             transactions.insert(
                 1,
-                StoredTransactions::new(1, transaction, hash, TokenType::ICP, *STATIC_PRINCIPAL),
+                StoredTransactions::new(
+                    1,
+                    transaction,
+                    hash,
+                    TokenType::ICP,
+                    *STATIC_PRINCIPAL.lock().unwrap(),
+                ),
             );
         });
     }
@@ -191,7 +198,7 @@ mod tests {
                     transaction,
                     first_hash.clone(),
                     TokenType::ICP,
-                    *STATIC_PRINCIPAL,
+                    *STATIC_PRINCIPAL.lock().unwrap(),
                 ),
             );
 
@@ -218,7 +225,7 @@ mod tests {
                     transaction,
                     second_hash.clone(),
                     TokenType::ICP,
-                    *STATIC_PRINCIPAL,
+                    *STATIC_PRINCIPAL.lock().unwrap(),
                 ),
             );
 
@@ -245,7 +252,7 @@ mod tests {
                     transaction,
                     third_hash.clone(),
                     TokenType::ICP,
-                    *STATIC_PRINCIPAL,
+                    *STATIC_PRINCIPAL.lock().unwrap(),
                 ),
             );
 
@@ -264,6 +271,148 @@ mod tests {
         use super::*;
         use std::time::{SystemTime, UNIX_EPOCH};
 
+        // Test functions for ICRC-1 account functionality
+        #[test]
+        fn test_icrc_account_creation() {
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let nonce = 42u32;
+
+            // Create ICRC account from principal and index
+            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+
+            // Verify the account fields
+            assert_eq!(icrc_account.owner, principal);
+            assert!(icrc_account.subaccount.is_some());
+
+            // Verify that the subaccount has the correct nonce at the end
+            let subaccount = icrc_account.subaccount.unwrap();
+            let mut expected_subaccount = [0u8; 32];
+            let nonce_bytes = nonce.to_be_bytes();
+            expected_subaccount[32 - nonce_bytes.len()..].copy_from_slice(&nonce_bytes);
+            assert_eq!(subaccount, expected_subaccount);
+        }
+
+        #[test]
+        fn test_icrc_account_textual_encoding_default_subaccount() {
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+
+            // Create an account with default subaccount (all zeros)
+            let icrc_account = IcrcAccount::new(principal, Some([0u8; 32]));
+            let text = icrc_account.to_text();
+
+            // For default subaccount, text should just be the principal text
+            assert_eq!(text, principal.to_text());
+
+            // Create an account with no subaccount
+            let icrc_account = IcrcAccount::new(principal, None);
+            let text = icrc_account.to_text();
+
+            // For no subaccount, text should also just be the principal text
+            assert_eq!(text, principal.to_text());
+        }
+
+        #[test]
+        fn test_icrc_account_textual_encoding_non_default_subaccount() {
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let nonce = 42u32;
+
+            // Create an ICRC account with a non-default subaccount
+            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+            let text = icrc_account.to_text();
+
+            // Text should follow the format: <principal>-<checksum>.<subaccount_hex>
+            // Verify format with the appropriate splits
+            let parts: Vec<&str> = text.split('.').collect();
+            assert_eq!(parts.len(), 2, "Text should contain exactly one period");
+
+            let prefix_parts: Vec<&str> = parts[0].split('-').collect();
+            assert!(
+                prefix_parts.len() >= 2,
+                "Text should contain at least one dash"
+            );
+
+            // Verify the principal part
+            let principal_text = prefix_parts[..prefix_parts.len() - 1].join("-");
+            assert_eq!(principal_text, principal.to_text());
+
+            // Verify the checksum and subaccount are not empty
+            let checksum = prefix_parts[prefix_parts.len() - 1];
+            assert!(!checksum.is_empty(), "Checksum should not be empty");
+
+            let subaccount_hex = parts[1];
+            assert!(
+                !subaccount_hex.is_empty(),
+                "Subaccount hex should not be empty"
+            );
+
+            // Verify that our textual encoding can be parsed back correctly
+            let parsed_account = IcrcAccount::from_text(&text).unwrap();
+            assert_eq!(parsed_account.owner, icrc_account.owner);
+            assert_eq!(parsed_account.subaccount, icrc_account.subaccount);
+        }
+
+        #[test]
+        fn test_get_icrc_account_endpoint() {
+            // Setup
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let nonce = the_nonce(); // Get the current nonce value for testing
+
+            // Increment nonce to create a subaccount
+            let subaccount = to_subaccount(nonce);
+            let subaccountid = to_subaccount_id(subaccount);
+            let account_id_hash = subaccountid.to_u64_hash();
+
+            LIST_OF_SUBACCOUNTS.with(|list_ref| {
+                list_ref.borrow_mut().insert(account_id_hash, subaccount);
+            });
+
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(nonce + 1);
+            });
+
+            // Call the get_icrc_account endpoint
+            let result = get_icrc_account(nonce);
+            assert!(result.is_ok(), "get_icrc_account should succeed");
+
+            // Generate the expected ICRC account text representation
+            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+            let expected_text = icrc_account.to_text();
+
+            // Verify the result matches the expected text
+            assert_eq!(result.unwrap(), expected_text);
+        }
+
+        #[test]
+        fn test_validate_icrc_account() {
+            // Setup
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let nonce = 42u32;
+
+            // Create a valid ICRC account
+            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+            let valid_text = icrc_account.to_text();
+
+            // Test validation of valid account
+            let result = validate_icrc_account(valid_text);
+            assert!(
+                result.is_ok(),
+                "Valid ICRC account should validate successfully"
+            );
+            assert!(result.unwrap(), "Valid ICRC account should return true");
+
+            // Test validation of just a principal (default account)
+            let result = validate_icrc_account(principal.to_text());
+            assert!(
+                result.is_ok(),
+                "Principal-only account should validate successfully"
+            );
+            assert!(result.unwrap(), "Principal-only account should return true");
+        }
+
+        fn the_nonce() -> u32 {
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| *nonce_ref.borrow().get())
+        }
+
         #[test]
         fn test_canister_id_matches() {
             // Check that the slice-based constants match the text versions
@@ -272,6 +421,140 @@ mod tests {
 
             assert_eq!(CKUSDC_LEDGER_CANISTER_ID, text_ckusdc, "CKUSDC ID mismatch");
             assert_eq!(CKUSDT_LEDGER_CANISTER_ID, text_ckusdt, "CKUSDT ID mismatch");
+        }
+
+        #[test]
+        fn test_add_subaccount_for_icrc1_tokens() {
+            // Save original principal to restore later
+            let original_principal = CanisterApiManager::id();
+
+            // Test for ckUSDC
+            {
+                // Mock the CanisterApiManager to return ckUSDC principal
+                *STATIC_PRINCIPAL.lock().unwrap() = CKUSDC_LEDGER_CANISTER_ID;
+
+                // Get current nonce
+                let nonce = the_nonce();
+
+                // Call add_subaccount
+                let result = add_subaccount();
+                assert!(result.is_ok(), "add_subaccount should succeed for ckUSDC");
+
+                // Verify the result is in ICRC-1 format
+                let icrc_account =
+                    IcrcAccount::from_principal_and_index(CKUSDC_LEDGER_CANISTER_ID, nonce);
+                let expected_text = icrc_account.to_text();
+                assert_eq!(
+                    result.unwrap(),
+                    expected_text,
+                    "Result should be ICRC-1 format for ckUSDC"
+                );
+            }
+
+            // Test for ckUSDT
+            {
+                // Mock the CanisterApiManager to return ckUSDT principal
+                *STATIC_PRINCIPAL.lock().unwrap() = CKUSDT_LEDGER_CANISTER_ID;
+
+                // Get current nonce
+                let nonce = the_nonce();
+
+                // Call add_subaccount
+                let result = add_subaccount();
+                assert!(result.is_ok(), "add_subaccount should succeed for ckUSDT");
+
+                // Verify the result is in ICRC-1 format
+                let icrc_account =
+                    IcrcAccount::from_principal_and_index(CKUSDT_LEDGER_CANISTER_ID, nonce);
+                let expected_text = icrc_account.to_text();
+                assert_eq!(
+                    result.unwrap(),
+                    expected_text,
+                    "Result should be ICRC-1 format for ckUSDT"
+                );
+            }
+
+            // Restore original principal
+            *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
+        }
+
+        #[test]
+        fn test_get_subaccountid_for_icrc1_tokens() {
+            // Save original principal to restore later
+            let original_principal = CanisterApiManager::id();
+
+            // Mock the CanisterApiManager to return ckUSDC principal
+            *STATIC_PRINCIPAL.lock().unwrap() = CKUSDC_LEDGER_CANISTER_ID;
+
+            // Setup a subaccount
+            let nonce = the_nonce();
+            let subaccount = to_subaccount(nonce);
+            let subaccountid = to_subaccount_id(subaccount);
+            let account_id_hash = subaccountid.to_u64_hash();
+
+            LIST_OF_SUBACCOUNTS.with(|list_ref| {
+                list_ref.borrow_mut().insert(account_id_hash, subaccount);
+            });
+
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(nonce + 1);
+            });
+
+            // Call get_subaccountid
+            let result = get_subaccountid(nonce);
+            assert!(result.is_ok(), "get_subaccountid should succeed for ckUSDC");
+
+            // Verify the result is in ICRC-1 format
+            let icrc_account =
+                IcrcAccount::from_principal_and_index(CKUSDC_LEDGER_CANISTER_ID, nonce);
+            let expected_text = icrc_account.to_text();
+            assert_eq!(
+                result.unwrap(),
+                expected_text,
+                "Result should be ICRC-1 format for ckUSDC"
+            );
+
+            // Restore original principal
+            *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
+        }
+
+        #[test]
+        fn test_convert_to_icrc_account_success() {
+            // Setup
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let nonce = the_nonce();
+
+            // Setup the subaccount
+            let subaccount = to_subaccount(nonce);
+            let subaccountid = to_subaccount_id(subaccount);
+            let account_id_hash = subaccountid.to_u64_hash();
+
+            LIST_OF_SUBACCOUNTS.with(|list_ref| {
+                list_ref.borrow_mut().insert(account_id_hash, subaccount);
+            });
+
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(nonce + 1);
+            });
+
+            // Get the hex representation for conversion
+            let hex_representation = subaccountid.to_hex();
+
+            // Convert to ICRC-1 account
+            let result = convert_to_icrc_account(hex_representation);
+            assert!(
+                result.is_ok(),
+                "convert_to_icrc_account should succeed for existing account"
+            );
+
+            // Verify the result
+            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
+            let expected_text = icrc_account.to_text();
+            assert_eq!(
+                result.unwrap(),
+                expected_text,
+                "Result should match expected ICRC-1 format"
+            );
         }
 
         impl InterCanisterCallManagerTrait for InterCanisterCallManager {
@@ -381,7 +664,7 @@ mod tests {
                 transaction,
                 hash,
                 TokenType::ICP,
-                *STATIC_PRINCIPAL,
+                *STATIC_PRINCIPAL.lock().unwrap(),
             );
 
             assert_eq!(stored_transaction.index, index);
@@ -398,9 +681,12 @@ mod tests {
 
         #[test]
         fn create_and_retrieve_stored_principal() {
-            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL);
+            let stored_principal = StoredPrincipal::new(*STATIC_PRINCIPAL.lock().unwrap());
 
-            assert_eq!(stored_principal.get_principal(), Some(*STATIC_PRINCIPAL));
+            assert_eq!(
+                stored_principal.get_principal(),
+                Some(*STATIC_PRINCIPAL.lock().unwrap())
+            );
         }
 
         #[test]
@@ -616,6 +902,124 @@ mod tests {
         use super::*;
 
         static ERROR_MESSAGE: &str = "transfer failed";
+
+        // Test functions for ICRC-1 account functionality sad paths
+        #[test]
+        fn test_icrc_account_parse_invalid_text() {
+            // Test invalid principal format
+            let invalid_principal = "invalid-principal-format";
+            let result = IcrcAccount::from_text(invalid_principal);
+            assert!(result.is_err(), "Parsing invalid principal should fail");
+
+            // Test invalid format missing separator
+            let invalid_format = "ryjl3-tyaaa-aaaaa-aaaba-caiabcdef"; // Missing period
+            let result = IcrcAccount::from_text(invalid_format);
+            assert!(
+                result.is_err(),
+                "Parsing invalid format without period should fail"
+            );
+
+            // Test invalid hex in subaccount
+            let invalid_hex = "ryjl3-tyaaa-aaaaa-aaaba-cai-abcdef.xyz"; // 'xyz' is not valid hex
+            let result = IcrcAccount::from_text(invalid_hex);
+            assert!(result.is_err(), "Parsing invalid hex should fail");
+        }
+
+        #[test]
+        fn test_validate_icrc_account_invalid() {
+            // Test validation with invalid account text
+            let invalid_texts = vec![
+                "not-a-valid-account",
+                "ryjl3-tyaaa-aaaaa-aaaba-cai-checksum", // Missing period and subaccount
+                "ryjl3-tyaaa-aaaaa-aaaba-cai.ZZ",       // Invalid hex in subaccount
+                "-abcdef.1234",                         // Missing principal
+                "ryjl3-tyaaa-aaaaa-aaaba-cai-abcdef",   // Missing period and subaccount
+            ];
+
+            for invalid_text in invalid_texts {
+                let result = validate_icrc_account(invalid_text.to_string());
+                assert!(
+                    result.is_err(),
+                    "Invalid ICRC account '{}' should fail validation",
+                    invalid_text
+                );
+            }
+        }
+
+        #[test]
+        fn test_get_icrc_account_invalid_nonce() {
+            // Setup a high nonce value
+            let high_nonce = 9999u32;
+
+            // Set a lower nonce as current
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(10);
+            });
+
+            // Call get_icrc_account with a nonce higher than current
+            let result = get_icrc_account(high_nonce);
+            assert!(
+                result.is_err(),
+                "get_icrc_account with invalid nonce should fail"
+            );
+            assert_eq!(
+                result.unwrap_err().message,
+                "Index out of bounds",
+                "Error message should indicate index out of bounds"
+            );
+        }
+
+        #[test]
+        fn test_convert_to_icrc_account_invalid_hex() {
+            // Setup
+            let invalid_hex = "not-hex-string";
+
+            // Call convert_to_icrc_account with invalid hex
+            let result = convert_to_icrc_account(invalid_hex.to_string());
+            assert!(
+                result.is_err(),
+                "convert_to_icrc_account with invalid hex should fail"
+            );
+            assert_eq!(
+                result.unwrap_err().message,
+                "Invalid hex encoding",
+                "Error message should indicate invalid hex encoding"
+            );
+
+            // Test with hex string of wrong length
+            let short_hex = "1234"; // Too short
+            let result = convert_to_icrc_account(short_hex.to_string());
+            assert!(
+                result.is_err(),
+                "convert_to_icrc_account with short hex should fail"
+            );
+            assert!(
+                result
+                    .unwrap_err()
+                    .message
+                    .contains("Invalid account length"),
+                "Error message should indicate invalid account length"
+            );
+        }
+
+        #[test]
+        fn test_convert_to_icrc_account_nonexistent() {
+            // Setup a valid hex string that doesn't correspond to any generated subaccount
+            let nonexistent_hex =
+                "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+            // Call convert_to_icrc_account with nonexistent account
+            let result = convert_to_icrc_account(nonexistent_hex.to_string());
+            assert!(
+                result.is_err(),
+                "convert_to_icrc_account with nonexistent account should fail"
+            );
+            assert_eq!(
+                result.unwrap_err().message,
+                "Account not found in generated subaccounts",
+                "Error message should indicate account not found"
+            );
+        }
 
         impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             async fn query_blocks(
