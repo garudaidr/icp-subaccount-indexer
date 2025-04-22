@@ -1,6 +1,5 @@
 use candid::Principal;
 use crc32fast::Hasher;
-use hex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Account {
@@ -102,33 +101,33 @@ fn main() {
 
         // Default subaccount (all zeros)
         let default_subaccount = [0u8; 32];
-        let default_account = Account::new(principal.clone(), Some(default_subaccount));
+        let default_account = Account::new(principal, Some(default_subaccount));
         println!("Default Subaccount: {}", default_account.to_text());
 
         // Subaccount 1 (last byte is 1, rest zeros)
         let mut subaccount1 = [0u8; 32];
         subaccount1[31] = 1;
-        let account1 = Account::new(principal.clone(), Some(subaccount1));
+        let account1 = Account::new(principal, Some(subaccount1));
         println!("Subaccount 1: {}", account1.to_text());
 
         // Subaccount with index 123
         let mut subaccount_index = [0u8; 32];
         subaccount_index[31] = 123;
-        let account_index = Account::new(principal.clone(), Some(subaccount_index));
+        let account_index = Account::new(principal, Some(subaccount_index));
         println!("Subaccount Index 123: {}", account_index.to_text());
 
         // Subaccount for minting (special purpose)
         let mut minting_subaccount = [0u8; 32];
         minting_subaccount[0] = 1; // First byte as 1 for minting designation
-        let minting_account = Account::new(principal.clone(), Some(minting_subaccount));
+        let minting_account = Account::new(principal, Some(minting_subaccount));
         println!("Minting Subaccount: {}", minting_account.to_text());
 
         // Sequential subaccount (1,2,3,...)
         let mut sequential_subaccount = [0u8; 32];
-        for i in 0..32 {
-            sequential_subaccount[i] = (i + 1) as u8;
+        for (i, byte) in sequential_subaccount.iter_mut().enumerate() {
+            *byte = (i + 1) as u8;
         }
-        let sequential_account = Account::new(principal.clone(), Some(sequential_subaccount));
+        let sequential_account = Account::new(principal, Some(sequential_subaccount));
         println!("Sequential Subaccount: {}", sequential_account.to_text());
 
         println!();

@@ -419,6 +419,7 @@ pub struct IcrcAccount {
 
 impl IcrcAccount {
     /// Create a new account with the given principal and optional subaccount
+    #[allow(dead_code)]
     pub fn new(owner: Principal, subaccount: Option<[u8; 32]>) -> Self {
         Self { owner, subaccount }
     }
@@ -466,17 +467,6 @@ impl IcrcAccount {
         }
 
         result
-    }
-
-    /// Hex-encode bytes and remove leading zeros
-    fn hex_encode_trim_leading_zeros(bytes: &[u8]) -> String {
-        let hex = hex::encode(bytes);
-        let trimmed = hex.trim_start_matches('0');
-        if trimmed.is_empty() {
-            "0".to_string()
-        } else {
-            trimmed.to_string()
-        }
     }
 
     /// Convert the account to its textual representation according to ICRC-1 spec
