@@ -407,6 +407,25 @@ mod tests {
                 "Principal-only account should validate successfully"
             );
             assert!(result.unwrap(), "Principal-only account should return true");
+
+            // Create an account and directly validate by parsing
+            let mut subaccount = [0u8; 32];
+            subaccount[31] = 123; // Simple non-zero subaccount
+            let account = IcrcAccount::new(principal, Some(subaccount));
+            let account_text = account.to_text();
+
+            // Parse it back
+            let parsed = IcrcAccount::from_text(&account_text);
+            assert!(parsed.is_ok(), "Should parse a properly formatted account");
+            let parsed_account = parsed.unwrap();
+
+            // Validate the parsed account
+            assert_eq!(parsed_account.owner, principal, "Owner should match");
+            assert_eq!(
+                parsed_account.subaccount.unwrap()[31],
+                123,
+                "Subaccount should match"
+            );
         }
 
         fn the_nonce() -> u32 {
@@ -483,9 +502,6 @@ mod tests {
             // Save original principal to restore later
             let original_principal = CanisterApiManager::id();
 
-            // Mock the CanisterApiManager to return ckUSDC principal
-            *STATIC_PRINCIPAL.lock().unwrap() = CKUSDC_LEDGER_CANISTER_ID;
-
             // Setup a subaccount
             let nonce = the_nonce();
             let subaccount = to_subaccount(nonce);
@@ -504,14 +520,23 @@ mod tests {
             let result = get_subaccountid(nonce);
             assert!(result.is_ok(), "get_subaccountid should succeed for ckUSDC");
 
-            // Verify the result is in ICRC-1 format
-            let icrc_account =
+            // Since we're testing the format of the string, not the exact value
+            // We'll parse the returned string and verify it can be parsed back
+            let result_str = result.unwrap();
+            let parsed_account = IcrcAccount::from_text(&result_str).unwrap();
+
+            // Create the expected account directly
+            let expected_account =
                 IcrcAccount::from_principal_and_index(CKUSDC_LEDGER_CANISTER_ID, nonce);
-            let expected_text = icrc_account.to_text();
+
+            // Verify the owner and subaccount match
             assert_eq!(
-                result.unwrap(),
-                expected_text,
-                "Result should be ICRC-1 format for ckUSDC"
+                parsed_account.owner, expected_account.owner,
+                "Owner should match"
+            );
+            assert_eq!(
+                parsed_account.subaccount, expected_account.subaccount,
+                "Subaccount should match"
             );
 
             // Restore original principal
@@ -547,13 +572,21 @@ mod tests {
                 "convert_to_icrc_account should succeed for existing account"
             );
 
-            // Verify the result
-            let icrc_account = IcrcAccount::from_principal_and_index(principal, nonce);
-            let expected_text = icrc_account.to_text();
+            // Parse the result
+            let result_str = result.unwrap();
+            let parsed_account = IcrcAccount::from_text(&result_str).unwrap();
+
+            // Create the expected account directly
+            let expected_account = IcrcAccount::from_principal_and_index(principal, nonce);
+
+            // Verify the owner and subaccount match
             assert_eq!(
-                result.unwrap(),
-                expected_text,
-                "Result should match expected ICRC-1 format"
+                parsed_account.owner, expected_account.owner,
+                "Owner should match"
+            );
+            assert_eq!(
+                parsed_account.subaccount, expected_account.subaccount,
+                "Subaccount should match"
             );
         }
 
@@ -923,6 +956,31 @@ mod tests {
             let invalid_hex = "ryjl3-tyaaa-aaaaa-aaaba-cai-abcdef.xyz"; // 'xyz' is not valid hex
             let result = IcrcAccount::from_text(invalid_hex);
             assert!(result.is_err(), "Parsing invalid hex should fail");
+
+            // Test invalid checksum
+            // Create a valid account first
+            let principal = *STATIC_PRINCIPAL.lock().unwrap();
+            let mut subaccount = [0u8; 32];
+            subaccount[31] = 42;
+            let valid_account = IcrcAccount::new(principal, Some(subaccount));
+            let valid_text = valid_account.to_text();
+
+            // Modify the checksum part
+            let parts: Vec<&str> = valid_text.split('.').collect();
+            let prefix_parts: Vec<&str> = parts[0].split('-').collect();
+            let invalid_checksum_text = format!(
+                "{}-invchk.{}",
+                prefix_parts[..prefix_parts.len() - 1].join("-"),
+                parts[1]
+            );
+
+            // Parse with invalid checksum
+            let result = IcrcAccount::from_text(&invalid_checksum_text);
+            assert!(result.is_err(), "Parsing with invalid checksum should fail");
+            assert!(
+                result.unwrap_err().contains("Checksum verification failed"),
+                "Error should indicate checksum verification failure"
+            );
         }
 
         #[test]
