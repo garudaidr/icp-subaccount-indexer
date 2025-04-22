@@ -439,38 +439,30 @@ impl IcrcAccount {
         subaccount.iter().all(|&b| b == 0)
     }
 
-    /// Calculate CRC-32 checksum of concatenated principal and subaccount bytes
-    fn calculate_checksum(principal_bytes: &[u8], subaccount: &[u8; 32]) -> [u8; 4] {
-        let mut hasher = crc32fast::Hasher::new();
-        hasher.update(principal_bytes);
-        hasher.update(subaccount);
-        let checksum = hasher.finalize();
-        checksum.to_be_bytes()
-    }
+    /// Base32 encoding (lowercase, no padding) for the checksum
+    fn base32_encode_lowercase(input: &[u8]) -> String {
+        // RFC4648 Base32 alphabet
+        const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz234567";
 
-    /// Base32 encode bytes in lowercase and without padding
-    fn base32_encode_no_padding(bytes: &[u8]) -> String {
-        // This function is not available in the standard library.
-        // Implementing a custom BASE32 encoding for lowercase, no padding
-        let alphabet = b"abcdefghijklmnopqrstuvwxyz234567";
         let mut result = String::new();
-        let mut bits = 0;
-        let mut buffer = 0;
+        let mut bits = 0u16;
+        let mut bit_count = 0;
 
-        for &byte in bytes {
-            buffer = (buffer << 8) | (byte as u32);
-            bits += 8;
+        for &byte in input {
+            bits = (bits << 8) | (byte as u16);
+            bit_count += 8;
 
-            while bits >= 5 {
-                bits -= 5;
-                let index = ((buffer >> bits) & 0x1F) as usize;
-                result.push(alphabet[index] as char);
+            while bit_count >= 5 {
+                bit_count -= 5;
+                let index = ((bits >> bit_count) & 0x1F) as usize;
+                result.push(ALPHABET[index] as char);
             }
         }
 
-        if bits > 0 {
-            let index = ((buffer << (5 - bits)) & 0x1F) as usize;
-            result.push(alphabet[index] as char);
+        // Handle remaining bits if any
+        if bit_count > 0 {
+            let index = ((bits << (5 - bit_count)) & 0x1F) as usize;
+            result.push(ALPHABET[index] as char);
         }
 
         result
@@ -489,29 +481,47 @@ impl IcrcAccount {
 
     /// Convert the account to its textual representation according to ICRC-1 spec
     pub fn to_text(&self) -> String {
-        let principal_text = self.owner.to_text();
-
-        // If subaccount is not set or is default, just return the principal text
         if let Some(subaccount) = self.subaccount {
+            // If subaccount is all zeros, just return the principal text
             if Self::is_default_subaccount(&subaccount) {
-                return principal_text;
+                return self.owner.to_text();
             }
 
-            // For non-default subaccounts, generate the full format
+            // Calculate checksum (CRC-32 of concatenated principal and subaccount bytes)
             let principal_bytes = self.owner.as_slice();
-            let checksum_bytes = Self::calculate_checksum(principal_bytes, &subaccount);
+            let mut hasher = crc32fast::Hasher::new();
+            hasher.update(principal_bytes);
+            hasher.update(&subaccount);
+            let checksum_value = hasher.finalize();
 
-            // Base32 encode the checksum (lowercase, no padding)
-            let checksum_encoded = Self::base32_encode_no_padding(&checksum_bytes);
+            // Convert checksum to big-endian bytes
+            let checksum_bytes = checksum_value.to_be_bytes();
 
-            // Hex encode the subaccount with leading zeros removed
-            let subaccount_hex = Self::hex_encode_trim_leading_zeros(&subaccount);
+            // Encode checksum in Base32 lowercase
+            let checksum_encoded = Self::base32_encode_lowercase(&checksum_bytes);
 
-            // Format: <principal>-<checksum>.<compressed-subaccount>
-            format!("{}-{}.{}", principal_text, checksum_encoded, subaccount_hex)
+            // Encode subaccount as hex and remove leading zeros
+            let subaccount_hex = hex::encode(subaccount);
+            let trimmed_hex = subaccount_hex.trim_start_matches('0');
+
+            // If all bytes were zero (which should not happen here since we checked earlier),
+            // we should have at least one digit
+            let subaccount_hex_trimmed = if trimmed_hex.is_empty() {
+                "0"
+            } else {
+                trimmed_hex
+            };
+
+            // Construct the textual representation
+            format!(
+                "{}-{}.{}",
+                self.owner.to_text(),
+                checksum_encoded,
+                subaccount_hex_trimmed
+            )
         } else {
-            // No subaccount is treated as the default subaccount
-            principal_text
+            // Default subaccount
+            self.owner.to_text()
         }
     }
 
@@ -562,9 +572,24 @@ impl IcrcAccount {
         let start_idx = 32 - decoded.len();
         subaccount[start_idx..].copy_from_slice(&decoded);
 
-        // Note: We should verify the checksum here, but that's a bit complex without a proper
-        // base32 decoder implementation. For now, we'll just return the account without
-        // checksum verification.
+        // Calculate the expected checksum
+        let principal_bytes = owner.as_slice();
+        let mut hasher = crc32fast::Hasher::new();
+        hasher.update(principal_bytes);
+        hasher.update(&subaccount);
+        let checksum_value = hasher.finalize();
+        let checksum_bytes = checksum_value.to_be_bytes();
+
+        // Encode the calculated checksum
+        let calculated_checksum = Self::base32_encode_lowercase(&checksum_bytes);
+
+        // Verify the checksum
+        if calculated_checksum != _checksum_text {
+            return Err(format!(
+                "Checksum verification failed. Expected: {}, Got: {}",
+                calculated_checksum, _checksum_text
+            ));
+        }
 
         Ok(Self {
             owner,
