@@ -269,7 +269,7 @@ pub enum SweepStatus {
     NotSwept,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(CandidType, Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum TokenType {
     ICP,
