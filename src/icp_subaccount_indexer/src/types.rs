@@ -540,7 +540,7 @@ impl IcrcAccount {
 
         // The principal is everything before the last dash
         let principal_text = prefix_parts[..prefix_parts.len() - 1].join("-");
-        let owner = Principal::from_text(&principal_text)
+        let owner = Principal::from_text(principal_text)
             .map_err(|_| "Invalid principal format".to_string())?;
 
         // The checksum is the part after the last dash
