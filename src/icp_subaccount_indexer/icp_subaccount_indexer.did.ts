@@ -86,7 +86,7 @@ export interface TransformArgs {
   response: HttpResponse;
 }
 export interface _SERVICE {
-  add_subaccount: ActorMethod<[], Result>;
+  add_subaccount: ActorMethod<[[] | [TokenType]], Result>;
   canister_status: ActorMethod<[], Result_1>;
   clear_transactions: ActorMethod<[[] | [bigint], [] | [Timestamp]], Result_2>;
   convert_to_icrc_account: ActorMethod<[string], Result>;
@@ -99,7 +99,7 @@ export interface _SERVICE {
   get_oldest_block: ActorMethod<[], Result_6>;
   get_registered_tokens: ActorMethod<[], Result_7>;
   get_subaccount_count: ActorMethod<[], Result_5>;
-  get_subaccountid: ActorMethod<[number], Result>;
+  get_subaccountid: ActorMethod<[number, [] | [TokenType]], Result>;
   get_transaction_token_type: ActorMethod<[string], Result_8>;
   get_transactions_count: ActorMethod<[], Result_5>;
   get_webhook_url: ActorMethod<[], Result_1>;

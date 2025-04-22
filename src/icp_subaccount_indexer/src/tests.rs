@@ -476,19 +476,18 @@ mod tests {
 
             // Test for ckUSDC
             {
-                // Mock the CanisterApiManager to return ckUSDC principal
-                *STATIC_PRINCIPAL.lock().unwrap() = CKUSDC_LEDGER_CANISTER_ID;
+                // Mock the CanisterApiManager
+                *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
 
                 // Get current nonce
                 let nonce = the_nonce();
 
-                // Call add_subaccount
-                let result = add_subaccount();
+                // Call add_subaccount with CKUSDC token type
+                let result = add_subaccount(Some(TokenType::CKUSDC));
                 assert!(result.is_ok(), "add_subaccount should succeed for ckUSDC");
 
                 // Verify the result is in ICRC-1 format
-                let icrc_account =
-                    IcrcAccount::from_principal_and_index(CKUSDC_LEDGER_CANISTER_ID, nonce);
+                let icrc_account = IcrcAccount::from_principal_and_index(original_principal, nonce);
                 let expected_text = icrc_account.to_text();
                 assert_eq!(
                     result.unwrap(),
@@ -499,19 +498,15 @@ mod tests {
 
             // Test for ckUSDT
             {
-                // Mock the CanisterApiManager to return ckUSDT principal
-                *STATIC_PRINCIPAL.lock().unwrap() = CKUSDT_LEDGER_CANISTER_ID;
-
                 // Get current nonce
                 let nonce = the_nonce();
 
-                // Call add_subaccount
-                let result = add_subaccount();
+                // Call add_subaccount with CKUSDT token type
+                let result = add_subaccount(Some(TokenType::CKUSDT));
                 assert!(result.is_ok(), "add_subaccount should succeed for ckUSDT");
 
                 // Verify the result is in ICRC-1 format
-                let icrc_account =
-                    IcrcAccount::from_principal_and_index(CKUSDT_LEDGER_CANISTER_ID, nonce);
+                let icrc_account = IcrcAccount::from_principal_and_index(original_principal, nonce);
                 let expected_text = icrc_account.to_text();
                 assert_eq!(
                     result.unwrap(),
@@ -519,18 +514,12 @@ mod tests {
                     "Result should be ICRC-1 format for ckUSDT"
                 );
             }
-
-            // Restore original principal
-            *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
         }
 
         #[test]
         fn test_get_subaccountid_for_icrc1_tokens() {
             // Save original principal to restore later
             let original_principal = *STATIC_PRINCIPAL.lock().unwrap();
-
-            // Test specifically with the ckUSDC principal
-            *STATIC_PRINCIPAL.lock().unwrap() = CKUSDC_LEDGER_CANISTER_ID;
 
             // Use a fixed nonce for testing
             let nonce = 42;
@@ -549,28 +538,56 @@ mod tests {
                 list_ref.borrow_mut().insert(account_id_hash, subaccount);
             });
 
-            // Now call the function we're testing
-            let result = get_subaccountid(nonce);
-            assert!(result.is_ok(), "get_subaccountid should succeed for ckUSDC");
+            // Now call the function we're testing with CKUSDC token type
+            let result = get_subaccountid(nonce, Some(TokenType::CKUSDC));
+            assert!(
+                result.is_ok(),
+                "get_subaccountid should succeed for CKUSDC token type"
+            );
 
             // Get the text result
             let result_str = result.unwrap();
 
-            // Since we're using CKUSDC_LEDGER_CANISTER_ID, this should be an ICRC account text
-            // The test for an account with CKUSDC_LEDGER_CANISTER_ID should return a hex string
-            // with the format of an ICRC-1 account
-
             // Create the expected account format for comparison
-            let expected_account =
-                IcrcAccount::from_principal_and_index(CKUSDC_LEDGER_CANISTER_ID, nonce);
+            let expected_account = IcrcAccount::from_principal_and_index(original_principal, nonce);
             let expected_text = expected_account.to_text();
             assert_eq!(
                 result_str, expected_text,
                 "Result should match expected ICRC account text"
             );
 
-            // Restore original principal
-            *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
+            // Test with CKUSDT token type
+            let result = get_subaccountid(nonce, Some(TokenType::CKUSDT));
+            assert!(
+                result.is_ok(),
+                "get_subaccountid should succeed for CKUSDT token type"
+            );
+
+            // Get the text result
+            let result_str = result.unwrap();
+
+            // Should also match the same expected text since the principal is the same
+            assert_eq!(
+                result_str, expected_text,
+                "Result should match expected ICRC account text"
+            );
+
+            // Test with ICP token type (which should return hex)
+            let result = get_subaccountid(nonce, Some(TokenType::ICP));
+            assert!(
+                result.is_ok(),
+                "get_subaccountid should succeed for ICP token type"
+            );
+
+            // Get the text result
+            let result_str = result.unwrap();
+
+            // For ICP, this should be a hex string
+            assert_eq!(
+                result_str,
+                subaccountid.to_hex(),
+                "Result for ICP should be hex format"
+            );
         }
 
         #[test]

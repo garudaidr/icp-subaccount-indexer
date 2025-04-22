@@ -61,7 +61,7 @@ type Transfer = record {
 };
 type TransformArgs = record { context : blob; response : HttpResponse };
 service : (Network, nat64, nat32, text, text) -> {
-  add_subaccount : () -> (Result);
+  add_subaccount : (opt TokenType) -> (Result);
   canister_status : () -> (Result_1) query;
   clear_transactions : (opt nat64, opt Timestamp) -> (Result_2);
   convert_to_icrc_account : (text) -> (Result) query;
@@ -74,7 +74,7 @@ service : (Network, nat64, nat32, text, text) -> {
   get_oldest_block : () -> (Result_6) query;
   get_registered_tokens : () -> (Result_7) query;
   get_subaccount_count : () -> (Result_5) query;
-  get_subaccountid : (nat32) -> (Result) query;
+  get_subaccountid : (nat32, opt TokenType) -> (Result) query;
   get_transaction_token_type : (text) -> (Result_8) query;
   get_transactions_count : () -> (Result_5) query;
   get_webhook_url : () -> (Result_1) query;

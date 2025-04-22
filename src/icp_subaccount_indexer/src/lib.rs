@@ -493,10 +493,12 @@ fn transform(args: TransformArgs) -> HttpResponse {
     args.response
 }
 
-async fn query_token_ledger(token_type: TokenType, token_principal: Principal) {
+async fn query_token_ledger(
+    token_type: TokenType,
+    token_principal: Principal,
+    next_block: u64,
+) -> u64 {
     ic_cdk::println!("Querying token ledger for {:?}", token_type);
-
-    let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
 
     let req = QueryBlocksRequest {
         start: next_block,
@@ -510,7 +512,7 @@ async fn query_token_ledger(token_type: TokenType, token_principal: Principal) {
         Ok((response,)) => response,
         Err(_) => {
             ic_cdk::println!("query_blocks error occurred for {:?}", token_type);
-            return;
+            return next_block; // Return original block count if error occurs
         }
     };
 
@@ -613,7 +615,8 @@ async fn query_token_ledger(token_type: TokenType, token_principal: Principal) {
         ic_cdk::println!("HTTP Outcall result for {:?}: {}", token_type, res);
     }
 
-    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
+    // Return the updated block count instead of modifying global state
+    block_count
 }
 
 async fn call_query_blocks() {
@@ -652,8 +655,16 @@ async fn call_query_blocks() {
             ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
             let token_type_clone = token_type.clone();
             let token_principal_clone = token_principal;
+
+            // Use the global next_block for each token
+            let current_next_block = next_block;
+
             IcCdkSpawnManager::run(async move {
-                query_token_ledger(token_type_clone, token_principal_clone).await;
+                // Call query_token_ledger but ignore the return value
+                // Each token type is processed independently
+                let _ =
+                    query_token_ledger(token_type_clone, token_principal_clone, current_next_block)
+                        .await;
             });
         }
     });
@@ -717,23 +728,16 @@ async fn call_query_blocks() {
                         Ok(content) => content,
                         Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
                     };
+                    transactions.get(&block_count);
                     ic_cdk::println!("Hash: {:?}", hash);
-                    // Get the ledger principal to determine token type
+                    // Get the ledger principal from PRINCIPAL
                     let ledger_principal = PRINCIPAL
                         .with(|stored_ref| stored_ref.borrow().get().clone())
                         .get_principal()
                         .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
 
-                    // Determine token type based on ledger principal
-                    let token_type = if ledger_principal == MAINNET_LEDGER_CANISTER_ID {
-                        TokenType::ICP
-                    } else if ledger_principal == CKUSDC_LEDGER_CANISTER_ID {
-                        TokenType::CKUSDC
-                    } else if ledger_principal == CKUSDT_LEDGER_CANISTER_ID {
-                        TokenType::CKUSDT
-                    } else {
-                        TokenType::ICP // Default to ICP if unknown
-                    };
+                    // Just use ICP as default - specific token types are handled separately by query_token_ledger
+                    let token_type = TokenType::ICP;
 
                     let transaction = StoredTransactions::new(
                         block_count,
@@ -961,7 +965,7 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 }
 
 #[update]
-fn add_subaccount() -> Result<String, Error> {
+fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     let nonce = nonce();
@@ -977,9 +981,12 @@ fn add_subaccount() -> Result<String, Error> {
         let _ = nonce_ref.borrow_mut().set(nonce + 1);
     });
 
-    // Check if this is for an ICRC-1 token
-    let canister_id = CanisterApiManager::id();
-    if canister_id == CKUSDC_LEDGER_CANISTER_ID || canister_id == CKUSDT_LEDGER_CANISTER_ID {
+    // Determine the token type
+    let token_type = token_type.unwrap_or(TokenType::ICP);
+
+    // For ICRC-1 tokens (ckUSDC/ckUSDT), use the ICRC-1 textual representation
+    if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+        let canister_id = CanisterApiManager::id();
         let icrc_account = IcrcAccount::from_principal_and_index(canister_id, nonce);
         return Ok(icrc_account.to_text());
     }
@@ -989,7 +996,7 @@ fn add_subaccount() -> Result<String, Error> {
 }
 
 #[query]
-fn get_subaccountid(nonce_param: u32) -> Result<String, Error> {
+fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<String, Error> {
     authenticate().map_err(|e| Error { message: e })?;
 
     let current_nonce = nonce();
@@ -1012,17 +1019,17 @@ fn get_subaccountid(nonce_param: u32) -> Result<String, Error> {
         // Check if the subaccount exists in our store
         match subaccounts_borrow.get(&account_id_hash) {
             Some(_) => {
-                // For ICRC-1 tokens, we use the ICRC-1 account formatting
-                let token_type = CanisterApiManager::id();
-                let icrc_account = IcrcAccount::from_principal_and_index(token_type, nonce_param);
+                // Determine the token type
+                let token_type = token_type.unwrap_or(TokenType::ICP);
+                let canister_id = CanisterApiManager::id();
 
-                // For ICP, use the traditional account ID
                 // For ICRC-1 tokens (ckUSDC/ckUSDT), use the ICRC-1 textual representation
-                if token_type == CKUSDC_LEDGER_CANISTER_ID
-                    || token_type == CKUSDT_LEDGER_CANISTER_ID
-                {
+                if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+                    let icrc_account =
+                        IcrcAccount::from_principal_and_index(canister_id, nonce_param);
                     Ok(icrc_account.to_text())
                 } else {
+                    // For ICP, use the traditional account ID
                     Ok(subaccountid.to_hex())
                 }
             }
