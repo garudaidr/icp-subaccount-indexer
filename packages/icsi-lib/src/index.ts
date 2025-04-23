@@ -1,0 +1,41 @@
+// Type exports
+export * from './userVault.did';
+
+// Authentication function exports
+export * from './auth';
+
+// Query function exports
+export {
+  getUserVaultTransactions,
+  getUserVaultInterval,
+  getTransactionsCount,
+  getNonce,
+  getSubaccountCount,
+  getSubaccountId,
+  getWebhookUrl,
+  getCanisterPrincipal,
+  getIcrcAccount,
+  getNetwork,
+  getNextBlock,
+  getOldestBlock,
+  getRegisteredTokens,
+  getTransactionTokenType
+} from './query';
+
+// Update function exports
+export {
+  refund,
+  setUserVaultInterval,
+  sweep,
+  sweepByTokenType,
+  addSubaccount,
+  addSubaccountForToken,
+  clearTransactions,
+  setWebhookUrl,
+  registerToken,
+  sweepSubaccountId,
+  convertToIcrcAccount,
+  validateIcrcAccount,
+  singleSweep,
+  setSweepFailed
+} from './update';
