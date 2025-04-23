@@ -26,3 +26,11 @@ export const HOST = process.env.HOST || 'https://ic0.app';
 
 // Create an agent using the seed phrase and host
 export const agent = createHostAgentAndIdentityFromSeed(SEED_PHRASE, HOST);
+
+// Fetch root key for local development
+if (HOST !== 'https://ic0.app') {
+  // Only fetch the root key when not on mainnet
+  agent.fetchRootKey().catch((err) => {
+    console.error('Failed to fetch root key:', err);
+  });
+}

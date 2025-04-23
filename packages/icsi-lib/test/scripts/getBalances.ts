@@ -13,9 +13,10 @@ import { StoredTransactions } from '../../src/userVault.did';
 async function getBalances() {
   try {
     // Get the list of registered tokens
-    const tokensResult = await getRegisteredTokens(agent, [
-      Principal.fromText(USER_VAULT_CANISTER_ID),
-    ]);
+    const tokensResult = await getRegisteredTokens(
+      agent,
+      USER_VAULT_CANISTER_ID
+    );
 
     if ('Err' in tokensResult) {
       console.error(`Error getting registered tokens: ${tokensResult.Err}`);
@@ -41,10 +42,11 @@ async function getBalances() {
 
       try {
         // Get the subaccount ID for this token
-        const subaccountIdResult = await getSubaccountId(agent, [
-          Principal.fromText(USER_VAULT_CANISTER_ID),
-          tokenPrincipal,
-        ]);
+        const subaccountIdResult = await getSubaccountId(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          0 // Using index 0 as the default
+        );
 
         if ('Err' in subaccountIdResult) {
           console.log(
@@ -56,12 +58,11 @@ async function getBalances() {
         const subaccountId = subaccountIdResult.Ok;
 
         // Get transactions for this subaccount
-        const transactionsResult = await getUserVaultTransactions(agent, [
-          Principal.fromText(USER_VAULT_CANISTER_ID),
-          subaccountId,
-          [], // Empty array for start index (most recent transactions)
-          BigInt(100), // Number of transactions to fetch
-        ]);
+        const transactionsResult = await getUserVaultTransactions(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          BigInt(0) // Starting from the beginning
+        );
 
         if ('Err' in transactionsResult) {
           console.log(

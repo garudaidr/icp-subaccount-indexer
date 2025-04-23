@@ -18,9 +18,7 @@ async function sweepAll() {
     // Method 1: Sweep all subaccounts at once
     console.log('\nMethod 1: Sweeping all subaccounts at once');
     try {
-      const result = await sweep(agent, [
-        Principal.fromText(USER_VAULT_CANISTER_ID),
-      ]);
+      const result = await sweep(agent, USER_VAULT_CANISTER_ID);
 
       if ('Ok' in result) {
         console.log('Sweep result:', result.Ok);
@@ -33,9 +31,10 @@ async function sweepAll() {
 
     // Method 2: Sweep by token type
     console.log('\nMethod 2: Sweeping by token type');
-    const tokensResult = await getRegisteredTokens(agent, [
-      Principal.fromText(USER_VAULT_CANISTER_ID),
-    ]);
+    const tokensResult = await getRegisteredTokens(
+      agent,
+      USER_VAULT_CANISTER_ID
+    );
 
     if ('Err' in tokensResult) {
       console.error(`Error getting registered tokens: ${tokensResult.Err}`);
@@ -49,10 +48,11 @@ async function sweepAll() {
         `\nSweeping token: ${tokenName} (${tokenPrincipal.toString()})`
       );
       try {
-        const result = await sweepByTokenType(agent, [
-          Principal.fromText(USER_VAULT_CANISTER_ID),
-          tokenPrincipal,
-        ]);
+        const result = await sweepByTokenType(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          tokenPrincipal
+        );
 
         if ('Ok' in result) {
           console.log('Sweep result:', result.Ok);
@@ -68,10 +68,11 @@ async function sweepAll() {
     console.log('\nMethod 3: Sweeping individual subaccounts');
     for (const [tokenPrincipal, tokenName] of tokens) {
       try {
-        const subaccountIdResult = await getSubaccountId(agent, [
-          Principal.fromText(USER_VAULT_CANISTER_ID),
-          tokenPrincipal,
-        ]);
+        const subaccountIdResult = await getSubaccountId(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          0 // Using index 0 as the default
+        );
 
         if ('Err' in subaccountIdResult) {
           console.log(
@@ -85,10 +86,11 @@ async function sweepAll() {
         console.log(
           `Sweeping subaccount for token ${tokenName} (${tokenPrincipal.toString()})`
         );
-        const result = await sweepSubaccountId(agent, [
-          Principal.fromText(USER_VAULT_CANISTER_ID),
-          subaccountId,
-        ]);
+        const result = await sweepSubaccountId(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          subaccountId
+        );
 
         if ('Ok' in result) {
           console.log('Sweep result:', result.Ok);

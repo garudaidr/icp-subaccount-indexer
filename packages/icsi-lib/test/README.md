@@ -22,43 +22,111 @@ SEED_PHRASE=your seed phrase here
 USER_VAULT_CANISTER_ID=your_canister_id_here
 
 # IC host URL (optional, defaults to mainnet)
+# Use https://ic0.app for mainnet
+# Use http://localhost:4943 for local development
 HOST=https://ic0.app
 ```
 
 These environment variables will be loaded automatically by the test scripts.
 
+### Important Notes
+
+1. For local development with a local replica, make sure the HOST is set to `http://localhost:4943` and the agent will automatically fetch the root key.
+
+2. If you're using the mainnet (HOST=https://ic0.app), ensure your canister ID and seed phrase are correct.
+
+3. Make sure your user vault canister is deployed and accessible from the network you're connecting to.
+
+4. The SEED_PHRASE must have the necessary permissions to interact with the specified user vault canister.
+
 ## Available Scripts
 
-### 1. Get Deposit Addresses
+### Real Scripts (Require Proper Configuration)
+
+These scripts connect to the Internet Computer network and require a properly configured .env file:
+
+#### 1. Get Deposit Addresses
 
 Retrieves deposit addresses for all registered token types:
 
 ```
-npm run test:script -- test/scripts/getDepositAddresses.ts
+pnpm run test:script -- test/scripts/getDepositAddresses.ts
 ```
 
-### 2. Get Balances
+#### 2. Get Balances
 
 Checks balances for all subaccounts:
 
 ```
-npm run test:script -- test/scripts/getBalances.ts
+pnpm run test:script -- test/scripts/getBalances.ts
 ```
 
-### 3. Sweep All Tokens
+#### 3. Register Tokens
+
+Registers tokens with their ledger canister IDs:
+
+```
+pnpm run test:script -- test/scripts/registerTokens.ts
+```
+
+#### 4. Sweep All Tokens
 
 Sweeps tokens from all subaccounts using different methods:
 
 ```
-npm run test:script -- test/scripts/sweepAll.ts
+pnpm run test:script -- test/scripts/sweepAll.ts
 ```
 
-### 4. Run All Tests
+#### 5. Run All Tests
 
 Runs all the scripts in sequence:
 
 ```
-npm run test:scripts
+pnpm run test:scripts
+```
+
+### Mock Scripts (No Configuration Required)
+
+These mock scripts demonstrate the functionality without actually connecting to the Internet Computer network:
+
+#### 1. Mock Get Deposit Addresses
+
+Demonstrates how to retrieve deposit addresses with mock data:
+
+```
+pnpm run test:script -- test/scripts/mockGetDepositAddresses.ts
+```
+
+#### 2. Mock Get Balances
+
+Demonstrates checking balances with mock data:
+
+```
+pnpm run test:script -- test/scripts/mockGetBalances.ts
+```
+
+#### 3. Mock Register Tokens
+
+Demonstrates registering tokens with mock data:
+
+```
+pnpm run test:script -- test/scripts/mockRegisterTokens.ts
+```
+
+#### 4. Mock Sweep All Tokens
+
+Demonstrates sweeping tokens with mock data:
+
+```
+pnpm run test:script -- test/scripts/mockSweepAll.ts
+```
+
+#### 5. Mock Run All Tests
+
+Runs all mock scripts in sequence:
+
+```
+pnpm run test:script -- test/scripts/mockRunAll.ts
 ```
 
 ## Creating Your Own Scripts
