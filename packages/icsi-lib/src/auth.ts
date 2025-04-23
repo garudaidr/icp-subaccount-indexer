@@ -14,3 +14,11 @@ export async function addHttpAgentFromSeed<T>(
   const agent = createHostAgentAndIdentityFromSeed(seedPhrase);
   return await action(agent, ...args);
 }
+
+export async function addHttpAgentAndExecute<T>(
+  action: (agent: HttpAgent, ...args: any[]) => Promise<T>,
+  args: any[],
+  agent: HttpAgent
+): Promise<T> {
+  return await action(agent, ...args);
+}
