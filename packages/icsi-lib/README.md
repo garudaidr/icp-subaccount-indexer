@@ -11,26 +11,22 @@ npm install icsi-lib
 ## Usage
 
 ```typescript
-import { HttpAgent } from "@dfinity/agent";
-import { 
-  addSubaccount, 
-  getUserVaultTransactions, 
-  sweep 
-} from "icsi-lib";
+import { HttpAgent } from '@dfinity/agent';
+import { addSubaccount, getUserVaultTransactions, sweep } from 'icsi-lib';
 
 // Create an HTTP agent
-const agent = new HttpAgent({ host: "https://ic0.app" });
+const agent = new HttpAgent({ host: 'https://ic0.app' });
 
 // Set the USER_VAULT_CANISTER_ID environment variable
-process.env.USER_VAULT_CANISTER_ID = "your-canister-id";
+process.env.USER_VAULT_CANISTER_ID = 'your-canister-id';
 
 // Example: Add a new subaccount
 async function createSubaccount() {
   try {
     const result = await addSubaccount(agent);
-    console.log("Subaccount created:", result);
+    console.log('Subaccount created:', result);
   } catch (error) {
-    console.error("Error creating subaccount:", error);
+    console.error('Error creating subaccount:', error);
   }
 }
 
@@ -38,9 +34,9 @@ async function createSubaccount() {
 async function getTransactions() {
   try {
     const transactions = await getUserVaultTransactions(agent);
-    console.log("Transactions:", transactions);
+    console.log('Transactions:', transactions);
   } catch (error) {
-    console.error("Error getting transactions:", error);
+    console.error('Error getting transactions:', error);
   }
 }
 
@@ -48,9 +44,9 @@ async function getTransactions() {
 async function sweepAll() {
   try {
     const result = await sweep(agent);
-    console.log("Sweep result:", result);
+    console.log('Sweep result:', result);
   } catch (error) {
-    console.error("Error sweeping accounts:", error);
+    console.error('Error sweeping accounts:', error);
   }
 }
 ```

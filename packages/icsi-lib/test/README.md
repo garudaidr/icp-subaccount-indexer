@@ -148,13 +148,15 @@ import { Principal } from '@dfinity/principal';
 
 async function myScript() {
   try {
-    const result = await someFunction(agent, [Principal.fromText(USER_VAULT_CANISTER_ID)]);
-    
+    const result = await someFunction(agent, [
+      Principal.fromText(USER_VAULT_CANISTER_ID),
+    ]);
+
     if ('Err' in result) {
       console.error(`Error: ${result.Err}`);
       return;
     }
-    
+
     console.log('Success:', result.Ok);
   } catch (error: any) {
     console.error('Error:', error.message);
