@@ -32,13 +32,19 @@
     "url": "https://github.com/jagad/icp-subaccount-indexer.git"
   },
   "dependencies": {
-    "@dfinity/agent": "^0.19.0",
-    "@dfinity/candid": "^0.19.0",
-    "@dfinity/principal": "^0.19.0"
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^0.19.3",
+    "@dfinity/identity-secp256k1": "^2.4.1",
+    "@dfinity/principal": "^0.19.3",
+    "bip39": "^3.1.0",
+    "cross-fetch": "^4.1.0",
+    "hdkey": "^2.0.1",
+    "secp256k1": "^5.0.1"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.0",
+    "@types/hdkey": "^2.0.1",
     "@types/node": "^18.15.0",
+    "@types/secp256k1": "^4.0.6",
     "jest": "^29.5.0",
     "prettier": "^3.5.3",
     "rimraf": "^5.0.0",
@@ -47,8 +53,8 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@dfinity/agent": "^0.19.0",
-    "@dfinity/candid": "^0.19.0",
-    "@dfinity/principal": "^0.19.0"
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^0.19.3",
+    "@dfinity/principal": "^0.19.3"
   }
 }

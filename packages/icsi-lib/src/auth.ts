@@ -1,10 +1,8 @@
 import { createHostAgentAndIdentityFromSeed, isNotEmptyOrError } from './utils';
+import { HttpAgent } from '@dfinity/agent';
 
-export async function addHttpAgent<T>(
-  action: (
-    agent: ReturnType<typeof createHostAgentAndIdentityFromSeed>,
-    ...args: any[]
-  ) => Promise<T>,
+export async function addHttpAgentFromSeed<T>(
+  action: (agent: HttpAgent, ...args: any[]) => Promise<T>,
   args: any[],
   seedPhrase: string
 ): Promise<T> {
