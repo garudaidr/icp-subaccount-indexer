@@ -1,5 +1,5 @@
-import type { Principal } from "@dfinity/principal";
-import type { ActorMethod } from "@dfinity/agent";
+import type { Principal } from '@dfinity/principal';
+import type { ActorMethod } from '@dfinity/agent';
 
 export interface Approve {
   fee: E8s;
@@ -204,27 +204,27 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
   });
   return IDL.Service({
     add_subaccount: IDL.Func([], [Result], []),
-    canister_status: IDL.Func([], [Result_1], ["query"]),
+    canister_status: IDL.Func([], [Result_1], ['query']),
     clear_transactions: IDL.Func(
       [IDL.Opt(IDL.Nat64), IDL.Opt(Timestamp)],
       [Result_2],
       []
     ),
     convert_to_icrc_account: IDL.Func([IDL.Text], [Result], []),
-    get_canister_principal: IDL.Func([], [Result_1], ["query"]),
-    get_icrc_account: IDL.Func([IDL.Nat32], [Result], ["query"]),
-    get_interval: IDL.Func([], [Result_3], ["query"]),
-    get_network: IDL.Func([], [Result_4], ["query"]),
-    get_next_block: IDL.Func([], [Result_3], ["query"]),
-    get_nonce: IDL.Func([], [Result_5], ["query"]),
-    get_oldest_block: IDL.Func([], [Result_6], ["query"]),
-    get_registered_tokens: IDL.Func([], [Result_7], ["query"]),
-    get_subaccount_count: IDL.Func([], [Result_5], ["query"]),
-    get_subaccountid: IDL.Func([IDL.Nat32], [Result], ["query"]),
-    get_transaction_token_type: IDL.Func([IDL.Text], [Result_8], ["query"]),
-    get_transactions_count: IDL.Func([], [Result_5], ["query"]),
-    get_webhook_url: IDL.Func([], [Result_1], ["query"]),
-    list_transactions: IDL.Func([IDL.Opt(IDL.Nat64)], [Result_9], ["query"]),
+    get_canister_principal: IDL.Func([], [Result_1], ['query']),
+    get_icrc_account: IDL.Func([IDL.Nat32], [Result], ['query']),
+    get_interval: IDL.Func([], [Result_3], ['query']),
+    get_network: IDL.Func([], [Result_4], ['query']),
+    get_next_block: IDL.Func([], [Result_3], ['query']),
+    get_nonce: IDL.Func([], [Result_5], ['query']),
+    get_oldest_block: IDL.Func([], [Result_6], ['query']),
+    get_registered_tokens: IDL.Func([], [Result_7], ['query']),
+    get_subaccount_count: IDL.Func([], [Result_5], ['query']),
+    get_subaccountid: IDL.Func([IDL.Nat32], [Result], ['query']),
+    get_transaction_token_type: IDL.Func([IDL.Text], [Result_8], ['query']),
+    get_transactions_count: IDL.Func([], [Result_5], ['query']),
+    get_webhook_url: IDL.Func([], [Result_1], ['query']),
+    list_transactions: IDL.Func([IDL.Opt(IDL.Nat64)], [Result_9], ['query']),
     refund: IDL.Func([IDL.Nat64], [Result], []),
     register_token: IDL.Func([TokenType, IDL.Text], [Result_10], []),
     set_interval: IDL.Func([IDL.Nat64], [Result_11], []),
@@ -239,8 +239,8 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
       [Result_11],
       []
     ),
-    transform: IDL.Func([TransformArgs], [HttpResponse], ["query"]),
-    validate_icrc_account: IDL.Func([IDL.Text], [Result_13], ["query"]),
+    transform: IDL.Func([TransformArgs], [HttpResponse], ['query']),
+    validate_icrc_account: IDL.Func([IDL.Text], [Result_13], ['query']),
   });
 };
 
