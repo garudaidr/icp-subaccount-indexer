@@ -58,7 +58,7 @@ export type Result_9 = { Ok: Array<StoredTransactions> } | { Err: string };
 export interface StoredTransactions {
   sweep_status: SweepStatus;
   memo: bigint;
-  token_ledger_canister_id: Principal;
+  token_ledger_canister_id: [] | [Principal];
   icrc1_memo: [] | [Uint8Array | number[]];
   operation: [] | [Operation];
   index: bigint;

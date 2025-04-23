@@ -302,7 +302,7 @@ pub struct StoredTransactions {
     pub sweep_status: SweepStatus,
     pub tx_hash: String,
     pub token_type: TokenType,
-    pub token_ledger_canister_id: Principal,
+    pub token_ledger_canister_id: Option<Principal>,
 }
 
 impl StoredTransactions {
@@ -322,7 +322,7 @@ impl StoredTransactions {
             sweep_status: SweepStatus::NotSwept,
             tx_hash: hash,
             token_type,
-            token_ledger_canister_id,
+            token_ledger_canister_id: Some(token_ledger_canister_id),
         }
     }
 }
