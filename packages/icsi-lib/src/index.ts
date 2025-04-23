@@ -2,7 +2,14 @@
 export * from './userVault.did';
 
 // Authentication function exports
-export * from './auth';
+export { addHttpAgentFromSeed } from './auth';
+
+// Utility function exports
+export {
+  isNotEmptyOrError,
+  getIdentityFromSeed,
+  createHostAgentAndIdentityFromSeed,
+} from './utils';
 
 // Query function exports
 export {
