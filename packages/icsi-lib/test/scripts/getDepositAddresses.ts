@@ -21,73 +21,73 @@ async function getDepositAddresses() {
       return;
     }
 
-    // const tokenList = tokens.Ok;
-    // console.log(`Found ${tokenList.length} registered tokens:`);
+    const tokenList = tokens.Ok;
+    console.log(`Found ${tokenList.length} registered tokens:`);
 
-    // // For each token, create a subaccount and get its deposit address
-    // for (const [tokenPrincipal, tokenName] of tokenList) {
-    //   console.log(`\nProcessing token: ${tokenName} (${tokenPrincipal.toString()})`);
+    // For each token, create a subaccount and get its deposit address
+    for (const [tokenPrincipal, tokenName] of tokenList) {
+      console.log(`\nProcessing token: ${tokenName} (${JSON.stringify(tokenPrincipal)})`);
 
-    //   // Create a subaccount for the token if it doesn't exist
-    //   try {
-    //     const result = await addSubaccountForToken(
-    //       agent,
-    //       USER_VAULT_CANISTER_ID,
-    //       tokenPrincipal
-    //     );
+      // Create a subaccount for the token if it doesn't exist
+      try {
+        const result = await addSubaccountForToken(
+          agent,
+          USER_VAULT_CANISTER_ID,
+          tokenPrincipal
+        );
 
-    //     if ('Ok' in result) {
-    //       console.log(`Created subaccount: ${result.Ok}`);
-    //     } else {
-    //       console.log(`Error creating subaccount: ${result.Err.message}`);
-    //     }
-    //   } catch (error: any) {
-    //     console.log(`Subaccount already exists or error creating: ${error.message}`);
-    //   }
+        if ('Ok' in result) {
+          console.log(`Created subaccount: ${result.Ok}`);
+        } else {
+          console.log(`Error creating subaccount: ${result.Err.message}`);
+        }
+      } catch (error: any) {
+        console.log(`Subaccount already exists or error creating: ${error.message}`);
+      }
 
-    //   // Get the subaccount ID for this token
-    //   const subaccountIdResult = await getSubaccountId(
-    //     agent,
-    //     USER_VAULT_CANISTER_ID,
-    //     0 // Using index 0 since we need to provide an index
-    //   );
+      // Get the subaccount ID for this token
+      const subaccountIdResult = await getSubaccountId(
+        agent,
+        USER_VAULT_CANISTER_ID,
+        20 // Using index 20 since we need to provide an index
+      );
 
-    //   if ('Err' in subaccountIdResult) {
-    //     console.log(`Error getting subaccount ID: ${subaccountIdResult.Err.message}`);
-    //     continue;
-    //   }
+      if ('Err' in subaccountIdResult) {
+        console.log(`Error getting subaccount ID: ${subaccountIdResult.Err.message}`);
+        continue;
+      }
 
-    //   const subaccountId = subaccountIdResult.Ok;
-    //   console.log(`Subaccount ID: ${subaccountId}`);
+      const subaccountId = subaccountIdResult.Ok;
+      console.log(`Subaccount ID: ${subaccountId}`);
 
-    //   // Get the ICRC account for deposits
-    //   const icrcAccountResult = await getIcrcAccount(
-    //     agent,
-    //     USER_VAULT_CANISTER_ID,
-    //     0 // Using index 0 since we need to provide an index
-    //   );
+      // Get the ICRC account for deposits
+      const icrcAccountResult = await getIcrcAccount(
+        agent,
+        USER_VAULT_CANISTER_ID,
+        20 // Using index 20 since we need to provide an index
+      );
 
-    //   if ('Err' in icrcAccountResult) {
-    //     console.log(`Error getting ICRC account: ${icrcAccountResult.Err.message}`);
-    //     continue;
-    //   }
+      if ('Err' in icrcAccountResult) {
+        console.log(`Error getting ICRC account: ${icrcAccountResult.Err.message}`);
+        continue;
+      }
 
-    //   const icrcAccount = icrcAccountResult.Ok;
-    //   console.log(`Deposit address for ${tokenName}:`);
-    //   console.log(`  Account: ${icrcAccount}`);
+      const icrcAccount = icrcAccountResult.Ok;
+      console.log(`Deposit address for ${tokenName}:`);
+      console.log(`  Account: ${icrcAccount}`);
 
-    //   // Get transaction count for this subaccount
-    //   const txCountResult = await getTransactionsCount(
-    //     agent,
-    //     USER_VAULT_CANISTER_ID
-    //   );
+      // Get transaction count for this subaccount
+      const txCountResult = await getTransactionsCount(
+        agent,
+        USER_VAULT_CANISTER_ID
+      );
 
-    //   if ('Err' in txCountResult) {
-    //     console.log(`Error getting transaction count: ${txCountResult.Err}`);
-    //   } else {
-    //     console.log(`  Transaction count: ${txCountResult.Ok}`);
-    //   }
-    // }
+      if ('Err' in txCountResult) {
+        console.log(`Error getting transaction count: ${txCountResult.Err}`);
+      } else {
+        console.log(`  Transaction count: ${txCountResult.Ok}`);
+      }
+    }
   } catch (error: any) {
     console.error('Error getting deposit addresses:', error.message);
   }
