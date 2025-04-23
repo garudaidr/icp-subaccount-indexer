@@ -37,7 +37,6 @@ async function registerTokens() {
         console.log(`❌ Error registering ICP token: ${icpResult.Err.message}`);
       }
     } catch (error: any) {
-      console.log(error);
       console.error(`Error registering ICP token: ${error.message}`);
     }
 

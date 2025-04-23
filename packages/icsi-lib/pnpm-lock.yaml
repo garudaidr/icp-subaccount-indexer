@@ -10,16 +10,16 @@ importers:
     dependencies:
       '@dfinity/agent':
         specifier: ^2.4.1
-        version: 2.4.1(@dfinity/candid@0.19.3(@dfinity/principal@0.19.3))(@dfinity/principal@0.19.3)
+        version: 2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)
       '@dfinity/candid':
-        specifier: ^0.19.3
-        version: 0.19.3(@dfinity/principal@0.19.3)
+        specifier: ^2.4.1
+        version: 2.4.1(@dfinity/principal@2.4.1)
       '@dfinity/identity-secp256k1':
         specifier: ^2.4.1
-        version: 2.4.1(@dfinity/candid@0.19.3(@dfinity/principal@0.19.3))(@dfinity/principal@0.19.3)
+        version: 2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)
       '@dfinity/principal':
-        specifier: ^0.19.3
-        version: 0.19.3
+        specifier: ^2.4.1
+        version: 2.4.1
       bip39:
         specifier: ^3.1.0
         version: 3.1.0
@@ -241,16 +241,16 @@ packages:
       '@dfinity/candid': ^2.4.1
       '@dfinity/principal': ^2.4.1
 
-  '@dfinity/candid@0.19.3':
-    resolution: {integrity: sha512-yXfbLSWTeRd4G0bLLxYoDqpXH3Jim0P+1PPZOoktXNC1X1hB+ea3yrZebX75t4GVoQK7123F7mxWHiPjuV2tQQ==}
+  '@dfinity/candid@2.4.1':
+    resolution: {integrity: sha512-kOaIKfhR2PYN8vD4M0Pc4s/7wb1nKjlTJUw+5E9jh26T03fITIZmaafIuwlX+wmdxwIT9Xoy7PlsxOEpzv203A==}
     peerDependencies:
-      '@dfinity/principal': ^0.19.3
+      '@dfinity/principal': ^2.4.1
 
   '@dfinity/identity-secp256k1@2.4.1':
     resolution: {integrity: sha512-YP6AYObQc3bADwVhjqQ90V6mIKyN0vDISRBk9izKpiPStK29lbxF8zLkqY7wYhgrxDNvtSlmd+VMQrvbE7K3lg==}
 
-  '@dfinity/principal@0.19.3':
-    resolution: {integrity: sha512-+nixVvdGt7ECxRvLXDXsvU9q9sSPssBtDQ4bXa149SK6gcYcmZ6lfWIi3DJNqj3tGROxILVBsguel9tECappsA==}
+  '@dfinity/principal@2.4.1':
+    resolution: {integrity: sha512-Cz6XQVOwq0TXDBClPbcidDd4SqK1lfr1/Kn34ruDD13xVQ4iaP1iCntzS9O97+vGpY/6jwDtKd32Gn5YJ9BQNw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1766,10 +1766,10 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
-  '@dfinity/agent@2.4.1(@dfinity/candid@0.19.3(@dfinity/principal@0.19.3))(@dfinity/principal@0.19.3)':
+  '@dfinity/agent@2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)':
     dependencies:
-      '@dfinity/candid': 0.19.3(@dfinity/principal@0.19.3)
-      '@dfinity/principal': 0.19.3
+      '@dfinity/candid': 2.4.1(@dfinity/principal@2.4.1)
+      '@dfinity/principal': 2.4.1
       '@noble/curves': 1.9.0
       '@noble/hashes': 1.8.0
       base64-arraybuffer: 0.2.0
@@ -1777,13 +1777,13 @@ snapshots:
       buffer: 6.0.3
       simple-cbor: 0.4.1
 
-  '@dfinity/candid@0.19.3(@dfinity/principal@0.19.3)':
+  '@dfinity/candid@2.4.1(@dfinity/principal@2.4.1)':
     dependencies:
-      '@dfinity/principal': 0.19.3
+      '@dfinity/principal': 2.4.1
 
-  '@dfinity/identity-secp256k1@2.4.1(@dfinity/candid@0.19.3(@dfinity/principal@0.19.3))(@dfinity/principal@0.19.3)':
+  '@dfinity/identity-secp256k1@2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)':
     dependencies:
-      '@dfinity/agent': 2.4.1(@dfinity/candid@0.19.3(@dfinity/principal@0.19.3))(@dfinity/principal@0.19.3)
+      '@dfinity/agent': 2.4.1(@dfinity/candid@2.4.1(@dfinity/principal@2.4.1))(@dfinity/principal@2.4.1)
       '@noble/curves': 1.9.0
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.6.2
@@ -1794,7 +1794,7 @@ snapshots:
       - '@dfinity/candid'
       - '@dfinity/principal'
 
-  '@dfinity/principal@0.19.3':
+  '@dfinity/principal@2.4.1':
     dependencies:
       '@noble/hashes': 1.8.0
 
