@@ -22,6 +22,6 @@ export function createHostAgentAndIdentityFromSeed(seedPhrase: string) {
   // This is a placeholder implementation
   return {
     agent: {},
-    identity: {}
+    identity: {},
   };
 }

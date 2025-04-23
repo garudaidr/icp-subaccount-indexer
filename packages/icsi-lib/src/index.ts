@@ -19,7 +19,7 @@ export {
   getNextBlock,
   getOldestBlock,
   getRegisteredTokens,
-  getTransactionTokenType
+  getTransactionTokenType,
 } from './query';
 
 // Update function exports
@@ -37,5 +37,5 @@ export {
   convertToIcrcAccount,
   validateIcrcAccount,
   singleSweep,
-  setSweepFailed
+  setSweepFailed,
 } from './update';
