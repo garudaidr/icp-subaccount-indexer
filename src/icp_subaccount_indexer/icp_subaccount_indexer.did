@@ -41,7 +41,7 @@ type Result_9 = variant { Ok : vec StoredTransactions; Err : text };
 type StoredTransactions = record {
   sweep_status : SweepStatus;
   memo : nat64;
-  token_ledger_canister_id : principal;
+  token_ledger_canister_id : opt principal;
   icrc1_memo : opt blob;
   operation : opt Operation;
   index : nat64;
