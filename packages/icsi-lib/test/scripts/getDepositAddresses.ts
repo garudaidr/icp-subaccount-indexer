@@ -26,7 +26,9 @@ async function getDepositAddresses() {
 
     // For each token, create a subaccount and get its deposit address
     for (const [tokenPrincipal, tokenName] of tokenList) {
-      console.log(`\nProcessing token: ${tokenName} (${JSON.stringify(tokenPrincipal)})`);
+      console.log(
+        `\nProcessing token: ${tokenName} (${JSON.stringify(tokenPrincipal)})`
+      );
 
       // Create a subaccount for the token if it doesn't exist
       try {
@@ -42,7 +44,9 @@ async function getDepositAddresses() {
           console.log(`Error creating subaccount: ${result.Err.message}`);
         }
       } catch (error: any) {
-        console.log(`Subaccount already exists or error creating: ${error.message}`);
+        console.log(
+          `Subaccount already exists or error creating: ${error.message}`
+        );
       }
 
       // Get the subaccount ID for this token
@@ -53,7 +57,9 @@ async function getDepositAddresses() {
       );
 
       if ('Err' in subaccountIdResult) {
-        console.log(`Error getting subaccount ID: ${subaccountIdResult.Err.message}`);
+        console.log(
+          `Error getting subaccount ID: ${subaccountIdResult.Err.message}`
+        );
         continue;
       }
 
@@ -68,7 +74,9 @@ async function getDepositAddresses() {
       );
 
       if ('Err' in icrcAccountResult) {
-        console.log(`Error getting ICRC account: ${icrcAccountResult.Err.message}`);
+        console.log(
+          `Error getting ICRC account: ${icrcAccountResult.Err.message}`
+        );
         continue;
       }
 

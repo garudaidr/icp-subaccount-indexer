@@ -65,9 +65,7 @@ async function getBalances() {
         );
 
         if ('Err' in transactionsResult) {
-          console.log(
-            `Error getting transactions: ${transactionsResult.Err.message}`
-          );
+          console.log(`Error getting transactions: ${transactionsResult.Err}`);
           continue;
         }
 
