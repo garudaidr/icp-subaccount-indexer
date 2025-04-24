@@ -98,7 +98,7 @@ export async function addSubaccount(
   userVaultCanisterId: string
 ): Promise<AddAccountResult> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.add_subaccount();
+  return await actor.add_subaccount([{ ICP: null }]);
 }
 
 /**
@@ -168,7 +168,7 @@ export async function addSubaccountForToken(
   }
 
   // Add a subaccount for the token type
-  return await actor.add_subaccount();
+  return await actor.add_subaccount([tokenType]);
 }
 
 /**

@@ -5,8 +5,8 @@ import {
   getSubaccountId,
   getIcrcAccount,
   getTransactionsCount,
+  getNonce,
 } from '../../src';
-import { Principal } from '@dfinity/principal';
 
 /**
  * Get deposit addresses for all registered token types
@@ -29,6 +29,16 @@ async function getDepositAddresses() {
       console.log(
         `\nProcessing token: ${tokenName} (${JSON.stringify(tokenPrincipal)})`
       );
+
+      const nonce = await getNonce(agent, USER_VAULT_CANISTER_ID);
+      let index = 0;
+
+      if ('Ok' in nonce) {
+        index = nonce.Ok;
+        console.log(`Subaccount nonce: ${nonce.Ok}`);
+      } else {
+        console.log(`Error getting subaccount nonce: ${nonce.Err}`);
+      }
 
       // Create a subaccount for the token if it doesn't exist
       try {
@@ -53,7 +63,7 @@ async function getDepositAddresses() {
       const subaccountIdResult = await getSubaccountId(
         agent,
         USER_VAULT_CANISTER_ID,
-        20 // Using index 20 since we need to provide an index
+        index // Using index since we need to provide an index
       );
 
       if ('Err' in subaccountIdResult) {
@@ -70,7 +80,7 @@ async function getDepositAddresses() {
       const icrcAccountResult = await getIcrcAccount(
         agent,
         USER_VAULT_CANISTER_ID,
-        20 // Using index 20 since we need to provide an index
+        index // Using index since we need to provide an index
       );
 
       if ('Err' in icrcAccountResult) {
