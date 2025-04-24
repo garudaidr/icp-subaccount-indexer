@@ -57,7 +57,7 @@ export type Result_9 = { Ok: Array<StoredTransactions> } | { Err: string };
 export interface StoredTransactions {
   sweep_status: SweepStatus;
   memo: bigint;
-  token_ledger_canister_id: Principal;
+  token_ledger_canister_id: [] | [Principal];
   icrc1_memo: [] | [Uint8Array | number[]];
   operation: [] | [Operation];
   index: bigint;
@@ -85,7 +85,7 @@ export interface TransformArgs {
   response: HttpResponse;
 }
 export interface _SERVICE {
-  add_subaccount: ActorMethod<[], Result>;
+  add_subaccount: ActorMethod<[[] | [TokenType]], Result>;
   canister_status: ActorMethod<[], Result_1>;
   clear_transactions: ActorMethod<[[] | [bigint], [] | [Timestamp]], Result_2>;
   convert_to_icrc_account: ActorMethod<[string], Result>;
@@ -98,7 +98,7 @@ export interface _SERVICE {
   get_oldest_block: ActorMethod<[], Result_6>;
   get_registered_tokens: ActorMethod<[], Result_7>;
   get_subaccount_count: ActorMethod<[], Result_5>;
-  get_subaccountid: ActorMethod<[number], Result>;
+  get_subaccountid: ActorMethod<[number, [] | [TokenType]], Result>;
   get_transaction_token_type: ActorMethod<[string], Result_8>;
   get_transactions_count: ActorMethod<[], Result_5>;
   get_webhook_url: ActorMethod<[], Result_1>;
@@ -165,11 +165,13 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
   const StoredTransactions = IDL.Record({
     sweep_status: SweepStatus,
     memo: IDL.Nat64,
+    token_ledger_canister_id: IDL.Opt(IDL.Principal),
     icrc1_memo: IDL.Opt(IDL.Vec(IDL.Nat8)),
     operation: IDL.Opt(Operation),
     index: IDL.Nat64,
     created_at_time: Timestamp,
     tx_hash: IDL.Text,
+    token_type: TokenType,
   });
   const Result_2 = IDL.Variant({
     Ok: IDL.Vec(StoredTransactions),
@@ -203,7 +205,7 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
     response: HttpResponse,
   });
   return IDL.Service({
-    add_subaccount: IDL.Func([], [Result], []),
+    add_subaccount: IDL.Func([IDL.Opt(TokenType)], [Result], []),
     canister_status: IDL.Func([], [Result_1], ['query']),
     clear_transactions: IDL.Func(
       [IDL.Opt(IDL.Nat64), IDL.Opt(Timestamp)],
@@ -220,7 +222,11 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
     get_oldest_block: IDL.Func([], [Result_6], ['query']),
     get_registered_tokens: IDL.Func([], [Result_7], ['query']),
     get_subaccount_count: IDL.Func([], [Result_5], ['query']),
-    get_subaccountid: IDL.Func([IDL.Nat32], [Result], ['query']),
+    get_subaccountid: IDL.Func(
+      [IDL.Nat32, IDL.Opt(TokenType)],
+      [Result],
+      ['query']
+    ),
     get_transaction_token_type: IDL.Func([IDL.Text], [Result_8], ['query']),
     get_transactions_count: IDL.Func([], [Result_5], ['query']),
     get_webhook_url: IDL.Func([], [Result_1], ['query']),
