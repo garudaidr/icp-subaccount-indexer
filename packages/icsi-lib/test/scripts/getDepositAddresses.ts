@@ -25,9 +25,9 @@ async function getDepositAddresses() {
     console.log(`Found ${tokenList.length} registered tokens:`);
 
     // For each token, create a subaccount and get its deposit address
-    for (const [tokenPrincipal, tokenName] of tokenList) {
+    for (const [tokenType, tokenName] of tokenList) {
       console.log(
-        `\nProcessing token: ${tokenName} (${JSON.stringify(tokenPrincipal)})`
+        `\nProcessing token: ${tokenName} (${JSON.stringify(tokenType)})`
       );
 
       const nonce = await getNonce(agent, USER_VAULT_CANISTER_ID);
@@ -45,7 +45,7 @@ async function getDepositAddresses() {
         const result = await addSubaccountForToken(
           agent,
           USER_VAULT_CANISTER_ID,
-          tokenPrincipal
+          tokenType
         );
 
         if ('Ok' in result) {
@@ -63,7 +63,8 @@ async function getDepositAddresses() {
       const subaccountIdResult = await getSubaccountId(
         agent,
         USER_VAULT_CANISTER_ID,
-        index // Using index since we need to provide an index
+        index, // Using index since we need to provide an index
+        tokenType
       );
 
       if ('Err' in subaccountIdResult) {
