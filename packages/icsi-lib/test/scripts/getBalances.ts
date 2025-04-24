@@ -4,8 +4,6 @@ import {
   getSubaccountId,
   getUserVaultTransactions,
 } from '../../src';
-import { Principal } from '@dfinity/principal';
-import { StoredTransactions } from '../../src/userVault.did';
 
 /**
  * Get balances for all subaccounts that have a balance
@@ -35,17 +33,16 @@ async function getBalances() {
     }> = [];
 
     // Check each token
-    for (const [tokenPrincipal, tokenName] of tokens) {
-      console.log(
-        `\nChecking token: ${tokenName} (${tokenPrincipal.toString()})`
-      );
+    for (const [tokenType, tokenName] of tokens) {
+      console.log(`\nChecking token: ${tokenName} (${tokenType.toString()})`);
 
       try {
         // Get the subaccount ID for this token
         const subaccountIdResult = await getSubaccountId(
           agent,
           USER_VAULT_CANISTER_ID,
-          0 // Using index 0 as the default
+          0, // Using index 0 as the default
+          tokenType // Pass the token type
         );
 
         if ('Err' in subaccountIdResult) {
