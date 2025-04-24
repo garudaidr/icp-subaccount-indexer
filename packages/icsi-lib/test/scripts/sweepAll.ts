@@ -66,12 +66,13 @@ async function sweepAll() {
 
     // Method 3: Sweep individual subaccounts
     console.log('\nMethod 3: Sweeping individual subaccounts');
-    for (const [tokenPrincipal, tokenName] of tokens) {
+    for (const [tokenType, tokenName] of tokens) {
       try {
         const subaccountIdResult = await getSubaccountId(
           agent,
           USER_VAULT_CANISTER_ID,
-          0 // Using index 0 as the default
+          0, // Using index 0 as the default
+          tokenType // Pass the token type
         );
 
         if ('Err' in subaccountIdResult) {
@@ -84,12 +85,14 @@ async function sweepAll() {
         const subaccountId = subaccountIdResult.Ok;
 
         console.log(
-          `Sweeping subaccount for token ${tokenName} (${tokenPrincipal.toString()})`
+          `Sweeping subaccount for token ${tokenName} (${tokenType.toString()})`
         );
         const result = await sweepSubaccountId(
           agent,
           USER_VAULT_CANISTER_ID,
-          subaccountId
+          subaccountId,
+          0, // passing 0 as the default amount to sweep all
+          tokenType // Pass the token type
         );
 
         if ('Ok' in result) {

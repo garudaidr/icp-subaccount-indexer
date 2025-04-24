@@ -102,10 +102,11 @@ export async function getSubaccountCount(
 export async function getSubaccountId(
   agent: HttpAgent,
   userVaultCanisterId: string,
-  index: number
+  index: number,
+  tokenType: TokenType
 ) {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_subaccountid(index);
+  return await actor.get_subaccountid(index, [tokenType]);
 }
 
 /**
