@@ -147,7 +147,10 @@ fn includes_hash(vec_to_check: &[u8]) -> bool {
 
 #[update]
 async fn set_next_block(block: u64) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
     NEXT_BLOCK.with(|next_block_ref| {
         let _ = next_block_ref.borrow_mut().set(block);
     });
@@ -164,8 +167,11 @@ use url::Url;
 
 #[update]
 async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
-    authenticate().map_err(|e| Error {
-        message: e.to_string(),
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error {
+            message: e.to_string(),
+        }
     })?;
 
     // Validate the URL
@@ -173,16 +179,16 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
         Ok(url) => {
             // Check if the scheme is http or https
             if url.scheme() != "http" && url.scheme() != "https" {
-                return Err(Error {
-                    message: "Invalid URL scheme. Must be http or https.".to_string(),
-                });
+                let error_msg = "Invalid URL scheme. Must be http or https.".to_string();
+                ic_cdk::println!("URL error: {}", error_msg);
+                return Err(Error { message: error_msg });
             }
 
             // Check if the host is present
             if url.host().is_none() {
-                return Err(Error {
-                    message: "Invalid URL. Host is missing.".to_string(),
-                });
+                let error_msg = "Invalid URL. Host is missing.".to_string();
+                ic_cdk::println!("URL error: {}", error_msg);
+                return Err(Error { message: error_msg });
             }
 
             // If all checks pass, set the webhook URL
@@ -192,9 +198,11 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
 
             Ok(webhook_url)
         }
-        Err(_) => Err(Error {
-            message: "Invalid URL format.".to_string(),
-        }),
+        Err(e) => {
+            let error_msg = format!("Invalid URL format: {}", e);
+            ic_cdk::println!("URL error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     }
 }
 
@@ -218,17 +226,24 @@ fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
         // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
             Some(value) => Ok(*value),
-            None => Err(Error {
-                message: "Account not found".to_string(),
-            }),
+            None => {
+                let error_msg = "Account not found".to_string();
+                ic_cdk::println!("Error: {}", error_msg);
+                Err(Error { message: error_msg })
+            }
         }
     })
 }
 
 fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), Error> {
-    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
-    let operation = tx.operation.as_ref().ok_or(Error {
-        message: "Operation is None".to_string(),
+    let custodian_id = get_custodian_id().map_err(|e| {
+        ic_cdk::println!("Error getting custodian ID: {}", e);
+        Error { message: e }
+    })?;
+    let operation = tx.operation.as_ref().ok_or_else(|| {
+        let error_msg = "Operation is None".to_string();
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
     match operation {
         Operation::Transfer(data) => {
@@ -238,17 +253,15 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), E
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
             let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting to to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
             let result = get_subaccount(&sweep_from);
             let sweep_source_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error getting from_subaccount".to_string(),
-                }
+                let error_msg = format!("Error getting from_subaccount: {}", err.message);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             // calculate amount
@@ -269,9 +282,11 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), E
                 token_ledger_canister_id,
             ))
         }
-        _ => Err(Error {
-            message: "Operation is not a transfer".to_string(),
-        }),
+        _ => {
+            let error_msg = "Operation is not a transfer".to_string();
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     } // end match
 }
 
@@ -283,27 +298,24 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), 
             let topup_from = data.from.clone();
             let topup_from = topup_from.as_slice();
             let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting from to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting from to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             // construct refund source of funds
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
             let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting to to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
             let result = get_subaccount(&refund_source);
             let refund_source_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error getting to_subaccount".to_string(),
-                }
+                let error_msg = format!("Error getting to_subaccount: {}", err.message);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
@@ -324,27 +336,32 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), 
                 token_ledger_canister_id,
             ))
         }
-        _ => Err(Error {
-            message: "Operation is not a transfer".to_string(),
-        }),
+        _ => {
+            let error_msg = "Operation is not a transfer".to_string();
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     } // end match
 }
 
 fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Error> {
-    let mut tx = tx.clone();
+    let index = tx.index;
+    let mut tx_clone = tx.clone();
 
-    tx.sweep_status = status;
+    tx_clone.sweep_status = status;
 
     let prev_tx = TRANSACTIONS.with(|transactions_ref| {
         let mut transactions = transactions_ref.borrow_mut();
-        transactions.insert(tx.index, tx)
+        transactions.insert(index, tx_clone)
     });
 
     match prev_tx {
         Some(_) => Ok(()),
-        None => Err(Error {
-            message: "Transaction not found when updating".to_string(),
-        }),
+        None => {
+            let error_msg = format!("Transaction with index {} not found when updating", index);
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     }
 }
 
@@ -384,7 +401,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let from_account = match ledger::AccountIdentifier::from_slice(sender_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create from: {:?}", e));
+            let error_msg = format!("Failed to create from: {:?}", e);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
     };
 
@@ -392,7 +411,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let to_account = match ledger::AccountIdentifier::from_slice(receiver_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create to: {:?}", e));
+            let error_msg = format!("Failed to create to: {:?}", e);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
     };
 
@@ -402,7 +423,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
             match ledger::AccountIdentifier::from_slice(spender_slice) {
                 Ok(account) => Some(account),
                 Err(e) => {
-                    return Err(format!("Failed to create spender: {:?}", e));
+                    let error_msg = format!("Failed to create spender: {:?}", e);
+                    ic_cdk::println!("Error: {}", error_msg);
+                    return Err(error_msg);
                 }
             }
         }
@@ -891,7 +914,8 @@ fn reconstruct_network() {
 
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
-    ic_cdk::println!("running post_upgrade...");
+    ic_cdk::println!("Running post_upgrade...");
+
     reconstruct_subaccounts();
     reconstruct_network();
 }
@@ -904,7 +928,10 @@ fn get_interval() -> Result<u64, String> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     TIMERS.with(|timers_ref| {
         TimerManager::clear_timer(*timers_ref.borrow());
@@ -953,12 +980,16 @@ fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
 }
 
 fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
-    let vec = hex::decode(hex).map_err(|_| Error {
-        message: "string to vector conversion error".to_string(),
+    let vec = hex::decode(hex).map_err(|e| {
+        let error_msg = format!("String to vector conversion error: {}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
-    let arr = vec.as_slice().try_into().map_err(|_| Error {
-        message: "vector to fix array conversion error".to_string(),
+    let arr = vec.as_slice().try_into().map_err(|e| {
+        let error_msg = format!("Vector to fixed array conversion error: {:?}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
     Ok(arr)
@@ -966,7 +997,10 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 
 #[update]
 fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let nonce = nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
@@ -997,12 +1031,21 @@ fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
 
 #[query]
 fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
+        let error_msg = "Index out of bounds";
+        ic_cdk::println!(
+            "Error: Index out of bounds: {} >= {}",
+            nonce_param,
+            current_nonce
+        );
         return Err(Error {
-            message: "Index out of bounds".to_string(),
+            message: error_msg.to_string(),
         });
     }
 
@@ -1033,21 +1076,32 @@ fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<S
                     Ok(subaccountid.to_hex())
                 }
             }
-            None => Err(Error {
-                message: "Account not found".to_string(),
-            }),
+            None => {
+                let error_msg = "Account not found".to_string();
+                ic_cdk::println!("Error: {}", error_msg);
+                Err(Error { message: error_msg })
+            }
         }
     })
 }
 
 #[query]
 fn get_icrc_account(nonce_param: u32) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
+        let error_msg = "Index out of bounds";
+        ic_cdk::println!(
+            "Error: Index out of bounds: {} >= {}",
+            nonce_param,
+            current_nonce
+        );
         return Err(Error {
-            message: "Index out of bounds".to_string(),
+            message: error_msg.to_string(),
         });
     }
 
@@ -1118,7 +1172,10 @@ fn clear_transactions(
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     // Get Data
     let up_to_index = up_to_index.unwrap_or(0);
@@ -1158,7 +1215,10 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let transaction_opt = TRANSACTIONS
         .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
@@ -1166,9 +1226,9 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
     let transaction = match transaction_opt {
         Some(value) => value,
         None => {
-            return Err(Error {
-                message: "Transaction index is not found".to_string(),
-            });
+            let error_msg = format!("Transaction index {} is not found", transaction_index);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(Error { message: error_msg });
         }
     };
 
@@ -1186,7 +1246,10 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1275,7 +1338,10 @@ async fn sweep() -> Result<Vec<String>, Error> {
 
 #[update]
 async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1350,9 +1416,15 @@ async fn sweep_subaccount(
     amount: f64,
     token_type: TokenType,
 ) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
-    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
+    let custodian_id = get_custodian_id().map_err(|e| {
+        ic_cdk::println!("Error getting custodian ID: {}", e);
+        Error { message: e }
+    })?;
 
     let matching_subaccount = LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         subaccounts
@@ -1365,8 +1437,11 @@ async fn sweep_subaccount(
             .map(|(_, &subaccount)| subaccount)
     });
 
-    let subaccount = matching_subaccount.ok_or_else(|| Error {
-        message: "Subaccount not found".to_string(),
+    let subaccount = matching_subaccount.ok_or_else(|| {
+        ic_cdk::println!("Error: Subaccount with ID {} not found", subaccountid_hex);
+        Error {
+            message: "Subaccount not found".to_string(),
+        }
     })?;
 
     // Convert amount to e8s, handling potential precision issues
@@ -1374,6 +1449,11 @@ async fn sweep_subaccount(
 
     // Check for potential overflow or underflow
     if amount_e8s == u64::MAX || amount < 0.0 {
+        ic_cdk::println!(
+            "Error: Invalid amount: {} (e8s: {}) - overflow or negative value",
+            amount,
+            amount_e8s
+        );
         return Err(Error {
             message: "Invalid amount: overflow or negative value".to_string(),
         });
@@ -1402,7 +1482,10 @@ async fn sweep_subaccount(
 
 #[update]
 async fn set_sweep_failed(tx_hash_arg: String) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -1509,10 +1592,15 @@ async fn register_token(
     token_type: TokenType,
     token_ledger_principal: String,
 ) -> Result<(), Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
-    let principal = Principal::from_text(token_ledger_principal).map_err(|e| Error {
-        message: format!("Invalid principal: {}", e),
+    let principal = Principal::from_text(token_ledger_principal).map_err(|e| {
+        let error_msg = format!("Invalid principal: {}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
     // Store the token type and its ledger canister ID
@@ -1532,7 +1620,10 @@ async fn register_token(
 
 #[update]
 async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1623,7 +1714,10 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
 
 #[query]
 fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     // Decode the account hex
     let account_bytes = match hex::decode(&account_hex) {
@@ -1666,7 +1760,10 @@ fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
 
 #[query]
 fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     match IcrcAccount::from_text(&icrc_account_text) {
         Ok(_) => Ok(true),

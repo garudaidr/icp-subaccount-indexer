@@ -35,10 +35,12 @@ impl CallerGuard {
         STATE.with(|state| {
             let pending_requests = &mut state.borrow_mut().pending_requests;
             if pending_requests.contains(&principal) {
-                return Err(format!(
+                let error_msg = format!(
                     "Already processing a request for principal {:?}",
                     &principal
-                ));
+                );
+                ic_cdk::println!("Error: {}", error_msg);
+                return Err(error_msg);
             }
             pending_requests.insert(principal);
             Ok(Self { principal })
@@ -71,8 +73,9 @@ impl Storable for Network {
         match candid::encode_one(self) {
             Ok(bytes) => Cow::Owned(bytes),
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR encoding Network: {:?}", e);
-                // Still panic but with more debug info
+                let error_msg = format!("CRITICAL ERROR encoding Network: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more detailed error info
                 panic!("Failed to encode Network: {:?}", e);
             }
         }
@@ -82,7 +85,8 @@ impl Storable for Network {
         match candid::decode_one(bytes.as_ref()) {
             Ok(decoded) => decoded,
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR decoding Network: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR decoding Network: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
                 // Still panic but with more debug info
                 panic!("Failed to decode Network: {:?}", e);
             }
@@ -296,7 +300,8 @@ impl Storable for TokenType {
         match candid::encode_one(self) {
             Ok(bytes) => Cow::Owned(bytes),
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR encoding TokenType: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR encoding TokenType {:?}: {:?}", self, e);
+                ic_cdk::println!("{}", error_msg);
                 // Still panic to maintain fail-fast for critical operations
                 panic!("Failed to encode TokenType: {:?}", e);
             }
@@ -307,7 +312,8 @@ impl Storable for TokenType {
         match candid::decode_one(bytes.as_ref()) {
             Ok(decoded) => decoded,
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR decoding TokenType: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR decoding TokenType from bytes: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
                 // Still panic but with more debug info
                 panic!("Failed to decode TokenType: {:?}", e);
             }
@@ -408,7 +414,11 @@ impl Storable for StoredTransactionsV1 {
         match candid::encode_one(self) {
             Ok(bytes) => Cow::Owned(bytes),
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR encoding StoredTransactionsV1: {:?}", e);
+                let error_msg = format!(
+                    "CRITICAL ERROR encoding StoredTransactionsV1 with index {}: {:?}",
+                    self.index, e
+                );
+                ic_cdk::println!("{}", error_msg);
                 panic!("Failed to encode StoredTransactionsV1: {:?}", e);
             }
         }
@@ -418,7 +428,8 @@ impl Storable for StoredTransactionsV1 {
         match candid::decode_one(bytes.as_ref()) {
             Ok(decoded) => decoded,
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR decoding StoredTransactionsV1: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR decoding StoredTransactionsV1: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
                 panic!("Failed to decode StoredTransactionsV1: {:?}", e);
             }
         }
@@ -435,7 +446,9 @@ impl Storable for StoredTransactionsV2 {
         match candid::encode_one(self) {
             Ok(bytes) => Cow::Owned(bytes),
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR encoding StoredTransactionsV2: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR encoding StoredTransactionsV2 with index {} and token type {:?}: {:?}", 
+                    self.index, self.token_type, e);
+                ic_cdk::println!("{}", error_msg);
                 panic!("Failed to encode StoredTransactionsV2: {:?}", e);
             }
         }
@@ -447,21 +460,24 @@ impl Storable for StoredTransactionsV2 {
             Ok(decoded) => decoded,
             Err(e) => {
                 // If that fails, try to decode as V1 and convert
-                ic_cdk::println!("Failed to decode as StoredTransactionsV2: {:?}", e);
+                let error_msg = format!("Failed to decode as StoredTransactionsV2: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
                 ic_cdk::println!("Attempting to decode as StoredTransactionsV1...");
 
                 match candid::decode_one::<StoredTransactionsV1>(bytes.as_ref()) {
                     Ok(v1) => {
                         ic_cdk::println!(
-                            "Successfully decoded as StoredTransactionsV1, upgrading to V2"
+                            "Successfully decoded as StoredTransactionsV1 with index {}, upgrading to V2",
+                            v1.index
                         );
                         StoredTransactionsV2::from(v1)
                     }
                     Err(e2) => {
-                        ic_cdk::println!(
-                            "CRITICAL ERROR: Failed to decode as StoredTransactionsV1: {:?}",
-                            e2
+                        let critical_error = format!(
+                            "CRITICAL ERROR: Failed to decode as StoredTransactionsV1: {:?}. Original V2 error: {:?}",
+                            e2, e
                         );
+                        ic_cdk::println!("{}", critical_error);
                         panic!("Failed to decode StoredTransactionsV2 as either V2 or V1 format");
                     }
                 }
@@ -480,7 +496,11 @@ impl Storable for StoredPrincipal {
         match candid::encode_one(self) {
             Ok(bytes) => Cow::Owned(bytes),
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR encoding StoredPrincipal: {:?}", e);
+                let error_msg = format!(
+                    "CRITICAL ERROR encoding StoredPrincipal {:?}: {:?}",
+                    self.principal, e
+                );
+                ic_cdk::println!("{}", error_msg);
                 // Still panic but with more debug info
                 panic!("Failed to encode StoredPrincipal: {:?}", e);
             }
@@ -491,7 +511,8 @@ impl Storable for StoredPrincipal {
         match candid::decode_one(bytes.as_ref()) {
             Ok(decoded) => decoded,
             Err(e) => {
-                ic_cdk::println!("CRITICAL ERROR decoding StoredPrincipal: {:?}", e);
+                let error_msg = format!("CRITICAL ERROR decoding StoredPrincipal: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
                 // Still panic but with more debug info
                 panic!("Failed to decode StoredPrincipal: {:?}", e);
             }
@@ -648,8 +669,11 @@ impl IcrcAccount {
     pub fn from_text(text: &str) -> Result<Self, String> {
         // Check if it's just a principal (default account)
         if !text.contains('-') || !text.contains('.') {
-            let owner =
-                Principal::from_text(text).map_err(|_| "Invalid principal format".to_string())?;
+            let owner = Principal::from_text(text).map_err(|e| {
+                let error_msg = format!("Invalid principal format: {}", e);
+                ic_cdk::println!("Error: {}", error_msg);
+                error_msg
+            })?;
             return Ok(Self {
                 owner,
                 subaccount: None,
@@ -659,18 +683,31 @@ impl IcrcAccount {
         // Parse non-default account format
         let parts: Vec<&str> = text.split('.').collect();
         if parts.len() != 2 {
-            return Err("Invalid account format: missing '.' separator".to_string());
+            let error_msg = format!(
+                "Invalid account format: missing '.' separator in '{}'",
+                text
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         let prefix_parts: Vec<&str> = parts[0].split('-').collect();
         if prefix_parts.len() < 2 {
-            return Err("Invalid account format: missing '-' separator".to_string());
+            let error_msg = format!(
+                "Invalid account format: missing '-' separator in '{}'",
+                parts[0]
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         // The principal is everything before the last dash
         let principal_text = prefix_parts[..prefix_parts.len() - 1].join("-");
-        let owner = Principal::from_text(principal_text)
-            .map_err(|_| "Invalid principal format".to_string())?;
+        let owner = Principal::from_text(&principal_text).map_err(|e| {
+            let error_msg = format!("Invalid principal format in '{}': {}", principal_text, e);
+            ic_cdk::println!("Error: {}", error_msg);
+            error_msg
+        })?;
 
         // The checksum is the part after the last dash
         let _checksum_text = prefix_parts[prefix_parts.len() - 1];
@@ -680,11 +717,22 @@ impl IcrcAccount {
 
         // Decode the subaccount hex
         let mut subaccount = [0; 32];
-        let decoded = hex::decode(subaccount_hex)
-            .map_err(|_| "Invalid subaccount hex encoding".to_string())?;
+        let decoded = hex::decode(subaccount_hex).map_err(|e| {
+            let error_msg = format!(
+                "Invalid subaccount hex encoding '{}': {}",
+                subaccount_hex, e
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            error_msg
+        })?;
 
         if decoded.len() > 32 {
-            return Err("Subaccount too long".to_string());
+            let error_msg = format!(
+                "Subaccount too long: {} bytes (max 32 bytes)",
+                decoded.len()
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         // Put the decoded bytes at the end of the array
@@ -704,10 +752,12 @@ impl IcrcAccount {
 
         // Verify the checksum
         if calculated_checksum != _checksum_text {
-            return Err(format!(
+            let error_msg = format!(
                 "Checksum verification failed. Expected: {}, Got: {}",
                 calculated_checksum, _checksum_text
-            ));
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         Ok(Self {
