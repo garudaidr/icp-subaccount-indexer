@@ -601,12 +601,14 @@ async fn query_token_ledger(
                     let hash = match hash_transaction(&block.transaction) {
                         Ok(content) => content,
                         Err(err) => {
-                            ic_cdk::println!("ERROR in query_token_ledger when hashing transaction:");
+                            ic_cdk::println!(
+                                "ERROR in query_token_ledger when hashing transaction:"
+                            );
                             ic_cdk::println!("  Error message: {}", err);
                             ic_cdk::println!("  Token type: {:?}", token_type);
                             ic_cdk::println!("  Transaction: {:?}", block.transaction);
                             "HASH-IS-NOT-AVAILABLE".to_string()
-                        },
+                        }
                     };
                     ic_cdk::println!("Hash for {:?}: {:?}", token_type, hash);
 
@@ -657,53 +659,97 @@ async fn call_query_blocks() {
 
     // Get the current next block value
     let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
+    let mut icp_in_registered_tokens = false;
 
-    // First, process ICP (mainnet ledger)
-    let icp_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    // Get the default ICP ledger principal
+    let default_icp_principal =
+        PRINCIPAL.with(
+            |stored_ref| match stored_ref.borrow().get().get_principal() {
+                Some(result) => Some(result),
+                None => {
+                    ic_cdk::println!("ERROR in call_query_blocks:");
+                    ic_cdk::println!("  ICP Principal is not set");
+                    ic_cdk::println!(
+                        "  This is a critical error that prevents querying the ledger"
+                    );
+                    None
+                }
+            },
+        );
 
-    let icp_principal = match icp_principal.get_principal() {
-        Some(result) => result,
-        None => {
-            ic_cdk::println!("ERROR in call_query_blocks:");
-            ic_cdk::println!("  ICP Principal is not set");
-            ic_cdk::println!("  This is a critical error that prevents querying the ledger");
-            return;
-        }
-    };
+    if default_icp_principal.is_none() {
+        return;
+    }
 
-    // Process ICP transactions first and store the updated block count
-    ic_cdk::println!("Processing ICP ledger transactions");
-    let updated_block_count = query_token_ledger(TokenType::ICP, icp_principal, next_block).await;
-
-    // Update the global next block value
-    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(updated_block_count));
-
-    // Now process other registered token ledgers in parallel
+    // Process registered token ledgers
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
         for (_, (token_type, token_principal)) in tl.borrow().iter() {
             ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
 
-            // Use the same next_block for all tokens
+            // Clone values for use in async block
+            let token_type_clone = token_type.clone();
+            let token_principal_clone = token_principal;
             let current_next_block = next_block;
 
-            IcCdkSpawnManager::run(async move {
-                // Call query_token_ledger for each token type independently
-                let result =
-                    query_token_ledger(token_type.clone(), token_principal, current_next_block)
-                        .await;
-                ic_cdk::println!(
-                    "Token ledger query for {:?} completed with result: {}",
-                    token_type,
-                    result
-                );
-            });
+            // Check if ICP is in registered tokens
+            if token_type_clone == TokenType::ICP {
+                icp_in_registered_tokens = true;
+
+                // Process ICP directly
+                IcCdkSpawnManager::run(async move {
+                    let result = query_token_ledger(
+                        token_type_clone.clone(),
+                        token_principal_clone,
+                        current_next_block,
+                    )
+                    .await;
+                    ic_cdk::println!("ICP token ledger query completed with result: {}", result);
+
+                    // Update the global next block value with ICP result
+                    NEXT_BLOCK.with(|next_block_ref| {
+                        let _ = next_block_ref.borrow_mut().set(result);
+                    });
+                });
+            } else {
+                // Process other tokens in separate tasks
+                IcCdkSpawnManager::run(async move {
+                    let result = query_token_ledger(
+                        token_type_clone.clone(),
+                        token_principal_clone,
+                        current_next_block,
+                    )
+                    .await;
+                    ic_cdk::println!(
+                        "Token ledger query for {:?} completed with result: {}",
+                        token_type_clone,
+                        result
+                    );
+                });
+            }
         }
     });
 
-    ic_cdk::println!(
-        "Block checking cycle completed, next_block updated to: {}",
-        updated_block_count
-    );
+    // If ICP is not in registered tokens, process it with default principal
+    if !icp_in_registered_tokens && default_icp_principal.is_some() {
+        let icp_principal = default_icp_principal.unwrap();
+        ic_cdk::println!("Processing default ICP ledger");
+
+        let icp_result = query_token_ledger(TokenType::ICP, icp_principal, next_block).await;
+        ic_cdk::println!(
+            "Default ICP token ledger query completed with result: {}",
+            icp_result
+        );
+
+        // Update the next block value
+        let updated_block_count = icp_result;
+
+        // Update the global next block value
+        NEXT_BLOCK.with(|next_block_ref| {
+            let _ = next_block_ref.borrow_mut().set(updated_block_count);
+        });
+    }
+
+    ic_cdk::println!("Block checking cycle completed");
 }
 
 #[cfg(not(test))]
