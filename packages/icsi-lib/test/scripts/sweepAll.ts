@@ -91,7 +91,7 @@ async function sweepAll() {
           agent,
           USER_VAULT_CANISTER_ID,
           subaccountId,
-          0, // passing 0 as the default amount to sweep all
+          0.0, // passing 0.0 as a float64 to sweep all
           tokenType // Pass the token type
         );
 

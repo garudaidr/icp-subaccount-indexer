@@ -246,7 +246,9 @@ export async function sweepSubaccountId(
   tokenType: TokenType = { ICP: null }
 ) {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.sweep_subaccount(subaccountId, amount, tokenType);
+  // Ensure amount is explicitly a float by using parseFloat
+  const floatAmount = parseFloat(amount.toString());
+  return await actor.sweep_subaccount(subaccountId, floatAmount, tokenType);
 }
 
 /**
