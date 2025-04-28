@@ -68,11 +68,25 @@ pub enum Network {
 
 impl Storable for Network {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap())
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR encoding Network: {:?}", e);
+                // Still panic but with more debug info
+                panic!("Failed to encode Network: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap()
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR decoding Network: {:?}", e);
+                // Still panic but with more debug info
+                panic!("Failed to decode Network: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -279,11 +293,25 @@ pub enum TokenType {
 
 impl Storable for TokenType {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap())
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR encoding TokenType: {:?}", e);
+                // Still panic to maintain fail-fast for critical operations
+                panic!("Failed to encode TokenType: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap()
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR decoding TokenType: {:?}", e);
+                // Still panic but with more debug info
+                panic!("Failed to decode TokenType: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -293,7 +321,18 @@ impl Storable for TokenType {
 }
 
 #[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
-pub struct StoredTransactions {
+pub struct StoredTransactionsV1 {
+    pub index: u64,
+    pub memo: u64,
+    pub icrc1_memo: Option<Vec<u8>>,
+    pub operation: Option<Operation>,
+    pub created_at_time: Timestamp,
+    pub sweep_status: SweepStatus,
+    pub tx_hash: String,
+}
+
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
+pub struct StoredTransactionsV2 {
     pub index: u64,
     pub memo: u64,
     pub icrc1_memo: Option<Vec<u8>>,
@@ -305,7 +344,26 @@ pub struct StoredTransactions {
     pub token_ledger_canister_id: Option<Principal>,
 }
 
-impl StoredTransactions {
+impl From<StoredTransactionsV1> for StoredTransactionsV2 {
+    fn from(v1: StoredTransactionsV1) -> Self {
+        Self {
+            index: v1.index,
+            memo: v1.memo,
+            icrc1_memo: v1.icrc1_memo,
+            operation: v1.operation,
+            created_at_time: v1.created_at_time,
+            sweep_status: v1.sweep_status,
+            tx_hash: v1.tx_hash,
+            token_type: TokenType::ICP, // Default to ICP for v1 transactions
+            token_ledger_canister_id: None, // No canister ID in v1
+        }
+    }
+}
+
+// Type alias for backward compatibility
+pub type StoredTransactions = StoredTransactionsV2;
+
+impl StoredTransactionsV2 {
     pub fn new(
         index: u64,
         transaction: Transaction,
@@ -345,13 +403,70 @@ impl StoredPrincipal {
 }
 
 const MAX_VALUE_SIZE: u32 = 500;
-impl Storable for StoredTransactions {
+impl Storable for StoredTransactionsV1 {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR encoding StoredTransactionsV1: {:?}", e);
+                panic!("Failed to encode StoredTransactionsV1: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR decoding StoredTransactionsV1: {:?}", e);
+                panic!("Failed to decode StoredTransactionsV1: {:?}", e);
+            }
+        }
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+impl Storable for StoredTransactionsV2 {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR encoding StoredTransactionsV2: {:?}", e);
+                panic!("Failed to encode StoredTransactionsV2: {:?}", e);
+            }
+        }
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        // First try to decode as V2 (current version)
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                // If that fails, try to decode as V1 and convert
+                ic_cdk::println!("Failed to decode as StoredTransactionsV2: {:?}", e);
+                ic_cdk::println!("Attempting to decode as StoredTransactionsV1...");
+
+                match candid::decode_one::<StoredTransactionsV1>(bytes.as_ref()) {
+                    Ok(v1) => {
+                        ic_cdk::println!(
+                            "Successfully decoded as StoredTransactionsV1, upgrading to V2"
+                        );
+                        StoredTransactionsV2::from(v1)
+                    }
+                    Err(e2) => {
+                        ic_cdk::println!(
+                            "CRITICAL ERROR: Failed to decode as StoredTransactionsV1: {:?}",
+                            e2
+                        );
+                        panic!("Failed to decode StoredTransactionsV2 as either V2 or V1 format");
+                    }
+                }
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -362,11 +477,25 @@ impl Storable for StoredTransactions {
 
 impl Storable for StoredPrincipal {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR encoding StoredPrincipal: {:?}", e);
+                // Still panic but with more debug info
+                panic!("Failed to encode StoredPrincipal: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                ic_cdk::println!("CRITICAL ERROR decoding StoredPrincipal: {:?}", e);
+                // Still panic but with more debug info
+                panic!("Failed to decode StoredPrincipal: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {

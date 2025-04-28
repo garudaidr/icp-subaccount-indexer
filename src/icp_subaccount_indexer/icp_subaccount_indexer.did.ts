@@ -47,15 +47,15 @@ export type Result_10 = { Ok: null } | { Err: Error };
 export type Result_11 = { Ok: bigint } | { Err: Error };
 export type Result_12 = { Ok: Array<string> } | { Err: Error };
 export type Result_13 = { Ok: boolean } | { Err: Error };
-export type Result_2 = { Ok: Array<StoredTransactions> } | { Err: Error };
+export type Result_2 = { Ok: Array<StoredTransactionsV2> } | { Err: Error };
 export type Result_3 = { Ok: bigint } | { Err: string };
 export type Result_4 = { Ok: Network } | { Err: string };
 export type Result_5 = { Ok: number } | { Err: string };
 export type Result_6 = { Ok: [] | [bigint] } | { Err: string };
 export type Result_7 = { Ok: Array<[TokenType, string]> } | { Err: string };
 export type Result_8 = { Ok: TokenType } | { Err: string };
-export type Result_9 = { Ok: Array<StoredTransactions> } | { Err: string };
-export interface StoredTransactions {
+export type Result_9 = { Ok: Array<StoredTransactionsV2> } | { Err: string };
+export interface StoredTransactionsV2 {
   sweep_status: SweepStatus;
   memo: bigint;
   token_ledger_canister_id: [] | [Principal];
