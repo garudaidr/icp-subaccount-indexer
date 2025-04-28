@@ -533,8 +533,12 @@ async fn query_token_ledger(
 
     let response = match call_result {
         Ok((response,)) => response,
-        Err(_) => {
-            ic_cdk::println!("query_blocks error occurred for {:?}", token_type);
+        Err((code, msg)) => {
+            ic_cdk::println!("ERROR in query_token_ledger for {:?}:", token_type);
+            ic_cdk::println!("  Rejection code: {:?}", code);
+            ic_cdk::println!("  Error message: {}", msg);
+            ic_cdk::println!("  Token principal: {}", token_principal.to_string());
+            ic_cdk::println!("  Next block: {}", next_block);
             return next_block; // Return original block count if error occurs
         }
     };
@@ -596,7 +600,13 @@ async fn query_token_ledger(
 
                     let hash = match hash_transaction(&block.transaction) {
                         Ok(content) => content,
-                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+                        Err(err) => {
+                            ic_cdk::println!("ERROR in query_token_ledger when hashing transaction:");
+                            ic_cdk::println!("  Error message: {}", err);
+                            ic_cdk::println!("  Token type: {:?}", token_type);
+                            ic_cdk::println!("  Transaction: {:?}", block.transaction);
+                            "HASH-IS-NOT-AVAILABLE".to_string()
+                        },
                     };
                     ic_cdk::println!("Hash for {:?}: {:?}", token_type, hash);
 
@@ -643,160 +653,57 @@ async fn query_token_ledger(
 }
 
 async fn call_query_blocks() {
-    ic_cdk::println!("Calling query_blocks for ICP");
-    let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    ic_cdk::println!("Starting periodic block checking");
 
+    // Get the current next block value
     let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
 
-    let ledger_principal = match ledger_principal.get_principal() {
+    // First, process ICP (mainnet ledger)
+    let icp_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+
+    let icp_principal = match icp_principal.get_principal() {
         Some(result) => result,
         None => {
-            ic_cdk::println!("Principal is not set");
+            ic_cdk::println!("ERROR in call_query_blocks:");
+            ic_cdk::println!("  ICP Principal is not set");
+            ic_cdk::println!("  This is a critical error that prevents querying the ledger");
             return;
         }
     };
 
-    let req = QueryBlocksRequest {
-        start: next_block,
-        length: 100,
-    };
+    // Process ICP transactions first and store the updated block count
+    ic_cdk::println!("Processing ICP ledger transactions");
+    let updated_block_count = query_token_ledger(TokenType::ICP, icp_principal, next_block).await;
 
-    let call_result: CallResult<(QueryBlocksResponse,)> =
-        InterCanisterCallManager::query_blocks(ledger_principal, req).await;
+    // Update the global next block value
+    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(updated_block_count));
 
-    let response = match call_result {
-        Ok((response,)) => response,
-        Err(_) => {
-            ic_cdk::println!("query_blocks error occurred");
-            return;
-        }
-    };
-
-    // Also query registered token ledgers
+    // Now process other registered token ledgers in parallel
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
         for (_, (token_type, token_principal)) in tl.borrow().iter() {
             ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
-            let token_type_clone = token_type.clone();
-            let token_principal_clone = token_principal;
 
-            // Use the global next_block for each token
+            // Use the same next_block for all tokens
             let current_next_block = next_block;
 
             IcCdkSpawnManager::run(async move {
-                // Call query_token_ledger but ignore the return value
-                // Each token type is processed independently
-                let _ =
-                    query_token_ledger(token_type_clone, token_principal_clone, current_next_block)
+                // Call query_token_ledger for each token type independently
+                let result =
+                    query_token_ledger(token_type.clone(), token_principal, current_next_block)
                         .await;
+                ic_cdk::println!(
+                    "Token ledger query for {:?} completed with result: {}",
+                    token_type,
+                    result
+                );
             });
         }
     });
 
-    ic_cdk::println!("Response: {:?}", response);
-
-    let mut first_block_hash = String::default();
-    let mut block_count = next_block;
-    response.blocks.iter().for_each(|block| {
-        if let Some(operation) = block.transaction.operation.as_ref() {
-            ic_cdk::println!("Operation: {:?}", operation);
-
-            let subaccount_exist = match operation {
-                Operation::Approve(data) => {
-                    ic_cdk::println!("Approve detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        let spender = data.spender.clone();
-                        includes_hash(&spender)
-                    }
-                }
-                Operation::Burn(data) => {
-                    ic_cdk::println!("Burn detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(spender),
-                            None => false,
-                        }
-                    }
-                }
-                Operation::Mint(data) => {
-                    ic_cdk::println!("Mint detected");
-                    let to = data.to.clone();
-                    includes_hash(&to)
-                }
-                Operation::Transfer(data) => {
-                    ic_cdk::println!("Transfer detected");
-                    let to = data.to.clone();
-                    if includes_hash(&to) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(spender),
-                            None => false,
-                        }
-                    }
-                }
-            };
-
-            if subaccount_exist {
-                ic_cdk::println!("Subaccount exists");
-                TRANSACTIONS.with(|transactions_ref| {
-                    let mut transactions = transactions_ref.borrow_mut();
-
-                    let hash = match hash_transaction(&block.transaction) {
-                        Ok(content) => content,
-                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
-                    };
-                    transactions.get(&block_count);
-                    ic_cdk::println!("Hash: {:?}", hash);
-                    // Get the ledger principal from PRINCIPAL
-                    let ledger_principal = PRINCIPAL
-                        .with(|stored_ref| stored_ref.borrow().get().clone())
-                        .get_principal()
-                        .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
-
-                    // Just use ICP as default - specific token types are handled separately by query_token_ledger
-                    let token_type = TokenType::ICP;
-
-                    let transaction = StoredTransactions::new(
-                        block_count,
-                        block.transaction.clone(),
-                        hash.clone(),
-                        token_type,
-                        ledger_principal,
-                    );
-
-                    if !transactions.contains_key(&block_count) {
-                        // Filter keys that exist
-                        ic_cdk::println!("Inserting transaction");
-                        let _ = transactions.insert(block_count, transaction);
-
-                        // Track the first block hash in the iter
-                        if first_block_hash.is_empty() {
-                            ic_cdk::println!("Setting webhook tx_hash: {:?}", hash);
-                            first_block_hash = hash;
-                        }
-                    } else {
-                        ic_cdk::println!("Transaction already exists");
-                    }
-                });
-            }
-        };
-        block_count += 1;
-    });
-
-    // If the first block hash in not empty
-    // Send the webhook
-    if !first_block_hash.is_empty() {
-        let res = send_webhook(first_block_hash).await;
-        ic_cdk::println!("HTTP Outcall result: {}", res);
-    }
-
-    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
+    ic_cdk::println!(
+        "Block checking cycle completed, next_block updated to: {}",
+        updated_block_count
+    );
 }
 
 #[cfg(not(test))]
