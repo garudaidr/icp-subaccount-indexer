@@ -46,3 +46,15 @@ export {
   singleSweep,
   setSweepFailed,
 } from './update';
+
+// Helper function exports
+export {
+  Tokens,
+  getTokenConfig,
+  getDepositAddresses,
+  getBalances,
+  getTransactionsByTokenType,
+  type TokenConfig,
+  type DepositAddress,
+  type TokenBalance,
+} from './helpers';
