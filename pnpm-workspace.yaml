@@ -1,0 +1,3 @@
+packages:
+  - "packages/*"
+  - ".maintain/legacy/script"

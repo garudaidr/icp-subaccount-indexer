@@ -87,6 +87,16 @@ single_sweep : (text) -> (variant { Ok : vec text; Err : Error });
 
 This method forwards ICP-token that was transacted within a single tx_hash provided in the argument
 
+## Project Structure
+
+This is a pnpm workspace monorepo containing:
+
+- **Root**: DFX canister and webpack configuration
+- **packages/icsi-lib**: TypeScript library for interacting with ICSI
+- **.maintain/legacy/script**: Legacy test scripts
+
+See [WORKSPACE.md](./WORKSPACE.md) for detailed monorepo documentation.
+
 ## Usage
 
 ### Quick Start
@@ -94,19 +104,20 @@ This method forwards ICP-token that was transacted within a single tx_hash provi
 1. **Prerequisites**
 
    - Install [DFX](https://internetcomputer.org/docs/current/developer-docs/getting-started/install/)
-   - Install Node.js and pnpm
+   - Install Node.js and pnpm (`npm install -g pnpm`)
    - Have ICP tokens for mainnet deployment
 
 2. **Local Development**
 
    ```bash
-   # Deploy locally with ICP ledger
-   .maintain/deploy.sh --network local
-
-   # Run tests
-   cd packages/icsi-lib
+   # Install all dependencies (monorepo)
    pnpm install
-   pnpm run test:usdc-deposit
+
+   # Deploy locally with ICP ledger
+   pnpm run deploy:local
+
+   # Run library tests from root
+   pnpm run lib:test:usdc
    ```
 
 3. **Mainnet Deployment**
@@ -147,17 +158,23 @@ See [Deployment Guide](./docs/canister-deployment-guideline.md) for detailed ins
 The TypeScript test suite in `packages/icsi-lib/test/scripts/` provides comprehensive testing:
 
 ```bash
-cd packages/icsi-lib
-pnpm install
+# From root directory (monorepo commands)
+pnpm install  # Install all workspace dependencies
 
 # Generate test wallet
-pnpm run generate:wallet
+pnpm run lib:generate:wallet
 
-# Test USDC deposits
-pnpm run test:usdc-deposit
+# Test various deposits
+pnpm run lib:test:icp    # Test ICP deposits
+pnpm run lib:test:usdc   # Test USDC deposits
+pnpm run lib:test:usdt   # Test USDT deposits
 
 # Test webhook functionality
-pnpm run test:webhook
+pnpm run lib:test:webhook
+
+# Or run directly in the package
+cd packages/icsi-lib
+pnpm run test:usdc-deposit
 ```
 
 See [Testing Guide](./TESTING_GUIDE.md) for complete documentation.

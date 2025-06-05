@@ -1,21 +1,33 @@
 {
-  "name": "icp_subaccount_indexer",
+  "name": "icp-subaccount-indexer",
   "type": "module",
+  "private": true,
   "scripts": {
-    "build": "webpack",
+    "build": "pnpm run build:backend && pnpm run build:lib",
+    "build:backend": "webpack",
+    "build:lib": "pnpm --filter @jagad/icsi build",
     "prebuild": "dfx generate",
     "start": "webpack serve --mode development --env development",
     "start:local:env": "dfx start --clean --host 127.0.0.1:8000 --use-old-metering",
     "deploy:local": ".maintain/deploy.sh",
     "deploy:ic": "dfx deploy --network=ic",
-    "generate": "npm run generate:did && dfx generate icp_subaccount_indexer",
-    "generate:did": "npm run generate:did:backend && npm run generate:did:ts",
+    "generate": "pnpm run generate:did && dfx generate icp_subaccount_indexer",
+    "generate:did": "pnpm run generate:did:backend && pnpm run generate:did:ts",
     "generate:did:ts": "didc bind src/icp_subaccount_indexer/icp_subaccount_indexer.did -t ts > src/icp_subaccount_indexer/icp_subaccount_indexer.did.ts",
     "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_subaccount_indexer && candid-extractor target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm > src/icp_subaccount_indexer/icp_subaccount_indexer.did",
-    "format": "cargo fmt && prettier --write .",
+    "format": "cargo fmt && prettier --write . && pnpm --filter @jagad/icsi format",
+    "test:backend": "pnpm run test:happy_path && pnpm run test:sad_path",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",
-    "test": "npm run test:happy_path && npm run test:sad_path"
+    "test": "pnpm run test:backend && pnpm --filter @jagad/icsi test",
+    "clean": "pnpm -r clean",
+    "install:all": "pnpm install",
+    "lib:generate:wallet": "pnpm --filter @jagad/icsi generate:wallet",
+    "lib:test:icp": "pnpm --filter @jagad/icsi test:icp-deposit",
+    "lib:test:usdc": "pnpm --filter @jagad/icsi test:usdc-deposit",
+    "lib:test:usdt": "pnpm --filter @jagad/icsi test:usdt-deposit",
+    "lib:test:webhook": "pnpm --filter @jagad/icsi test:webhook",
+    "lib:test:all": "pnpm --filter @jagad/icsi test:scripts"
   },
   "dependencies": {
     "@dfinity/agent": "^1.0.1",
@@ -40,13 +52,13 @@
   },
   "engines": {
     "node": ">=16.0.0",
-    "npm": ">=7.0.0"
+    "pnpm": ">=8.0.0"
   },
+  "packageManager": "pnpm@8.15.0",
   "browserslist": [
     "last 2 chrome version",
     "last 2 firefox version",
     "last 2 safari version",
     "last 2 edge version"
-  ],
-  "workspaces": []
+  ]
 }

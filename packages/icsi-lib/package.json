@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
-    "prepare": "npm run clean && npm run build",
+    "prepare": "pnpm run clean && pnpm run build",
     "test": "jest",
     "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
     "test:scripts": "ts-node test/scripts/runAll.ts",
