@@ -147,7 +147,10 @@ fn includes_hash(vec_to_check: &[u8]) -> bool {
 
 #[update]
 async fn set_next_block(block: u64) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
     NEXT_BLOCK.with(|next_block_ref| {
         let _ = next_block_ref.borrow_mut().set(block);
     });
@@ -164,8 +167,11 @@ use url::Url;
 
 #[update]
 async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
-    authenticate().map_err(|e| Error {
-        message: e.to_string(),
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error {
+            message: e.to_string(),
+        }
     })?;
 
     // Validate the URL
@@ -173,16 +179,16 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
         Ok(url) => {
             // Check if the scheme is http or https
             if url.scheme() != "http" && url.scheme() != "https" {
-                return Err(Error {
-                    message: "Invalid URL scheme. Must be http or https.".to_string(),
-                });
+                let error_msg = "Invalid URL scheme. Must be http or https.".to_string();
+                ic_cdk::println!("URL error: {}", error_msg);
+                return Err(Error { message: error_msg });
             }
 
             // Check if the host is present
             if url.host().is_none() {
-                return Err(Error {
-                    message: "Invalid URL. Host is missing.".to_string(),
-                });
+                let error_msg = "Invalid URL. Host is missing.".to_string();
+                ic_cdk::println!("URL error: {}", error_msg);
+                return Err(Error { message: error_msg });
             }
 
             // If all checks pass, set the webhook URL
@@ -192,9 +198,11 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
 
             Ok(webhook_url)
         }
-        Err(_) => Err(Error {
-            message: "Invalid URL format.".to_string(),
-        }),
+        Err(e) => {
+            let error_msg = format!("Invalid URL format: {}", e);
+            ic_cdk::println!("URL error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     }
 }
 
@@ -218,17 +226,24 @@ fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
         // find matching hashkey
         match subaccounts_borrow.get(&account_id_hash) {
             Some(value) => Ok(*value),
-            None => Err(Error {
-                message: "Account not found".to_string(),
-            }),
+            None => {
+                let error_msg = "Account not found".to_string();
+                ic_cdk::println!("Error: {}", error_msg);
+                Err(Error { message: error_msg })
+            }
         }
     })
 }
 
 fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), Error> {
-    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
-    let operation = tx.operation.as_ref().ok_or(Error {
-        message: "Operation is None".to_string(),
+    let custodian_id = get_custodian_id().map_err(|e| {
+        ic_cdk::println!("Error getting custodian ID: {}", e);
+        Error { message: e }
+    })?;
+    let operation = tx.operation.as_ref().ok_or_else(|| {
+        let error_msg = "Operation is None".to_string();
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
     match operation {
         Operation::Transfer(data) => {
@@ -238,17 +253,15 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), E
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
             let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting to to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
             let result = get_subaccount(&sweep_from);
             let sweep_source_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error getting from_subaccount".to_string(),
-                }
+                let error_msg = format!("Error getting from_subaccount: {}", err.message);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             // calculate amount
@@ -269,9 +282,11 @@ fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), E
                 token_ledger_canister_id,
             ))
         }
-        _ => Err(Error {
-            message: "Operation is not a transfer".to_string(),
-        }),
+        _ => {
+            let error_msg = "Operation is not a transfer".to_string();
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     } // end match
 }
 
@@ -283,27 +298,24 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), 
             let topup_from = data.from.clone();
             let topup_from = topup_from.as_slice();
             let refund_to = AccountIdentifier::from_slice(topup_from).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting from to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting from to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             // construct refund source of funds
             let topup_to = data.to.clone();
             let topup_to = topup_to.as_slice();
             let refund_source = AccountIdentifier::from_slice(topup_to).map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error converting to to AccountIdentifier".to_string(),
-                }
+                let error_msg = format!("Error converting to to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
             let result = get_subaccount(&refund_source);
             let refund_source_subaccount = result.map_err(|err| {
-                ic_cdk::println!("Error: {:?}", err);
-                Error {
-                    message: "Error getting to_subaccount".to_string(),
-                }
+                let error_msg = format!("Error getting to_subaccount: {}", err.message);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
             })?;
 
             ic_cdk::println!("refund_source_subaccount: {:?}", refund_source_subaccount);
@@ -324,27 +336,32 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), 
                 token_ledger_canister_id,
             ))
         }
-        _ => Err(Error {
-            message: "Operation is not a transfer".to_string(),
-        }),
+        _ => {
+            let error_msg = "Operation is not a transfer".to_string();
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     } // end match
 }
 
 fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Error> {
-    let mut tx = tx.clone();
+    let index = tx.index;
+    let mut tx_clone = tx.clone();
 
-    tx.sweep_status = status;
+    tx_clone.sweep_status = status;
 
     let prev_tx = TRANSACTIONS.with(|transactions_ref| {
         let mut transactions = transactions_ref.borrow_mut();
-        transactions.insert(tx.index, tx)
+        transactions.insert(index, tx_clone)
     });
 
     match prev_tx {
         Some(_) => Ok(()),
-        None => Err(Error {
-            message: "Transaction not found when updating".to_string(),
-        }),
+        None => {
+            let error_msg = format!("Transaction with index {} not found when updating", index);
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
     }
 }
 
@@ -384,7 +401,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let from_account = match ledger::AccountIdentifier::from_slice(sender_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create from: {:?}", e));
+            let error_msg = format!("Failed to create from: {:?}", e);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
     };
 
@@ -392,7 +411,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
     let to_account = match ledger::AccountIdentifier::from_slice(receiver_slice) {
         Ok(account) => account,
         Err(e) => {
-            return Err(format!("Failed to create to: {:?}", e));
+            let error_msg = format!("Failed to create to: {:?}", e);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
     };
 
@@ -402,7 +423,9 @@ fn hash_transaction(tx: &Transaction) -> Result<String, String> {
             match ledger::AccountIdentifier::from_slice(spender_slice) {
                 Ok(account) => Some(account),
                 Err(e) => {
-                    return Err(format!("Failed to create spender: {:?}", e));
+                    let error_msg = format!("Failed to create spender: {:?}", e);
+                    ic_cdk::println!("Error: {}", error_msg);
+                    return Err(error_msg);
                 }
             }
         }
@@ -510,8 +533,12 @@ async fn query_token_ledger(
 
     let response = match call_result {
         Ok((response,)) => response,
-        Err(_) => {
-            ic_cdk::println!("query_blocks error occurred for {:?}", token_type);
+        Err((code, msg)) => {
+            ic_cdk::println!("ERROR in query_token_ledger for {:?}:", token_type);
+            ic_cdk::println!("  Rejection code: {:?}", code);
+            ic_cdk::println!("  Error message: {}", msg);
+            ic_cdk::println!("  Token principal: {}", token_principal.to_string());
+            ic_cdk::println!("  Next block: {}", next_block);
             return next_block; // Return original block count if error occurs
         }
     };
@@ -573,7 +600,15 @@ async fn query_token_ledger(
 
                     let hash = match hash_transaction(&block.transaction) {
                         Ok(content) => content,
-                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
+                        Err(err) => {
+                            ic_cdk::println!(
+                                "ERROR in query_token_ledger when hashing transaction:"
+                            );
+                            ic_cdk::println!("  Error message: {}", err);
+                            ic_cdk::println!("  Token type: {:?}", token_type);
+                            ic_cdk::println!("  Transaction: {:?}", block.transaction);
+                            "HASH-IS-NOT-AVAILABLE".to_string()
+                        }
                     };
                     ic_cdk::println!("Hash for {:?}: {:?}", token_type, hash);
 
@@ -620,160 +655,101 @@ async fn query_token_ledger(
 }
 
 async fn call_query_blocks() {
-    ic_cdk::println!("Calling query_blocks for ICP");
-    let ledger_principal = PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    ic_cdk::println!("Starting periodic block checking");
 
+    // Get the current next block value
     let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
+    let mut icp_in_registered_tokens = false;
 
-    let ledger_principal = match ledger_principal.get_principal() {
-        Some(result) => result,
-        None => {
-            ic_cdk::println!("Principal is not set");
-            return;
-        }
-    };
+    // Get the default ICP ledger principal
+    let default_icp_principal =
+        PRINCIPAL.with(
+            |stored_ref| match stored_ref.borrow().get().get_principal() {
+                Some(result) => Some(result),
+                None => {
+                    ic_cdk::println!("ERROR in call_query_blocks:");
+                    ic_cdk::println!("  ICP Principal is not set");
+                    ic_cdk::println!(
+                        "  This is a critical error that prevents querying the ledger"
+                    );
+                    None
+                }
+            },
+        );
 
-    let req = QueryBlocksRequest {
-        start: next_block,
-        length: 100,
-    };
+    if default_icp_principal.is_none() {
+        return;
+    }
 
-    let call_result: CallResult<(QueryBlocksResponse,)> =
-        InterCanisterCallManager::query_blocks(ledger_principal, req).await;
-
-    let response = match call_result {
-        Ok((response,)) => response,
-        Err(_) => {
-            ic_cdk::println!("query_blocks error occurred");
-            return;
-        }
-    };
-
-    // Also query registered token ledgers
+    // Process registered token ledgers
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
         for (_, (token_type, token_principal)) in tl.borrow().iter() {
             ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
+
+            // Clone values for use in async block
             let token_type_clone = token_type.clone();
             let token_principal_clone = token_principal;
-
-            // Use the global next_block for each token
             let current_next_block = next_block;
 
-            IcCdkSpawnManager::run(async move {
-                // Call query_token_ledger but ignore the return value
-                // Each token type is processed independently
-                let _ =
-                    query_token_ledger(token_type_clone, token_principal_clone, current_next_block)
-                        .await;
-            });
+            // Check if ICP is in registered tokens
+            if token_type_clone == TokenType::ICP {
+                icp_in_registered_tokens = true;
+
+                // Process ICP directly
+                IcCdkSpawnManager::run(async move {
+                    let result = query_token_ledger(
+                        token_type_clone.clone(),
+                        token_principal_clone,
+                        current_next_block,
+                    )
+                    .await;
+                    ic_cdk::println!("ICP token ledger query completed with result: {}", result);
+
+                    // Update the global next block value with ICP result
+                    NEXT_BLOCK.with(|next_block_ref| {
+                        let _ = next_block_ref.borrow_mut().set(result);
+                    });
+                });
+            } else {
+                // Process other tokens in separate tasks
+                IcCdkSpawnManager::run(async move {
+                    let result = query_token_ledger(
+                        token_type_clone.clone(),
+                        token_principal_clone,
+                        current_next_block,
+                    )
+                    .await;
+                    ic_cdk::println!(
+                        "Token ledger query for {:?} completed with result: {}",
+                        token_type_clone,
+                        result
+                    );
+                });
+            }
         }
     });
 
-    ic_cdk::println!("Response: {:?}", response);
+    // If ICP is not in registered tokens, process it with default principal
+    if !icp_in_registered_tokens && default_icp_principal.is_some() {
+        let icp_principal = default_icp_principal.unwrap();
+        ic_cdk::println!("Processing default ICP ledger");
 
-    let mut first_block_hash = String::default();
-    let mut block_count = next_block;
-    response.blocks.iter().for_each(|block| {
-        if let Some(operation) = block.transaction.operation.as_ref() {
-            ic_cdk::println!("Operation: {:?}", operation);
+        let icp_result = query_token_ledger(TokenType::ICP, icp_principal, next_block).await;
+        ic_cdk::println!(
+            "Default ICP token ledger query completed with result: {}",
+            icp_result
+        );
 
-            let subaccount_exist = match operation {
-                Operation::Approve(data) => {
-                    ic_cdk::println!("Approve detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        let spender = data.spender.clone();
-                        includes_hash(&spender)
-                    }
-                }
-                Operation::Burn(data) => {
-                    ic_cdk::println!("Burn detected");
-                    let from = data.from.clone();
-                    if includes_hash(&from) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(spender),
-                            None => false,
-                        }
-                    }
-                }
-                Operation::Mint(data) => {
-                    ic_cdk::println!("Mint detected");
-                    let to = data.to.clone();
-                    includes_hash(&to)
-                }
-                Operation::Transfer(data) => {
-                    ic_cdk::println!("Transfer detected");
-                    let to = data.to.clone();
-                    if includes_hash(&to) {
-                        true
-                    } else {
-                        match &data.spender {
-                            Some(spender) => includes_hash(spender),
-                            None => false,
-                        }
-                    }
-                }
-            };
+        // Update the next block value
+        let updated_block_count = icp_result;
 
-            if subaccount_exist {
-                ic_cdk::println!("Subaccount exists");
-                TRANSACTIONS.with(|transactions_ref| {
-                    let mut transactions = transactions_ref.borrow_mut();
-
-                    let hash = match hash_transaction(&block.transaction) {
-                        Ok(content) => content,
-                        Err(_) => "HASH-IS-NOT-AVAILABLE".to_string(),
-                    };
-                    transactions.get(&block_count);
-                    ic_cdk::println!("Hash: {:?}", hash);
-                    // Get the ledger principal from PRINCIPAL
-                    let ledger_principal = PRINCIPAL
-                        .with(|stored_ref| stored_ref.borrow().get().clone())
-                        .get_principal()
-                        .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
-
-                    // Just use ICP as default - specific token types are handled separately by query_token_ledger
-                    let token_type = TokenType::ICP;
-
-                    let transaction = StoredTransactions::new(
-                        block_count,
-                        block.transaction.clone(),
-                        hash.clone(),
-                        token_type,
-                        ledger_principal,
-                    );
-
-                    if !transactions.contains_key(&block_count) {
-                        // Filter keys that exist
-                        ic_cdk::println!("Inserting transaction");
-                        let _ = transactions.insert(block_count, transaction);
-
-                        // Track the first block hash in the iter
-                        if first_block_hash.is_empty() {
-                            ic_cdk::println!("Setting webhook tx_hash: {:?}", hash);
-                            first_block_hash = hash;
-                        }
-                    } else {
-                        ic_cdk::println!("Transaction already exists");
-                    }
-                });
-            }
-        };
-        block_count += 1;
-    });
-
-    // If the first block hash in not empty
-    // Send the webhook
-    if !first_block_hash.is_empty() {
-        let res = send_webhook(first_block_hash).await;
-        ic_cdk::println!("HTTP Outcall result: {}", res);
+        // Update the global next block value
+        NEXT_BLOCK.with(|next_block_ref| {
+            let _ = next_block_ref.borrow_mut().set(updated_block_count);
+        });
     }
 
-    let _ = NEXT_BLOCK.with(|next_block_ref| next_block_ref.borrow_mut().set(block_count));
+    ic_cdk::println!("Block checking cycle completed");
 }
 
 #[cfg(not(test))]
@@ -891,7 +867,8 @@ fn reconstruct_network() {
 
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
-    ic_cdk::println!("running post_upgrade...");
+    ic_cdk::println!("Running post_upgrade...");
+
     reconstruct_subaccounts();
     reconstruct_network();
 }
@@ -904,7 +881,10 @@ fn get_interval() -> Result<u64, String> {
 
 #[update]
 fn set_interval(seconds: u64) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     TIMERS.with(|timers_ref| {
         TimerManager::clear_timer(*timers_ref.borrow());
@@ -953,12 +933,16 @@ fn to_subaccount_id(subaccount: Subaccount) -> AccountIdentifier {
 }
 
 fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
-    let vec = hex::decode(hex).map_err(|_| Error {
-        message: "string to vector conversion error".to_string(),
+    let vec = hex::decode(hex).map_err(|e| {
+        let error_msg = format!("String to vector conversion error: {}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
-    let arr = vec.as_slice().try_into().map_err(|_| Error {
-        message: "vector to fix array conversion error".to_string(),
+    let arr = vec.as_slice().try_into().map_err(|e| {
+        let error_msg = format!("Vector to fixed array conversion error: {:?}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
     Ok(arr)
@@ -966,7 +950,10 @@ fn from_hex(hex: &str) -> Result<[u8; 32], Error> {
 
 #[update]
 fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let nonce = nonce();
     let subaccount = to_subaccount(nonce); // needed for storing the subaccount
@@ -997,12 +984,21 @@ fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
 
 #[query]
 fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
+        let error_msg = "Index out of bounds";
+        ic_cdk::println!(
+            "Error: Index out of bounds: {} >= {}",
+            nonce_param,
+            current_nonce
+        );
         return Err(Error {
-            message: "Index out of bounds".to_string(),
+            message: error_msg.to_string(),
         });
     }
 
@@ -1033,21 +1029,32 @@ fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<S
                     Ok(subaccountid.to_hex())
                 }
             }
-            None => Err(Error {
-                message: "Account not found".to_string(),
-            }),
+            None => {
+                let error_msg = "Account not found".to_string();
+                ic_cdk::println!("Error: {}", error_msg);
+                Err(Error { message: error_msg })
+            }
         }
     })
 }
 
 #[query]
 fn get_icrc_account(nonce_param: u32) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
+        let error_msg = "Index out of bounds";
+        ic_cdk::println!(
+            "Error: Index out of bounds: {} >= {}",
+            nonce_param,
+            current_nonce
+        );
         return Err(Error {
-            message: "Index out of bounds".to_string(),
+            message: error_msg.to_string(),
         });
     }
 
@@ -1118,7 +1125,10 @@ fn clear_transactions(
     up_to_index: Option<u64>,
     up_to_timestamp: Option<Timestamp>,
 ) -> Result<Vec<StoredTransactions>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     // Get Data
     let up_to_index = up_to_index.unwrap_or(0);
@@ -1158,7 +1168,10 @@ fn clear_transactions(
 
 #[update]
 async fn refund(transaction_index: u64) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let transaction_opt = TRANSACTIONS
         .with(|transactions_ref| transactions_ref.borrow().get(&transaction_index).clone());
@@ -1166,9 +1179,9 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
     let transaction = match transaction_opt {
         Some(value) => value,
         None => {
-            return Err(Error {
-                message: "Transaction index is not found".to_string(),
-            });
+            let error_msg = format!("Transaction index {} is not found", transaction_index);
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(Error { message: error_msg });
         }
     };
 
@@ -1186,7 +1199,10 @@ async fn refund(transaction_index: u64) -> Result<String, Error> {
 
 #[update]
 async fn sweep() -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1275,7 +1291,10 @@ async fn sweep() -> Result<Vec<String>, Error> {
 
 #[update]
 async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1350,9 +1369,15 @@ async fn sweep_subaccount(
     amount: f64,
     token_type: TokenType,
 ) -> Result<u64, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
-    let custodian_id = get_custodian_id().map_err(|e| Error { message: e })?;
+    let custodian_id = get_custodian_id().map_err(|e| {
+        ic_cdk::println!("Error getting custodian ID: {}", e);
+        Error { message: e }
+    })?;
 
     let matching_subaccount = LIST_OF_SUBACCOUNTS.with(|subaccounts| {
         subaccounts
@@ -1365,8 +1390,11 @@ async fn sweep_subaccount(
             .map(|(_, &subaccount)| subaccount)
     });
 
-    let subaccount = matching_subaccount.ok_or_else(|| Error {
-        message: "Subaccount not found".to_string(),
+    let subaccount = matching_subaccount.ok_or_else(|| {
+        ic_cdk::println!("Error: Subaccount with ID {} not found", subaccountid_hex);
+        Error {
+            message: "Subaccount not found".to_string(),
+        }
     })?;
 
     // Convert amount to e8s, handling potential precision issues
@@ -1374,6 +1402,11 @@ async fn sweep_subaccount(
 
     // Check for potential overflow or underflow
     if amount_e8s == u64::MAX || amount < 0.0 {
+        ic_cdk::println!(
+            "Error: Invalid amount: {} (e8s: {}) - overflow or negative value",
+            amount,
+            amount_e8s
+        );
         return Err(Error {
             message: "Invalid amount: overflow or negative value".to_string(),
         });
@@ -1402,7 +1435,10 @@ async fn sweep_subaccount(
 
 #[update]
 async fn set_sweep_failed(tx_hash_arg: String) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -1509,10 +1545,15 @@ async fn register_token(
     token_type: TokenType,
     token_ledger_principal: String,
 ) -> Result<(), Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
-    let principal = Principal::from_text(token_ledger_principal).map_err(|e| Error {
-        message: format!("Invalid principal: {}", e),
+    let principal = Principal::from_text(token_ledger_principal).map_err(|e| {
+        let error_msg = format!("Invalid principal: {}", e);
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
     })?;
 
     // Store the token type and its ledger canister ID
@@ -1532,7 +1573,10 @@ async fn register_token(
 
 #[update]
 async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     let mut futures = Vec::new();
 
@@ -1623,7 +1667,10 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
 
 #[query]
 fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     // Decode the account hex
     let account_bytes = match hex::decode(&account_hex) {
@@ -1666,7 +1713,10 @@ fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
 
 #[query]
 fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
-    authenticate().map_err(|e| Error { message: e })?;
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
 
     match IcrcAccount::from_text(&icrc_account_text) {
         Ok(_) => Ok(true),

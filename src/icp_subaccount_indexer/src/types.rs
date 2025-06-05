@@ -35,10 +35,12 @@ impl CallerGuard {
         STATE.with(|state| {
             let pending_requests = &mut state.borrow_mut().pending_requests;
             if pending_requests.contains(&principal) {
-                return Err(format!(
+                let error_msg = format!(
                     "Already processing a request for principal {:?}",
                     &principal
-                ));
+                );
+                ic_cdk::println!("Error: {}", error_msg);
+                return Err(error_msg);
             }
             pending_requests.insert(principal);
             Ok(Self { principal })
@@ -68,11 +70,27 @@ pub enum Network {
 
 impl Storable for Network {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap())
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR encoding Network: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more detailed error info
+                panic!("Failed to encode Network: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap()
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR decoding Network: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more debug info
+                panic!("Failed to decode Network: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -279,11 +297,27 @@ pub enum TokenType {
 
 impl Storable for TokenType {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap())
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR encoding TokenType {:?}: {:?}", self, e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic to maintain fail-fast for critical operations
+                panic!("Failed to encode TokenType: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap()
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR decoding TokenType from bytes: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more debug info
+                panic!("Failed to decode TokenType: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -293,7 +327,7 @@ impl Storable for TokenType {
 }
 
 #[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
-pub struct StoredTransactions {
+pub struct StoredTransactionsV1 {
     pub index: u64,
     pub memo: u64,
     pub icrc1_memo: Option<Vec<u8>>,
@@ -305,7 +339,39 @@ pub struct StoredTransactions {
     pub token_ledger_canister_id: Option<Principal>,
 }
 
-impl StoredTransactions {
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
+pub struct StoredTransactionsV2 {
+    pub index: u64,
+    pub memo: u64,
+    pub icrc1_memo: Option<Vec<u8>>,
+    pub operation: Option<Operation>,
+    pub created_at_time: Timestamp,
+    pub sweep_status: SweepStatus,
+    pub tx_hash: String,
+    pub token_type: TokenType,
+    pub token_ledger_canister_id: Option<Principal>,
+}
+
+impl From<StoredTransactionsV1> for StoredTransactionsV2 {
+    fn from(v1: StoredTransactionsV1) -> Self {
+        Self {
+            index: v1.index,
+            memo: v1.memo,
+            icrc1_memo: v1.icrc1_memo,
+            operation: v1.operation,
+            created_at_time: v1.created_at_time,
+            sweep_status: v1.sweep_status,
+            tx_hash: v1.tx_hash,
+            token_type: TokenType::ICP, // Default to ICP for v1 transactions
+            token_ledger_canister_id: None, // No canister ID in v1
+        }
+    }
+}
+
+// Type alias for backward compatibility
+pub type StoredTransactions = StoredTransactionsV2;
+
+impl StoredTransactionsV2 {
     pub fn new(
         index: u64,
         transaction: Transaction,
@@ -345,13 +411,80 @@ impl StoredPrincipal {
 }
 
 const MAX_VALUE_SIZE: u32 = 500;
-impl Storable for StoredTransactions {
+impl Storable for StoredTransactionsV1 {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                let error_msg = format!(
+                    "CRITICAL ERROR encoding StoredTransactionsV1 with index {}: {:?}",
+                    self.index, e
+                );
+                ic_cdk::println!("{}", error_msg);
+                panic!("Failed to encode StoredTransactionsV1: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR decoding StoredTransactionsV1: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                panic!("Failed to decode StoredTransactionsV1: {:?}", e);
+            }
+        }
+    }
+
+    const BOUND: Bound = Bound::Bounded {
+        max_size: MAX_VALUE_SIZE,
+        is_fixed_size: false,
+    };
+}
+
+impl Storable for StoredTransactionsV2 {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR encoding StoredTransactionsV2 with index {} and token type {:?}: {:?}", 
+                    self.index, self.token_type, e);
+                ic_cdk::println!("{}", error_msg);
+                panic!("Failed to encode StoredTransactionsV2: {:?}", e);
+            }
+        }
+    }
+
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
+        // First try to decode as V2 (current version)
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                // If that fails, try to decode as V1 and convert
+                let error_msg = format!("Failed to decode as StoredTransactionsV2: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                ic_cdk::println!("Attempting to decode as StoredTransactionsV1...");
+
+                match candid::decode_one::<StoredTransactionsV1>(bytes.as_ref()) {
+                    Ok(v1) => {
+                        ic_cdk::println!(
+                            "Successfully decoded as StoredTransactionsV1 with index {}, upgrading to V2",
+                            v1.index
+                        );
+                        StoredTransactionsV2::from(v1)
+                    }
+                    Err(e2) => {
+                        let critical_error = format!(
+                            "CRITICAL ERROR: Failed to decode as StoredTransactionsV1: {:?}. Original V2 error: {:?}",
+                            e2, e
+                        );
+                        ic_cdk::println!("{}", critical_error);
+                        panic!("Failed to decode StoredTransactionsV2 as either V2 or V1 format");
+                    }
+                }
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -362,11 +495,30 @@ impl Storable for StoredTransactions {
 
 impl Storable for StoredPrincipal {
     fn to_bytes(&self) -> Cow<'_, [u8]> {
-        Cow::Owned(candid::encode_one(self).unwrap()) // Assuming using Candid for serialization
+        match candid::encode_one(self) {
+            Ok(bytes) => Cow::Owned(bytes),
+            Err(e) => {
+                let error_msg = format!(
+                    "CRITICAL ERROR encoding StoredPrincipal {:?}: {:?}",
+                    self.principal, e
+                );
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more debug info
+                panic!("Failed to encode StoredPrincipal: {:?}", e);
+            }
+        }
     }
 
     fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
-        candid::decode_one(bytes.as_ref()).unwrap() // Assuming using Candid for deserialization
+        match candid::decode_one(bytes.as_ref()) {
+            Ok(decoded) => decoded,
+            Err(e) => {
+                let error_msg = format!("CRITICAL ERROR decoding StoredPrincipal: {:?}", e);
+                ic_cdk::println!("{}", error_msg);
+                // Still panic but with more debug info
+                panic!("Failed to decode StoredPrincipal: {:?}", e);
+            }
+        }
     }
 
     const BOUND: Bound = Bound::Bounded {
@@ -519,8 +671,11 @@ impl IcrcAccount {
     pub fn from_text(text: &str) -> Result<Self, String> {
         // Check if it's just a principal (default account)
         if !text.contains('-') || !text.contains('.') {
-            let owner =
-                Principal::from_text(text).map_err(|_| "Invalid principal format".to_string())?;
+            let owner = Principal::from_text(text).map_err(|e| {
+                let error_msg = format!("Invalid principal format: {}", e);
+                ic_cdk::println!("Error: {}", error_msg);
+                error_msg
+            })?;
             return Ok(Self {
                 owner,
                 subaccount: None,
@@ -530,18 +685,31 @@ impl IcrcAccount {
         // Parse non-default account format
         let parts: Vec<&str> = text.split('.').collect();
         if parts.len() != 2 {
-            return Err("Invalid account format: missing '.' separator".to_string());
+            let error_msg = format!(
+                "Invalid account format: missing '.' separator in '{}'",
+                text
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         let prefix_parts: Vec<&str> = parts[0].split('-').collect();
         if prefix_parts.len() < 2 {
-            return Err("Invalid account format: missing '-' separator".to_string());
+            let error_msg = format!(
+                "Invalid account format: missing '-' separator in '{}'",
+                parts[0]
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         // The principal is everything before the last dash
         let principal_text = prefix_parts[..prefix_parts.len() - 1].join("-");
-        let owner = Principal::from_text(principal_text)
-            .map_err(|_| "Invalid principal format".to_string())?;
+        let owner = Principal::from_text(&principal_text).map_err(|e| {
+            let error_msg = format!("Invalid principal format in '{}': {}", principal_text, e);
+            ic_cdk::println!("Error: {}", error_msg);
+            error_msg
+        })?;
 
         // The checksum is the part after the last dash
         let _checksum_text = prefix_parts[prefix_parts.len() - 1];
@@ -551,11 +719,22 @@ impl IcrcAccount {
 
         // Decode the subaccount hex
         let mut subaccount = [0; 32];
-        let decoded = hex::decode(subaccount_hex)
-            .map_err(|_| "Invalid subaccount hex encoding".to_string())?;
+        let decoded = hex::decode(subaccount_hex).map_err(|e| {
+            let error_msg = format!(
+                "Invalid subaccount hex encoding '{}': {}",
+                subaccount_hex, e
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            error_msg
+        })?;
 
         if decoded.len() > 32 {
-            return Err("Subaccount too long".to_string());
+            let error_msg = format!(
+                "Subaccount too long: {} bytes (max 32 bytes)",
+                decoded.len()
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         // Put the decoded bytes at the end of the array
@@ -575,10 +754,12 @@ impl IcrcAccount {
 
         // Verify the checksum
         if calculated_checksum != _checksum_text {
-            return Err(format!(
+            let error_msg = format!(
                 "Checksum verification failed. Expected: {}, Got: {}",
                 calculated_checksum, _checksum_text
-            ));
+            );
+            ic_cdk::println!("Error: {}", error_msg);
+            return Err(error_msg);
         }
 
         Ok(Self {

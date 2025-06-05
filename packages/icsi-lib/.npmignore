@@ -1,0 +1,29 @@
+# Source files
+*.ts
+!*.d.ts
+
+# Config files
+tsconfig.json
+.prettierrc
+.eslintrc*
+
+# Test files
+__tests__
+*.test.ts
+*.spec.ts
+
+# Git related files
+.git
+.gitignore
+
+# Development tooling
+node_modules
+coverage
+.nyc_output
+.github
+
+# IDE related files
+.vscode
+.idea
+*.swp
+*.swo
