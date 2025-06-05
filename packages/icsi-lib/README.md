@@ -5,7 +5,7 @@ Internet Computer Subaccount Indexer Library - A TypeScript library for interact
 ## Installation
 
 ```bash
-npm install icsi-lib
+pnpm install icsi-lib
 ```
 
 ## Usage

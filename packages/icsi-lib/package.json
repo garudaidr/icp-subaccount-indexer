@@ -16,8 +16,10 @@
     "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
     "test:scripts": "ts-node test/scripts/runAll.ts",
     "test:script": "ts-node",
-    "test:generate-wallet": "ts-node test/scripts/generateWallet.ts",
+    "generate:wallet": "ts-node test/scripts/generateWallet.ts",
+    "test:icp-deposit": "ts-node test/scripts/testICPDeposit.ts",
     "test:usdc-deposit": "ts-node test/scripts/testUSDCDeposit.ts",
+    "test:usdt-deposit": "ts-node test/scripts/testUSDTDeposit.ts",
     "test:webhook": "ts-node test/scripts/testWebhook.ts"
   },
   "keywords": [
@@ -40,6 +42,7 @@
     "@dfinity/identity-secp256k1": "^2.4.1",
     "@dfinity/principal": "^2.4.1",
     "bip39": "^3.1.0",
+    "buffer-crc32": "^0.2.13",
     "cross-fetch": "^4.1.0",
     "hdkey": "^2.0.1",
     "secp256k1": "^5.0.1"

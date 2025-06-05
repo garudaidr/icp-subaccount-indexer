@@ -89,61 +89,87 @@ This method forwards ICP-token that was transacted within a single tx_hash provi
 
 ## Usage
 
+### Quick Start
+
+1. **Prerequisites**
+
+   - Install [DFX](https://internetcomputer.org/docs/current/developer-docs/getting-started/install/)
+   - Install Node.js and pnpm
+   - Have ICP tokens for mainnet deployment
+
+2. **Local Development**
+
+   ```bash
+   # Deploy locally with ICP ledger
+   .maintain/deploy.sh --network local
+
+   # Run tests
+   cd packages/icsi-lib
+   pnpm install
+   pnpm run test:usdc-deposit
+   ```
+
+3. **Mainnet Deployment**
+
+   ```bash
+   # Deploy to mainnet
+   ./scripts/deploy-mainnet.sh deploy
+
+   # Upgrade existing canister
+   ./scripts/deploy-mainnet.sh upgrade
+   ```
+
 ### Deployment
 
-To deploy the ICSI canister, use the `deploy.sh` script. This script supports both local and IC network deployments.
+#### Local Development
+
+For local development with ICP ledger:
 
 ```bash
-# Deploy to local network
-.maintain/deploy.sh --network local
-
-# Deploy to IC network
-.maintain/deploy.sh --network ic
+.maintain/deploy.sh --network local [--clean]
 ```
 
-For a clean start on the local network, use the `--clean` flag:
+#### Mainnet Deployment
+
+For production deployment:
 
 ```bash
-.maintain/deploy.sh --network local --clean
+./scripts/deploy-mainnet.sh deploy  # Initial deployment
+./scripts/deploy-mainnet.sh upgrade # Upgrade existing
 ```
 
-For a complete step-by-step guide to deploying the Canister, refer to the [Deployment Guide](./docs/canister-deployment-guideline.md).
+See [Deployment Guide](./docs/canister-deployment-guideline.md) for detailed instructions.
 
 ### Testing
 
-The `test.sh` script provides a comprehensive test suite for the ICSI canister. It can be run with or without deployment:
+#### Modern Test Suite (Recommended)
+
+The TypeScript test suite in `packages/icsi-lib/test/scripts/` provides comprehensive testing:
 
 ```bash
-# Run tests with deployment
-.maintain/test.sh --network local
+cd packages/icsi-lib
+pnpm install
 
-# Run tests without deployment
-.maintain/test.sh --network local --skip-deploy
+# Generate test wallet
+pnpm run generate:wallet
+
+# Test USDC deposits
+pnpm run test:usdc-deposit
+
+# Test webhook functionality
+pnpm run test:webhook
 ```
 
-### Interactive CLI
+See [Testing Guide](./TESTING_GUIDE.md) for complete documentation.
 
-The `index.js` file provides an interactive CLI for interacting with the ICSI canister. It can be used in two modes:
+#### Legacy Test Scripts
 
-1. Interactive mode:
+Legacy scripts in `.maintain/` are deprecated but still available:
 
-   ```bash
-   node .maintain/script/index.js
-   ```
+- `.maintain/test.sh` - Basic ICP transfer tests
+- `.maintain/script/index.js` - Interactive CLI tool
 
-   This will present a menu of available operations.
-
-2. CLI mode:
-
-   ```bash
-   # Add a subaccount
-   node .maintain/script/index.js --cli add_subaccount
-
-   # Set webhook URL
-   node .maintain/script/index.js --cli set_webhook_url https://example.com/webhook
-   ```
-
-For a comprehensive explanations for the scripts, refer to the [ICSI Scripts Guideline](./.maintain/README.md).
+See [Legacy Scripts Documentation](./.maintain/DEPRECATED.md) for migration guide.
 
 ## Conclusion
 

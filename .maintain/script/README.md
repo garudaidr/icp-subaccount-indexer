@@ -7,7 +7,7 @@ This CLI tool is designed to interact with the ICSI (ICP Sub-Account Indexer) ca
 ## Prerequisites
 
 - Node.js (version 12 or higher)
-- npm (Node Package Manager)
+- pnpm (Fast, disk space efficient package manager)
 
 ## Installation
 
@@ -21,7 +21,7 @@ This CLI tool is designed to interact with the ICSI (ICP Sub-Account Indexer) ca
 2. Install dependencies:
 
    ```
-   npm install
+   pnpm install
    ```
 
 3. Set up environment variables:
@@ -106,7 +106,7 @@ To modify or extend the CLI tool:
 
 ## Troubleshooting
 
-- If you encounter "Module not found" errors, ensure all dependencies are installed by running `npm install`.
+- If you encounter "Module not found" errors, ensure all dependencies are installed by running `pnpm install`.
 - Check that your `.env` file is properly configured with the correct canister ID and custodian seed.
 - For network-related issues, verify your internet connection and the status of the Internet Computer network.
 

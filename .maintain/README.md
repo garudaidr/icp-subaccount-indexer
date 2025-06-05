@@ -1,6 +1,12 @@
 # ICSI Scripts Guideline
 
-This document serves as a comprehensive walkthrough to deploy and interact with the ICSI canister on the Internet Computer mainnet and local network.
+> **⚠️ DEPRECATION NOTICE**: This documentation describes legacy scripts. For modern testing and deployment, please refer to:
+>
+> - **Testing**: See `packages/icsi-lib/test/scripts/` and [Testing Guide](../TESTING_GUIDE.md)
+> - **Deployment**: Use `scripts/deploy-mainnet.sh` for mainnet deployments
+> - **Migration Guide**: See [DEPRECATED.md](./DEPRECATED.md)
+
+This document serves as a comprehensive walkthrough to deploy and interact with the ICSI canister on the Internet Computer mainnet and local network using legacy scripts.
 
 ## Prerequisites
 
