@@ -122,32 +122,31 @@ async function main() {
   console.log(`   Subaccount ID: ${icpDepositAddress.subaccountId}`);
 
   // Get subaccount bytes (32 bytes)
+  // The subaccountId is a hex string, convert it to bytes
+  const subaccountHex = icpDepositAddress.subaccountId;
   const subaccountBytes = new Uint8Array(32);
-  // The subaccountId is a number, we need to convert it to 32-byte array
-  const subaccountId = BigInt(icpDepositAddress.subaccountId);
-  for (let i = 0; i < 8; i++) {
-    subaccountBytes[31 - i] = Number(
-      (subaccountId >> BigInt(8 * i)) & BigInt(0xff)
-    );
+
+  // Convert hex string to bytes
+  for (let i = 0; i < subaccountHex.length; i += 2) {
+    subaccountBytes[i / 2] = parseInt(subaccountHex.substr(i, 2), 16);
   }
 
-  // Create ICP ledger actor
-  const icpActor = Actor.createActor(
-    () => {
-      return IDL.Service({
-        transfer: IDL.Func([transferArg], [transferResult], []),
-        account_balance: IDL.Func(
-          [IDL.Record({ account: IDL.Vec(IDL.Nat8) })],
-          [IDL.Record({ e8s: IDL.Nat64 })],
-          ['query']
-        ),
-      });
-    },
-    {
-      agent,
-      canisterId: icpConfig.canisterId,
-    }
-  );
+  // Create ICP ledger actor with interface factory
+  const idlFactory = () => {
+    return IDL.Service({
+      transfer: IDL.Func([transferArg], [transferResult], []),
+      account_balance: IDL.Func(
+        [IDL.Record({ account: IDL.Vec(IDL.Nat8) })],
+        [IDL.Record({ e8s: IDL.Nat64 })],
+        ['query']
+      ),
+    });
+  };
+
+  const icpActor = Actor.createActor(idlFactory, {
+    agent,
+    canisterId: icpConfig.canisterId,
+  });
 
   // Get sender's account identifier
   const senderAccountId = principalToAccountIdentifier(principal);
@@ -190,7 +189,7 @@ async function main() {
 
   // Make the transfer
   try {
-    const transferResult = (await icpActor.transfer({
+    const transferResponse = (await icpActor.transfer({
       to: Array.from(depositAccountId),
       amount: { e8s: transferAmount },
       fee: { e8s: fee },
@@ -199,10 +198,12 @@ async function main() {
       created_at_time: [],
     })) as any;
 
-    if ('Ok' in transferResult) {
-      console.log(`✅ Transfer successful! Block height: ${transferResult.Ok}`);
+    if ('Ok' in transferResponse) {
+      console.log(
+        `✅ Transfer successful! Block height: ${transferResponse.Ok}`
+      );
     } else {
-      console.log('❌ Transfer failed:', transferResult.Err);
+      console.log('❌ Transfer failed:', transferResponse.Err);
       return;
     }
   } catch (error) {

@@ -1,10 +1,8 @@
-import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
 import { generateMnemonic } from 'bip39';
-import { Secp256k1KeyIdentity } from '@dfinity/identity-secp256k1';
 import { Principal } from '@dfinity/principal';
-import { createIdentityFromSeed } from '../../src/utils/identity';
+import { getIdentityFromSeed } from '../../src';
 
 async function generateTestWallet() {
   console.log('🔑 ICP Test Wallet Generator');
@@ -16,7 +14,7 @@ async function generateTestWallet() {
   console.log(`   ${mnemonic}\n`);
 
   // Create identity from mnemonic
-  const identity = await createIdentityFromSeed(mnemonic);
+  const identity = await getIdentityFromSeed(mnemonic);
   const principal = identity.getPrincipal();
 
   console.log('🆔 Principal ID:');
@@ -24,8 +22,9 @@ async function generateTestWallet() {
 
   // Generate account identifier (for ICP transfers)
   // ICP uses account identifiers, not principals for transfers
+  const publicKeyDer = identity.getPublicKey().toDer();
   const accountId = Principal.selfAuthenticating(
-    identity.getPublicKey().toDer()
+    new Uint8Array(publicKeyDer)
   ).toText();
 
   console.log('💳 Account Identifier:');
@@ -72,7 +71,7 @@ WEBHOOK_TEST_PORT=3000
     mnemonic,
     principal: principal.toText(),
     accountId,
-    publicKey: identity.getPublicKey().toDer().toString('hex'),
+    publicKey: Buffer.from(identity.getPublicKey().toDer()).toString('hex'),
     createdAt: new Date().toISOString(),
     warning: 'FOR TESTING ONLY - DO NOT USE FOR REAL FUNDS',
   };

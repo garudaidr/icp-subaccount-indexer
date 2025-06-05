@@ -93,43 +93,47 @@ async function main() {
   );
   console.log(`   Subaccount ID: ${ckusdtDepositAddress.subaccountId}`);
 
-  // Convert deposit address to principal and subaccount
-  const depositPrincipal = Principal.fromText(
-    ckusdtDepositAddress.depositAddress
-  );
-
   // Get subaccount bytes (32 bytes)
+  // The subaccountId is a hex string, convert it to bytes
+  const subaccountHex = ckusdtDepositAddress.subaccountId;
   const subaccountBytes = new Uint8Array(32);
-  // The subaccountId is a number, we need to convert it to 32-byte array
-  const subaccountId = BigInt(ckusdtDepositAddress.subaccountId);
-  for (let i = 0; i < 8; i++) {
-    subaccountBytes[31 - i] = Number(
-      (subaccountId >> BigInt(8 * i)) & BigInt(0xff)
+
+  // Check if subaccountId is the deposit address (account identifier)
+  // or hex string. For ICRC tokens, it should be a hex string
+  if (subaccountHex.includes('-')) {
+    // This is an account identifier, not a hex string
+    // We'll use empty subaccount for now
+    console.log(
+      'Warning: Subaccount ID is an account identifier, using default subaccount'
     );
+  } else {
+    // Convert hex string to bytes
+    for (let i = 0; i < Math.min(subaccountHex.length, 64); i += 2) {
+      subaccountBytes[i / 2] = parseInt(subaccountHex.substr(i, 2), 16);
+    }
   }
 
-  // Create CKUSDT actor
-  const ckusdtActor = Actor.createActor(
-    () => {
-      return IDL.Service({
-        icrc1_transfer: IDL.Func([transferArg], [transferResult], []),
-        icrc1_balance_of: IDL.Func(
-          [
-            IDL.Record({
-              owner: IDL.Principal,
-              subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
-            }),
-          ],
-          [IDL.Nat],
-          ['query']
-        ),
-      });
-    },
-    {
-      agent,
-      canisterId: ckusdtConfig.canisterId,
-    }
-  );
+  // Create CKUSDT actor with interface factory
+  const idlFactory = () => {
+    return IDL.Service({
+      icrc1_transfer: IDL.Func([transferArg], [transferResult], []),
+      icrc1_balance_of: IDL.Func(
+        [
+          IDL.Record({
+            owner: IDL.Principal,
+            subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
+          }),
+        ],
+        [IDL.Nat],
+        ['query']
+      ),
+    });
+  };
+
+  const ckusdtActor = Actor.createActor(idlFactory, {
+    agent,
+    canisterId: ckusdtConfig.canisterId,
+  });
 
   // Check sender's CKUSDT balance
   console.log('\n💸 Checking sender CKUSDT balance...');
@@ -164,7 +168,7 @@ async function main() {
 
   // Make the transfer
   try {
-    const transferResult = (await ckusdtActor.icrc1_transfer({
+    const transferResponse = (await ckusdtActor.icrc1_transfer({
       to: {
         owner: Principal.fromText(userVaultCanisterId),
         subaccount: [subaccountBytes],
@@ -176,12 +180,14 @@ async function main() {
       created_at_time: [],
     })) as any;
 
-    if ('Ok' in transferResult) {
-      console.log(`✅ Transfer successful! Block height: ${transferResult.Ok}`);
+    if ('Ok' in transferResponse) {
+      console.log(
+        `✅ Transfer successful! Block height: ${transferResponse.Ok}`
+      );
     } else {
-      console.log('❌ Transfer failed:', transferResult.Err);
-      if ('InsufficientFunds' in transferResult.Err) {
-        const balance = transferResult.Err.InsufficientFunds.balance;
+      console.log('❌ Transfer failed:', transferResponse.Err);
+      if ('InsufficientFunds' in transferResponse.Err) {
+        const balance = transferResponse.Err.InsufficientFunds.balance;
         console.log(
           `   Your balance: ${Number(balance) / Math.pow(10, ckusdtConfig.decimals)} CKUSDT`
         );
