@@ -1,246 +1,188 @@
-# ICSI Scripts Guideline
+# ICSI Scripts
 
-> **⚠️ DEPRECATION NOTICE**: This documentation describes legacy scripts. For modern testing and deployment, please refer to:
->
-> - **Testing**: See `packages/icsi-lib/test/scripts/` and [Testing Guide](../TESTING_GUIDE.md)
-> - **Deployment**: Use `scripts/deploy-mainnet.sh` for mainnet deployments
-> - **Migration Guide**: See [DEPRECATED.md](./DEPRECATED.md)
+This directory contains scripts for managing and testing the ICP Subaccount Indexer (ICSI) canister.
 
-This document serves as a comprehensive walkthrough to deploy and interact with the ICSI canister on the Internet Computer mainnet and local network using legacy scripts.
+## Scripts
 
-## Prerequisites
+### 1. deploy-mainnet.sh
 
-1. **Internet Identity (II)**: Acquire your Internet Identity via [Internet Identity](https://identity.ic0.app/). It's recommended to use a password manager like Bitwarden with Chrome extension for passkey activation.
+Deploy or upgrade the ICSI canister on the Internet Computer mainnet.
 
-2. **NNS Login**: Access the [NNS Dapp](https://nns.ic0.app/) and log in.
-
-3. **ICP Tokens**: Top up at least 2.0 ICP tokens to your NNS-II address. Navigate to `Tokens > Internet Computer` in the NNS Dapp.
-
-4. **DFX CLI**: Install the DFINITY Canister SDK (DFX) on your system. Follow the guide at [Installing tools | Internet Computer](https://internetcomputer.org/docs/current/developer-docs/getting-started/install/).
-
-5. **Git and Rust**: Ensure you have Git and Rust installed on your system.
-
-## Deployment Process
-
-### 1. Create a New Identity
-
-Create a new identity locally using `dfx`:
+**Usage:**
 
 ```bash
-dfx identity new custodian_name
+# Deploy a new canister
+./scripts/deploy-mainnet.sh deploy
+
+# Upgrade an existing canister
+./scripts/deploy-mainnet.sh upgrade
 ```
 
-Verify and manage identities:
+**Features:**
+
+- Automatically creates a custodian identity if it doesn't exist
+- Builds the canister before deployment
+- Saves deployment information to `deployment-info.json`
+- Supports both initial deployment and upgrades
+
+### 2. Test Scripts (in packages/icsi-lib/test/scripts/)
+
+#### generateWallet.ts
+
+Generates a new test wallet with mnemonic and addresses.
+
+**Usage:**
 
 ```bash
-dfx identity whoami
-dfx identity list
-dfx identity use some_idname
+cd packages/icsi-lib
+pnpm run generate:wallet
 ```
 
-Export the principal address to an environment variable:
+**Features:**
+
+- Generates a new 12-word mnemonic
+- Creates principal ID and account identifier
+- Saves wallet info to `.env.test` and `test-wallet-info.json`
+
+#### testICPDeposit.ts
+
+Tests ICP deposits to the ICSI canister with balance validation.
+
+**Usage:**
 
 ```bash
-export CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
+cd packages/icsi-lib
+pnpm run test:icp-deposit
 ```
 
-### 2. Create a New Canister via NNS Dashboard
+**Features:**
 
-1. Create a new canister through the NNS Dashboard.
-2. Add cycles to the canister.
-3. Add the controller using the `custodian_principal` obtained earlier.
+- Validates sender has sufficient ICP balance (0.1 ICP + fee)
+- Sends 0.1 ICP to a deposit address
+- Monitors the transaction indexing
+- Displays balance and transaction details
 
-### 3. Clone the Project
+#### testUSDCDeposit.ts
+
+Tests USDC (CKUSDC) deposits to the ICSI canister.
+
+**Usage:**
 
 ```bash
-git clone git@github.com:garudaidr/icp-subaccount-indexer-prototype.git
-cd icp-subaccount-indexer-prototype
+cd packages/icsi-lib
+pnpm run test:usdc-deposit
 ```
 
-### 4. Configure `canister_ids.json`
+**Features:**
 
-Create or modify `canister_ids.json` in the project root:
+- Validates sender has sufficient CKUSDC balance
+- Sends 0.1 CKUSDC to a deposit address
+- Monitors the transaction indexing
+- Displays balance and transaction details
 
-```json
-{
-  "icp_subaccount_indexer": {
-    "ic": "upy4y-myaaa-aaaaal-qjbxa-cai"
-  }
-}
-```
+#### testUSDTDeposit.ts
 
-Replace the canister ID with the one from your NNS dashboard.
+Tests USDT (CKUSDT) deposits to the ICSI canister.
 
-### 5. Prepare for Deployment
-
-Sync the local wallet to the mainnet:
+**Usage:**
 
 ```bash
-dfx identity --network ic deploy-wallet <canister_id>
+cd packages/icsi-lib
+pnpm run test:usdt-deposit
 ```
 
-Convert ICP to cycles:
+**Features:**
+
+- Validates sender has sufficient CKUSDT balance
+- Sends 0.1 CKUSDT to a deposit address
+- Monitors the transaction indexing
+- Displays balance and transaction details
+
+#### testWebhook.ts
+
+Tests webhook functionality for deposit notifications.
+
+**Usage:**
 
 ```bash
-dfx cycles convert 0.3 --network ic
+cd packages/icsi-lib
+pnpm run test:webhook
+
+# To keep the webhook URL configured after stopping:
+pnpm run test:webhook -- --keep-webhook
 ```
 
-### 6. Deploy the Canister
+**Features:**
 
-Use the `deploy.sh` script for deployment:
+- Creates a local Express server to receive webhooks
+- Uses ngrok to expose the local server to the internet
+- Automatically configures the webhook URL in the canister
+- Displays all received webhook notifications
+- Option to keep or reset the webhook URL on exit
 
-```bash
-# Deploy to mainnet (IC network)
-./deploy.sh --network ic
+## Setup
 
-# Deploy to local network
-./deploy.sh --network local
-
-# For a clean local deployment
-./deploy.sh --network local --clean
-```
-
-Alternatively, you can use the dfx command directly:
-
-```bash
-dfx deploy icp_subaccount_indexer --network ic --no-wallet --argument "(variant { Mainnet }, 15 : nat64, 10 : nat32, \"ryjl3-tyaaa-aaaaa-aaaba-cai\", \"$CUSTODIAN_PRINCIPAL\")"
-```
-
-Note: If you encounter issues with the `wasm32-unknown-unknown` target, install it:
-
-```bash
-rustup target add wasm32-unknown-unknown
-```
-
-### 7. Post-Deployment Setup
-
-Export the Canister ID:
-
-```bash
-export CANISTER_ID=<your_canister_id>
-```
-
-Initialize the poller:
-
-```bash
-dfx canister --network ic call $CANISTER_ID set_interval '(1)'
-```
-
-Set the starting block to avoid querying from 0:
-
-```bash
-dfx canister --network ic call $CANISTER_ID set_next_block '(12110174)'
-```
-
-Verify the current block:
-
-```bash
-dfx canister --network ic call $CANISTER_ID get_next_block '()'
-```
-
-## Testing and Interaction
-
-### Using `test.sh`
-
-The `test.sh` script provides a comprehensive test suite:
-
-```bash
-# Run tests with deployment
-./test.sh --network local
-
-# Run tests without deployment
-./test.sh --network local --skip-deploy
-```
-
-### Using `index.js`
-
-The `index.js` file offers an interactive CLI for canister interaction:
-
-1. Interactive mode:
+1. Copy the environment template:
 
    ```bash
-   node index.js
+   cp .env.template .env
    ```
 
-2. CLI mode:
+2. Fill in your values in `.env`:
+
+   - `SEED_PHRASE`: Your 12-word mnemonic seed phrase
+   - `USER_VAULT_CANISTER_ID`: Your ICSI canister ID
+
+3. Install dependencies:
+   ```bash
+   cd packages/icsi-lib
+   pnpm install
+   ```
+
+## Testing Workflow
+
+1. **Deploy/Upgrade Canister:**
 
    ```bash
-   # Add a subaccount
-   node index.js --cli add_subaccount
-
-   # Set webhook URL
-   node index.js --cli set_webhook_url https://example.com/webhook
+   ./scripts/deploy-mainnet.sh deploy
    ```
 
-### Manual CLI Testing
+2. **Start Webhook Listener:**
 
-Test methods using the format:
+   ```bash
+   cd packages/icsi-lib
+   pnpm run test:webhook
+   ```
 
-```bash
-dfx canister --network ic call $CANISTER_ID <method_name> '<argument>'
-```
+3. **In another terminal, send USDC:**
 
-Examples:
+   ```bash
+   cd packages/icsi-lib
+   pnpm run test:usdc-deposit
+   ```
 
-```bash
-# Check canister status
-dfx canister --network ic call $CANISTER_ID canister_status '()'
+4. **Monitor the webhook terminal** to see the deposit notification
 
-# Sweep funds
-dfx canister --network ic call $CANISTER_ID sweep '()'
+## Important Notes
 
-# Check balance
-dfx ledger --network ic balance
+### Balance Validation
 
-# Transfer out (deduct 0.0001 for fee)
-dfx ledger transfer --network ic --amount 0.5098 --memo 0 5c8aea1a5c6b871125c5b876688f2c28483a37314717750f2175156742fd08d8
-```
+All deposit test scripts include balance validation to prevent common errors:
 
-## Identity Management
+- **ICP**: Requires at least 0.1 ICP + 0.0001 ICP fee
+- **CKUSDC**: Requires at least 0.1 CKUSDC + fee
+- **CKUSDT**: Requires at least 0.1 CKUSDT + fee
 
-### Exporting Identity
+The scripts will check your balance before attempting transfers and provide clear error messages if insufficient funds are detected.
 
-```bash
-dfx identity export <identity_name>
-```
+### Common Issues
 
-### Importing Identity
+1. **Insufficient Balance**: The most common error. Scripts now validate balances before transfers.
+2. **Wrong Wallet**: Ensure you're using the correct seed phrase in your `.env` file.
+3. **Network Issues**: Transactions typically take 15-30 seconds to be indexed.
 
-```bash
-dfx identity import <identity_name> <pem_file>
-```
+### Security
 
-List and switch identities:
-
-```bash
-dfx identity list
-dfx identity use <some_id>
-```
-
-## Troubleshooting
-
-If the initial deployment doesn't set the principal ID or ledger ID correctly, modify the `post_upgrade()` function in your Rust code:
-
-```rust
-async fn post_upgrade() {
-    let custodian_principal = "".to_string(); // fill this ""
-    let custodian_principal = Principal::from_text(&custodian_principal).expect("Invalid custodian principal");
-    CUSTODIAN_PRINCIPAL.with(|principal_ref| {
-        let stored_principal = StoredPrincipal::new(custodian_principal);
-        let _ = principal_ref.borrow_mut().set(stored_principal);
-    });
-
-    let ledger_principal = "ryjl3-tyaaa-aaaaa-aaaba-cai".to_string();
-    let principal = Principal::from_text(&ledger_principal).expect("Invalid ledger principal");
-    PRINCIPAL.with(|principal_ref| {
-        let stored_principal = StoredPrincipal::new(principal);
-        let _ = principal_ref.borrow_mut().set(stored_principal);
-    });
-
-    ic_cdk::println!("running post_upgrade...");
-    reconstruct_subaccounts();
-    reconstruct_network();
-}
-```
-
-This comprehensive guide should help you deploy, test, and interact with your ICSI canister effectively.
+- Always keep your seed phrase secure and never commit it to version control
+- Use test wallets only - never use production wallets for testing
+- The webhook server requires ngrok to be accessible from the IC
