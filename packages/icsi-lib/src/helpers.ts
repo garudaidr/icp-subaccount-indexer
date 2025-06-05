@@ -7,9 +7,7 @@ import {
   getUserVaultTransactions,
   getNonce,
 } from './query';
-import {
-  addSubaccountForToken,
-} from './update';
+import { addSubaccountForToken } from './update';
 
 export interface TokenConfig {
   canisterId: string;
@@ -32,13 +30,15 @@ export function getTokenConfig(tokenType: TokenType): TokenConfig {
     };
   } else if ('CKUSDC' in tokenType) {
     return {
-      canisterId: process.env.CKUSDC_CANISTER_ID || 'xevnm-gaaaa-aaaar-qafnq-cai',
+      canisterId:
+        process.env.CKUSDC_CANISTER_ID || 'xevnm-gaaaa-aaaar-qafnq-cai',
       symbol: 'CKUSDC',
       decimals: 6,
     };
   } else if ('CKUSDT' in tokenType) {
     return {
-      canisterId: process.env.CKUSDT_CANISTER_ID || 'cngnf-vqaaa-aaaar-qag4q-cai',
+      canisterId:
+        process.env.CKUSDT_CANISTER_ID || 'cngnf-vqaaa-aaaar-qag4q-cai',
       symbol: 'CKUSDT',
       decimals: 6,
     };
@@ -58,7 +58,7 @@ export async function getDepositAddresses(
   canisterId: string
 ): Promise<DepositAddress[]> {
   const addresses: DepositAddress[] = [];
-  
+
   // Get registered tokens
   const tokensResult = await getRegisteredTokens(agent, canisterId);
   if ('Err' in tokensResult) {
@@ -66,13 +66,13 @@ export async function getDepositAddresses(
   }
 
   const tokens = tokensResult.Ok;
-  
+
   for (const [tokenType, tokenName] of tokens) {
     try {
       // Get nonce for subaccount creation
       const nonceResult = await getNonce(agent, canisterId);
       let index = 0;
-      
+
       if ('Ok' in nonceResult) {
         index = nonceResult.Ok;
       }
@@ -83,7 +83,12 @@ export async function getDepositAddresses(
       });
 
       // Get subaccount ID
-      const subaccountIdResult = await getSubaccountId(agent, canisterId, index, tokenType);
+      const subaccountIdResult = await getSubaccountId(
+        agent,
+        canisterId,
+        index,
+        tokenType
+      );
       if ('Err' in subaccountIdResult) {
         continue;
       }
@@ -120,25 +125,32 @@ export async function getBalances(
   canisterId: string
 ): Promise<TokenBalance[]> {
   const balances: TokenBalance[] = [];
-  
+
   // Get all transactions
-  const transactionsResult = await getUserVaultTransactions(agent, canisterId, BigInt(0));
+  const transactionsResult = await getUserVaultTransactions(
+    agent,
+    canisterId,
+    BigInt(0)
+  );
   if ('Err' in transactionsResult) {
     throw new Error(`Failed to get transactions: ${transactionsResult.Err}`);
   }
 
   const transactions = transactionsResult.Ok;
-  
+
   // Group by token type and calculate balances
-  const balanceMap = new Map<string, { tokenType: TokenType; tokenName: string; amount: bigint }>();
-  
+  const balanceMap = new Map<
+    string,
+    { tokenType: TokenType; tokenName: string; amount: bigint }
+  >();
+
   for (const tx of transactions) {
     const tokenKey = JSON.stringify(tx.token_type);
-    
+
     // Only count non-swept transactions
     if (tx.sweep_status && 'NotSwept' in tx.sweep_status) {
       let amount = BigInt(0);
-      
+
       if (tx.operation && tx.operation[0]) {
         if ('Mint' in tx.operation[0]) {
           amount = tx.operation[0].Mint.amount.e8s;
@@ -146,11 +158,11 @@ export async function getBalances(
           amount = tx.operation[0].Transfer.amount.e8s;
         }
       }
-      
-      const current = balanceMap.get(tokenKey) || { 
-        tokenType: tx.token_type, 
-        tokenName: '', 
-        amount: BigInt(0) 
+
+      const current = balanceMap.get(tokenKey) || {
+        tokenType: tx.token_type,
+        tokenName: '',
+        amount: BigInt(0),
       };
       current.amount += amount;
       balanceMap.set(tokenKey, current);
@@ -163,7 +175,7 @@ export async function getBalances(
     for (const [tokenType, tokenName] of tokensResult.Ok) {
       const tokenKey = JSON.stringify(tokenType);
       const balance = balanceMap.get(tokenKey);
-      
+
       if (balance && balance.amount > 0) {
         const config = getTokenConfig(tokenType);
         balances.push({
@@ -184,25 +196,29 @@ export async function getTransactionsByTokenType(
   canisterId: string,
   tokenType: TokenType
 ): Promise<any[]> {
-  const transactionsResult = await getUserVaultTransactions(agent, canisterId, BigInt(0));
+  const transactionsResult = await getUserVaultTransactions(
+    agent,
+    canisterId,
+    BigInt(0)
+  );
   if ('Err' in transactionsResult) {
     throw new Error(`Failed to get transactions: ${transactionsResult.Err}`);
   }
 
   const allTransactions = transactionsResult.Ok;
-  
+
   // Filter by token type
   const tokenKey = JSON.stringify(tokenType);
-  const filteredTransactions = allTransactions.filter(tx => 
-    JSON.stringify(tx.token_type) === tokenKey
+  const filteredTransactions = allTransactions.filter(
+    (tx) => JSON.stringify(tx.token_type) === tokenKey
   );
 
   // Map to a more user-friendly format
-  return filteredTransactions.map(tx => {
+  return filteredTransactions.map((tx) => {
     let amount = BigInt(0);
     let from = '';
     let to = '';
-    
+
     if (tx.operation && tx.operation[0]) {
       if ('Mint' in tx.operation[0]) {
         amount = tx.operation[0].Mint.amount.e8s;

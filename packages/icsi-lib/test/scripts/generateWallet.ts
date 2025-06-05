@@ -18,14 +18,16 @@ async function generateTestWallet() {
   // Create identity from mnemonic
   const identity = await createIdentityFromSeed(mnemonic);
   const principal = identity.getPrincipal();
-  
+
   console.log('🆔 Principal ID:');
   console.log(`   ${principal.toText()}\n`);
 
   // Generate account identifier (for ICP transfers)
   // ICP uses account identifiers, not principals for transfers
-  const accountId = Principal.selfAuthenticating(identity.getPublicKey().toDer()).toText();
-  
+  const accountId = Principal.selfAuthenticating(
+    identity.getPublicKey().toDer()
+  ).toText();
+
   console.log('💳 Account Identifier:');
   console.log(`   ${accountId}\n`);
 
@@ -72,7 +74,7 @@ WEBHOOK_TEST_PORT=3000
     accountId,
     publicKey: identity.getPublicKey().toDer().toString('hex'),
     createdAt: new Date().toISOString(),
-    warning: 'FOR TESTING ONLY - DO NOT USE FOR REAL FUNDS'
+    warning: 'FOR TESTING ONLY - DO NOT USE FOR REAL FUNDS',
   };
 
   const walletInfoPath = path.join(__dirname, '../../test-wallet-info.json');

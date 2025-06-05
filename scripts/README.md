@@ -9,6 +9,7 @@ This directory contains scripts for managing and testing the ICP Subaccount Inde
 Deploy or upgrade the ICSI canister on the Internet Computer mainnet.
 
 **Usage:**
+
 ```bash
 # Deploy a new canister
 ./scripts/deploy-mainnet.sh deploy
@@ -18,6 +19,7 @@ Deploy or upgrade the ICSI canister on the Internet Computer mainnet.
 ```
 
 **Features:**
+
 - Automatically creates a custodian identity if it doesn't exist
 - Builds the canister before deployment
 - Saves deployment information to `deployment-info.json`
@@ -30,12 +32,14 @@ Deploy or upgrade the ICSI canister on the Internet Computer mainnet.
 Tests USDC (CKUSDC) deposits to the ICSI canister.
 
 **Usage:**
+
 ```bash
 cd packages/icsi-lib
 npm run test:usdc-deposit
 ```
 
 **Features:**
+
 - Uses mnemonic seed from `.env` file
 - Sends 0.1 CKUSDC to a deposit address
 - Monitors the transaction indexing
@@ -46,6 +50,7 @@ npm run test:usdc-deposit
 Tests webhook functionality for deposit notifications.
 
 **Usage:**
+
 ```bash
 cd packages/icsi-lib
 npm run test:webhook
@@ -55,6 +60,7 @@ npm run test:webhook -- --keep-webhook
 ```
 
 **Features:**
+
 - Creates a local Express server to receive webhooks
 - Uses ngrok to expose the local server to the internet
 - Automatically configures the webhook URL in the canister
@@ -64,11 +70,13 @@ npm run test:webhook -- --keep-webhook
 ## Setup
 
 1. Copy the environment template:
+
    ```bash
    cp .env.template .env
    ```
 
 2. Fill in your values in `.env`:
+
    - `SEED_PHRASE`: Your 12-word mnemonic seed phrase
    - `USER_VAULT_CANISTER_ID`: Your ICSI canister ID
 
@@ -81,17 +89,20 @@ npm run test:webhook -- --keep-webhook
 ## Testing Workflow
 
 1. **Deploy/Upgrade Canister:**
+
    ```bash
    ./scripts/deploy-mainnet.sh deploy
    ```
 
 2. **Start Webhook Listener:**
+
    ```bash
    cd packages/icsi-lib
    npm run test:webhook
    ```
 
 3. **In another terminal, send USDC:**
+
    ```bash
    cd packages/icsi-lib
    npm run test:usdc-deposit

@@ -2,11 +2,11 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as express from 'express';
 import * as ngrok from 'ngrok';
-import { 
+import {
   createHostAgentAndIdentityFromSeed,
   getIdentityFromSeed,
   setWebhookUrl,
-  getWebhookUrl
+  getWebhookUrl,
 } from '../../src';
 
 interface WebhookPayload {
@@ -28,7 +28,9 @@ async function main() {
   const port = process.env.WEBHOOK_TEST_PORT || 3000;
 
   if (!seedPhrase || !userVaultCanisterId) {
-    throw new Error('Missing required environment variables: SEED_PHRASE or USER_VAULT_CANISTER_ID');
+    throw new Error(
+      'Missing required environment variables: SEED_PHRASE or USER_VAULT_CANISTER_ID'
+    );
   }
 
   console.log('🪝 ICSI Webhook Testing Tool');
@@ -45,12 +47,12 @@ async function main() {
     const payload = req.body;
     console.log('\n📨 Webhook received:');
     console.log(JSON.stringify(payload, null, 2));
-    
+
     receivedWebhooks.push(payload);
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       status: 'received',
-      message: 'Webhook processed successfully'
+      message: 'Webhook processed successfully',
     });
   });
 
@@ -59,7 +61,7 @@ async function main() {
     res.json({
       status: 'running',
       webhooksReceived: receivedWebhooks.length,
-      webhooks: receivedWebhooks
+      webhooks: receivedWebhooks,
     });
   });
 
@@ -73,7 +75,7 @@ async function main() {
     console.log('\n🚇 Creating ngrok tunnel...');
     const ngrokUrl = await ngrok.connect({
       addr: port,
-      region: 'us'
+      region: 'us',
     });
     console.log(`✅ Ngrok tunnel created: ${ngrokUrl}`);
 
@@ -105,7 +107,7 @@ async function main() {
     console.log(`Public URL: ${ngrokUrl}`);
     console.log(`Webhook endpoint: ${webhookUrl}`);
     console.log(`Status endpoint: ${ngrokUrl}/status`);
-    
+
     console.log('\n⏳ Waiting for webhooks...');
     console.log('💡 To trigger a webhook:');
     console.log('   1. Send USDC to your ICSI deposit address');
@@ -116,7 +118,7 @@ async function main() {
     // Keep server running
     process.on('SIGINT', async () => {
       console.log('\n\n🛑 Shutting down...');
-      
+
       // Reset webhook URL (optional)
       const resetWebhook = process.argv[2] !== '--keep-webhook';
       if (resetWebhook) {
@@ -125,11 +127,15 @@ async function main() {
         console.log('✅ Webhook URL reset');
       }
 
-      console.log(`\n📊 Summary: Received ${receivedWebhooks.length} webhook(s)`);
+      console.log(
+        `\n📊 Summary: Received ${receivedWebhooks.length} webhook(s)`
+      );
       if (receivedWebhooks.length > 0) {
         console.log('Webhooks:');
         receivedWebhooks.forEach((webhook, index) => {
-          console.log(`\n${index + 1}. ${webhook.eventType} - ${webhook.tokenType}`);
+          console.log(
+            `\n${index + 1}. ${webhook.eventType} - ${webhook.tokenType}`
+          );
           console.log(`   Amount: ${webhook.amount}`);
           console.log(`   Block: ${webhook.blockIndex}`);
         });
@@ -140,7 +146,6 @@ async function main() {
       server.close();
       process.exit(0);
     });
-
   } catch (error) {
     console.error('❌ Error:', error);
     server.close();
