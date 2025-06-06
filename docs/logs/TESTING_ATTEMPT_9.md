@@ -28,6 +28,7 @@ This test validates the complete ckUSDC deposit flow on the mainnet canister wit
 ### Initial Balance Check
 
 **ckUSDC Balance Verification:**
+
 ```bash
 dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_balance_of \
   '(record {owner = principal "gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe"; subaccount = null})'
@@ -40,11 +41,13 @@ dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_balance_of \
 ### Step 1: Verify Webhook Infrastructure
 
 **Command:**
+
 ```bash
 lsof -i :3000
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
 node    37346 theo   19u  IPv6 0xeb5eb0b106cedc7d      0t0  TCP *:hbci (LISTEN)
@@ -55,12 +58,14 @@ node    37346 theo   19u  IPv6 0xeb5eb0b106cedc7d      0t0  TCP *:hbci (LISTEN)
 ### Step 2: Update Webhook URL
 
 **Command:**
+
 ```bash
 dfx canister --network ic call icp_subaccount_indexer set_webhook_url \
   '("https://b6a5-14-161-37-208.ngrok-free.app/webhook")'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = "https://b6a5-14-161-37-208.ngrok-free.app/webhook" })
 ```
@@ -68,11 +73,13 @@ dfx canister --network ic call icp_subaccount_indexer set_webhook_url \
 ### Step 3: Optimize Polling Interval for Testing
 
 **Command:**
+
 ```bash
 dfx canister --network ic call icp_subaccount_indexer set_interval '(30)'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = 30 : nat64 })
 ```
@@ -82,11 +89,13 @@ dfx canister --network ic call icp_subaccount_indexer set_interval '(30)'
 ### Step 4: Generate ckUSDC Subaccount
 
 **Command:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai add_subaccount '(opt variant { CKUSDC })'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = "y3hne-ryaaa-aaaag-aucea-cai-upfpa6y.4" })
 ```
@@ -94,6 +103,7 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai add_subaccount '(opt 
 **Generated ICRC-1 Subaccount:** `y3hne-ryaaa-aaaag-aucea-cai-upfpa6y.4`
 
 **Nonce Retrieved:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_nonce '()'
 # Result: (variant { Ok = 5 : nat32 })
@@ -102,6 +112,7 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_nonce '()'
 ### Step 5: Execute ckUSDC Deposit
 
 **Initial Transfer Attempt (Incorrect Fee):**
+
 ```bash
 dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(record {
   to = record {
@@ -119,6 +130,7 @@ dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(reco
 **Result:** ❌ FAILED - BadFee error (expected 10,000 not 10)
 
 **Corrected Transfer:**
+
 ```bash
 dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(record {
   to = record {
@@ -134,11 +146,13 @@ dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(reco
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = 366_841 : nat })
 ```
 
 **Transaction Details:**
+
 - **Amount:** 0.1 ckUSDC (100,000 micro-units)
 - **Fee:** 0.01 ckUSDC (10,000 micro-units)
 - **Block Height:** 366,841
@@ -150,18 +164,21 @@ dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(reco
 **Issue Discovered:** The canister needed to be upgraded to support ckUSDC processing.
 
 **Build Process:**
+
 ```bash
 pnpm run generate:did:backend
 # Successfully generated updated Candid interface
 ```
 
 **Upgrade Command:**
+
 ```bash
 dfx canister --network ic install icp_subaccount_indexer --mode upgrade \
   --argument '(variant { Mainnet }, 500 : nat64, 10 : nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe")'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 Upgraded code for canister icp_subaccount_indexer, with canister ID y3hne-ryaaa-aaaag-aucea-cai
 ```
@@ -169,12 +186,14 @@ Upgraded code for canister icp_subaccount_indexer, with canister ID y3hne-ryaaa-
 ### Step 7: Configure ckUSDC Block Processing
 
 **Command:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai set_token_next_block_update \
   '(variant { CKUSDC }, 366840 : nat64)'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = 366_840 : nat64 })
 ```
@@ -186,12 +205,14 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai set_token_next_block_
 **Wait Period:** 45 seconds for block processing
 
 **Transaction Count Check:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_transactions_count '()'
 # Result: (variant { Ok = 3 : nat32 })
 ```
 
 **Transaction List Check:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai list_transactions '(opt 10)'
 ```
@@ -199,6 +220,7 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai list_transactions '(o
 **Current Results:** Only ICP transactions detected (3 total), ckUSDC transaction still processing.
 
 **ckUSDC Processing Status:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_token_next_block_query \
   '(variant { CKUSDC })' --query
@@ -208,11 +230,13 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_token_next_block_
 ### Step 9: Restore Production Settings
 
 **Command:**
+
 ```bash
 dfx canister --network ic call icp_subaccount_indexer set_interval '(500)'
 ```
 
 **Result:** ✅ SUCCESS
+
 ```
 (variant { Ok = 500 : nat64 })
 ```
@@ -244,11 +268,13 @@ dfx canister --network ic call icp_subaccount_indexer set_interval '(500)'
 ## Registered Token Configuration
 
 **Verified Token Registration:**
+
 ```bash
 dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai get_registered_tokens '()' --query
 ```
 
 **Results:**
+
 ```
 (variant {
   Ok = vec {
@@ -325,11 +351,13 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai set_token_next_block_
 **Current State:** ❌ **NOT DETECTED**
 
 **Final Results After Extended Testing:**
+
 - **Transaction Count:** Still 3 (only ICP transactions)
 - **ckUSDC Processing:** Advanced to block 366,850
 - **Detection Status:** ckUSDC transaction at block 366,841 not detected
 
 **Possible Issues Identified:**
+
 1. **Block Processing Logic:** The canister may not be properly querying ckUSDC ledger blocks
 2. **Transaction Filtering:** The deposit detection logic may not be correctly identifying transfers to canister subaccounts
 3. **ICRC-1 Integration:** There may be differences in how ICRC-1 blocks are structured vs ICP blocks
@@ -338,6 +366,7 @@ dfx canister --network ic call y3hne-ryaaa-aaaag-aucea-cai set_token_next_block_
 ### Expected Webhook Payload
 
 When the transaction is detected, the webhook should receive:
+
 ```
 POST https://b6a5-14-161-37-208.ngrok-free.app/webhook?tx_hash=<CKUSDC_TX_HASH>
 ```
@@ -379,6 +408,7 @@ POST https://b6a5-14-161-37-208.ngrok-free.app/webhook?tx_hash=<CKUSDC_TX_HASH>
 This test demonstrates mixed results for ckUSDC multi-token support:
 
 ### ✅ **Successful Components:**
+
 - **ckUSDC transfer execution** works correctly with proper fee structure (0.01 ckUSDC)
 - **ICRC-1 subaccount generation** produces valid textual format addresses
 - **Canister upgrade** successfully deployed multi-token capabilities
@@ -386,12 +416,15 @@ This test demonstrates mixed results for ckUSDC multi-token support:
 - **Token registration** properly configured for all three token types
 
 ### ❌ **Failed Components:**
+
 - **Transaction detection** - ckUSDC transaction not indexed despite processing blocks 366,840-366,850
 - **Block processing** - canister advanced through target block but didn't capture the transaction
 - **Webhook notification** - no webhook triggered due to failed detection
 
 ### 🔍 **Technical Analysis:**
+
 The test reveals that while the infrastructure for multi-token support is in place, there may be issues with:
+
 1. **ICRC-1 block querying logic** - different structure than ICP blocks
 2. **Transaction filtering** - subaccount matching for ICRC-1 format
 3. **Processing implementation** - the detection logic may need debugging

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm run generate && pnpm run build:lib",
+    "build:canister": "pnpm run generate",
     "build:lib": "pnpm --filter @jagad/icsi build",
     "prebuild": "dfx generate",
     "start": "webpack serve --mode development --env development",
@@ -18,7 +19,7 @@
     "test:backend": "pnpm run test:happy_path && pnpm run test:sad_path",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",
-    "test": "pnpm run test:backend && pnpm --filter @jagad/icsi test",
+    "test": "pnpm run test:backend",
     "clean": "pnpm -r clean",
     "install:all": "pnpm install",
     "lib:generate:wallet": "pnpm --filter @jagad/icsi generate:wallet",

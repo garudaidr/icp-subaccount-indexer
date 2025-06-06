@@ -45,11 +45,11 @@ pnpm run deploy:local
 ### Building
 
 ```bash
-# Build everything (backend + library)
+# Build everything (canister + library)
 pnpm run build
 
-# Build just the canister backend
-pnpm run build:backend
+# Build just the canister
+pnpm run build:canister
 
 # Build just the TypeScript library
 pnpm run build:lib
@@ -79,15 +79,12 @@ pnpm run lib:test:usdt    # Test ckUSDT deposits
 
 # Test webhook functionality
 pnpm run lib:test:webhook
-
-# Run all library tests
-pnpm run lib:test:all
 ```
 
-**Rust backend tests:**
+**Canister tests:**
 
 ```bash
-# Run all backend tests
+# Run all canister tests
 pnpm run test:backend
 
 # Test specific scenarios
@@ -96,12 +93,6 @@ pnpm run test:sad_path    # Error handling tests
 ```
 
 ### Deployment
-
-**Local deployment:**
-
-```bash
-.maintain/deploy.sh --network local [--clean]
-```
 
 **Mainnet deployment:**
 

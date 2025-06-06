@@ -25,11 +25,12 @@ mod types;
 use ledger::*;
 
 use ic_ledger_types::{
-    AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs,
+    AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs, DEFAULT_SUBACCOUNT,
     MAINNET_LEDGER_CANISTER_ID,
 };
+use num_traits::ToPrimitive;
 
-use types::TokenType;
+use types::{Block, E8s, Operation, Timestamp, TokenType, Transaction, Transfer};
 
 use memory::{
     CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
@@ -47,8 +48,8 @@ const CKUSDT_LEDGER_CANISTER_ID: Principal =
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
     IcCdkSpawnManagerTrait, IcrcAccount, InterCanisterCallManager, InterCanisterCallManagerTrait,
-    Network, Operation, QueryBlocksRequest, QueryBlocksResponse, StoredPrincipal,
-    StoredTransactions, SweepStatus, TimerManager, TimerManagerTrait, Timestamp, Transaction,
+    Network, QueryBlocksRequest, QueryBlocksResponse, StoredPrincipal, StoredTransactions,
+    SweepStatus, TimerManager, TimerManagerTrait,
 };
 
 thread_local! {
@@ -441,7 +442,216 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)> {
-        ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
+        // Check if this is an ICRC-1 token (ckUSDC or ckUSDT)
+        if ledger_principal == CKUSDC_LEDGER_CANISTER_ID
+            || ledger_principal == CKUSDT_LEDGER_CANISTER_ID
+        {
+            // ICRC-1 tokens use icrc3_get_blocks with a different structure
+            // Create GetBlocksRequest for ICRC-3
+            #[derive(CandidType, Deserialize)]
+            struct Icrc3GetBlocksRequest {
+                start: candid::Nat,
+                length: candid::Nat,
+            }
+
+            #[derive(CandidType, Deserialize)]
+            struct Icrc3BlockWithId {
+                id: candid::Nat,
+                block: Icrc3Value,
+            }
+
+            #[derive(CandidType, Deserialize)]
+            struct Icrc3GetBlocksResult {
+                log_length: candid::Nat,
+                blocks: Vec<Icrc3BlockWithId>,
+                archived_blocks: Vec<Icrc3ArchivedBlocks>,
+            }
+
+            #[derive(CandidType, Deserialize)]
+            struct Icrc3ArchivedBlocks {
+                args: Vec<Icrc3GetBlocksRequest>,
+                // We'll skip the callback for now
+            }
+
+            #[derive(CandidType, Deserialize, Clone, Debug)]
+            enum Icrc3Value {
+                Int(candid::Int),
+                Map(Vec<(String, Icrc3Value)>),
+                Nat(candid::Nat),
+                Blob(Vec<u8>),
+                Text(String),
+                Array(Vec<Icrc3Value>),
+            }
+
+            let icrc3_req = vec![Icrc3GetBlocksRequest {
+                start: candid::Nat::from(req.start),
+                length: candid::Nat::from(req.length),
+            }];
+
+            // Call icrc3_get_blocks
+            match ic_cdk::call::<_, (Icrc3GetBlocksResult,)>(
+                ledger_principal,
+                "icrc3_get_blocks",
+                (icrc3_req,),
+            )
+            .await
+            {
+                Ok((icrc3_response,)) => {
+                    // Convert ICRC-3 blocks to our format
+                    let mut blocks = Vec::new();
+
+                    for icrc3_block in icrc3_response.blocks {
+                        // Parse ICRC-3 block structure
+                        if let Icrc3Value::Map(map) = icrc3_block.block {
+                            let mut tx_map = None;
+                            let mut ts_nanos = 0u64;
+                            let mut phash = None;
+
+                            for (key, value) in map {
+                                match key.as_str() {
+                                    "tx" => tx_map = Some(value),
+                                    "ts" => {
+                                        if let Icrc3Value::Nat(n) = value {
+                                            ts_nanos = n.0.to_u64().unwrap_or(0);
+                                        }
+                                    }
+                                    "phash" => {
+                                        if let Icrc3Value::Blob(b) = value {
+                                            phash = Some(b);
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            // Parse transaction from tx_map
+                            if let Some(Icrc3Value::Map(tx_fields)) = tx_map {
+                                let mut from_bytes = vec![];
+                                let mut to_bytes = vec![];
+                                let mut amount = 0u64;
+                                let mut fee = 0u64;
+                                let mut memo = 0u64;
+                                let mut operation_type = "";
+
+                                for (key, value) in tx_fields {
+                                    match key.as_str() {
+                                        "op" => {
+                                            if let Icrc3Value::Text(op) = value {
+                                                operation_type = match op.as_str() {
+                                                    "xfer" => "transfer",
+                                                    "mint" => "mint",
+                                                    "burn" => "burn",
+                                                    "approve" => "approve",
+                                                    _ => "unknown",
+                                                };
+                                            }
+                                        }
+                                        "from" => {
+                                            if let Icrc3Value::Array(arr) = value {
+                                                if let Some(Icrc3Value::Blob(b)) = arr.get(0) {
+                                                    from_bytes = AccountIdentifier::new(
+                                                        &Principal::from_slice(b),
+                                                        &DEFAULT_SUBACCOUNT,
+                                                    )
+                                                    .as_ref()
+                                                    .to_vec();
+                                                }
+                                            }
+                                        }
+                                        "to" => {
+                                            if let Icrc3Value::Array(arr) = value {
+                                                if arr.len() >= 2 {
+                                                    if let (
+                                                        Some(Icrc3Value::Blob(principal)),
+                                                        Some(Icrc3Value::Blob(subaccount)),
+                                                    ) = (arr.get(0), arr.get(1))
+                                                    {
+                                                        let p = Principal::from_slice(principal);
+                                                        let sub = if subaccount.len() == 32 {
+                                                            let mut arr = [0u8; 32];
+                                                            arr.copy_from_slice(subaccount);
+                                                            Subaccount(arr)
+                                                        } else {
+                                                            DEFAULT_SUBACCOUNT
+                                                        };
+                                                        to_bytes = AccountIdentifier::new(&p, &sub)
+                                                            .as_ref()
+                                                            .to_vec();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "amt" => {
+                                            if let Icrc3Value::Nat(n) = value {
+                                                amount = n.0.to_u64().unwrap_or(0);
+                                            }
+                                        }
+                                        "fee" => {
+                                            if let Icrc3Value::Nat(n) = value {
+                                                fee = n.0.to_u64().unwrap_or(0);
+                                            }
+                                        }
+                                        "memo" => {
+                                            if let Icrc3Value::Nat(n) = value {
+                                                memo = n.0.to_u64().unwrap_or(0);
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                // Create block
+                                let operation = if operation_type == "transfer" {
+                                    Some(Operation::Transfer(Transfer {
+                                        from: from_bytes,
+                                        to: to_bytes,
+                                        amount: E8s { e8s: amount },
+                                        fee: E8s { e8s: fee },
+                                        spender: None,
+                                    }))
+                                } else {
+                                    None // For now, only handle transfers
+                                };
+
+                                let block = Block {
+                                    transaction: Transaction {
+                                        memo,
+                                        icrc1_memo: None,
+                                        operation,
+                                        created_at_time: Timestamp {
+                                            timestamp_nanos: ts_nanos,
+                                        },
+                                    },
+                                    timestamp: Timestamp {
+                                        timestamp_nanos: ts_nanos,
+                                    },
+                                    parent_hash: phash,
+                                };
+
+                                blocks.push(block);
+                            }
+                        }
+                    }
+
+                    let response = QueryBlocksResponse {
+                        certificate: None,
+                        blocks,
+                        chain_length: icrc3_response.log_length.0.to_u64().unwrap_or(0),
+                        first_block_index: req.start,
+                        archived_blocks: vec![],
+                    };
+
+                    Ok((response,))
+                }
+                Err(e) => {
+                    ic_cdk::println!("ICRC-3 call failed: {:?}", e);
+                    Err(e)
+                }
+            }
+        } else {
+            // ICP ledger uses traditional query_blocks
+            ic_cdk::call(ledger_principal, "query_blocks", (req,)).await
+        }
     }
 
     async fn transfer(
@@ -609,6 +819,15 @@ async fn query_token_ledger(
             ic_cdk::println!("  Error message: {}", msg);
             ic_cdk::println!("  Token principal: {}", token_principal.to_string());
             ic_cdk::println!("  Next block: {}", next_block);
+
+            // IMPORTANT: For ICRC-1 tokens, this fails because they use icrc3_get_blocks
+            if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+                ic_cdk::println!(
+                    "  NOTE: ICRC-1 tokens require icrc3_get_blocks method, not query_blocks!"
+                );
+                ic_cdk::println!("  This is why ckUSDC/ckUSDT block processing is stuck.");
+            }
+
             return next_block; // Return original block count if error occurs
         }
     };
