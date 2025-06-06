@@ -1,6 +1,6 @@
 # Testing Attempt 8 - ckUSDC Deposit Test
 
-**Date:** January 6, 2025  
+**Date:** June 6, 2025  
 **Objective:** Test ckUSDC token deposits to the ICSI canister with webhook notifications  
 **Status:** ⚠️ PARTIAL SUCCESS (Transfer successful, but no indexing or webhook delivery)  
 **Network:** IC Mainnet
