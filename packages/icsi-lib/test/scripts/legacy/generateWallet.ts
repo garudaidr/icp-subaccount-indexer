@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { generateMnemonic } from 'bip39';
 import { Principal } from '@dfinity/principal';
-import { getIdentityFromSeed } from '../../src';
+import { getIdentityFromSeed } from '../../..';
 
 async function generateTestWallet() {
   console.log('🔑 ICP Test Wallet Generator');

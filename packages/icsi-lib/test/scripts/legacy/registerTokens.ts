@@ -1,5 +1,5 @@
 import { agent, USER_VAULT_CANISTER_ID } from './config';
-import { registerToken } from '../../src';
+import { registerToken } from '../../..';
 import { Principal } from '@dfinity/principal';
 
 /**

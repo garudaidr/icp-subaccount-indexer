@@ -3,7 +3,7 @@ import {
   getRegisteredTokens,
   getSubaccountId,
   getUserVaultTransactions,
-} from '../../src';
+} from '../../..';
 
 /**
  * Get balances for all subaccounts that have a balance

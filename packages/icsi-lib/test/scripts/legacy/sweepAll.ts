@@ -5,7 +5,7 @@ import {
   sweepByTokenType,
   getSubaccountId,
   sweepSubaccountId,
-} from '../../src';
+} from '../../..';
 import { Principal } from '@dfinity/principal';
 
 /**

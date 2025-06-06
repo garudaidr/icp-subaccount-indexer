@@ -1,5 +1,5 @@
 import { agent, USER_VAULT_CANISTER_ID } from './config';
-import { clearTransactions } from '../../src';
+import { clearTransactions } from '../../../src';
 
 /**
  * Script to clear all transactions from the canister

@@ -6,7 +6,7 @@ import {
   getIcrcAccount,
   getTransactionsCount,
   getNonce,
-} from '../../src';
+} from '../../..';
 
 /**
  * Get deposit addresses for all registered token types
