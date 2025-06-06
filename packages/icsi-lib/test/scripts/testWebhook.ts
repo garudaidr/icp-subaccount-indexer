@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import * as express from 'express';
+// @ts-ignore - Bypass TypeScript check for Express import
+import express from 'express';
 import * as ngrok from 'ngrok';
 import {
   createHostAgentAndIdentityFromSeed,
