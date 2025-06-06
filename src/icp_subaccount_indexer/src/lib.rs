@@ -212,6 +212,51 @@ fn get_webhook_url() -> Result<String, String> {
     Ok(WEBHOOK_URL.with(|webhook_url_ref| webhook_url_ref.borrow().get().to_string()))
 }
 
+#[update]
+async fn set_custodian_principal(principal_text: String) -> Result<String, Error> {
+    use ic_cdk::api::management_canister::main::{
+        canister_status, CanisterIdRecord, CanisterStatusResponse,
+    };
+
+    let caller = api::caller();
+    let canister_id = api::id();
+
+    // Get canister status to check controllers
+    let canister_status_result: Result<(CanisterStatusResponse,), _> =
+        canister_status(CanisterIdRecord { canister_id }).await;
+
+    match canister_status_result {
+        Ok((status,)) => {
+            let is_controller = status.settings.controllers.contains(&caller);
+            if !is_controller {
+                return Err(Error {
+                    message: "Only controller can set custodian principal".to_string(),
+                });
+            }
+        }
+        Err(_) => {
+            // Fallback: if we can't get canister status, only allow anonymous for local testing
+            let network = network();
+            if network != Network::Local {
+                return Err(Error {
+                    message: "Unable to verify controller status".to_string(),
+                });
+            }
+        }
+    }
+
+    let custodian_principal = Principal::from_text(principal_text.clone()).map_err(|e| Error {
+        message: format!("Invalid principal format: {}", e),
+    })?;
+
+    CUSTODIAN_PRINCIPAL.with(|principal_ref| {
+        let stored_principal = StoredPrincipal::new(custodian_principal);
+        let _ = principal_ref.borrow_mut().set(stored_principal);
+    });
+
+    Ok(format!("Custodian principal set to: {}", principal_text))
+}
+
 #[cfg(not(test))]
 impl IcCdkSpawnManagerTrait for IcCdkSpawnManager {
     fn run<F: 'static + Future<Output = ()>>(future: F) {
@@ -869,8 +914,31 @@ fn reconstruct_network() {
 async fn post_upgrade() {
     ic_cdk::println!("Running post_upgrade...");
 
+    let _ = set_interval(500);
+
     reconstruct_subaccounts();
     reconstruct_network();
+
+    // Set the current caller as custodian principal if not already set
+    let caller = api::caller();
+    ic_cdk::println!("Post-upgrade caller: {}", caller.to_string());
+
+    // Check if custodian principal is already set
+    let custodian_exists =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().get_principal().is_some());
+
+    if !custodian_exists {
+        ic_cdk::println!(
+            "Setting caller as custodian principal: {}",
+            caller.to_string()
+        );
+        CUSTODIAN_PRINCIPAL.with(|principal_ref| {
+            let stored_principal = StoredPrincipal::new(caller);
+            let _ = principal_ref.borrow_mut().set(stored_principal);
+        });
+    } else {
+        ic_cdk::println!("Custodian principal already set");
+    }
 }
 
 #[query]
