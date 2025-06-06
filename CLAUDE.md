@@ -64,7 +64,12 @@ You can see the testing guide in `TESTING_GUIDE.md`. The modern test suite is in
 
 The logs for each test are in `docs/logs/`. You can see each test's logs in the file named `TESTING_ATTEMPT_1.md`, `TESTING_ATTEMPT_2.md`, etc. Do not use the seed phrase from the logs to generate a new wallet and don't use the same seed phrase for personal or production use.
 
-You can use the `lib:generate:wallet` script to generate a new wallet.
+**Critical Testing Order**:
+
+1. First run webhook server: `pnpm run lib:test:webhook` (keep it running!)
+2. Then in another terminal: `pnpm run lib:generate:wallet`
+3. Fund the wallet with test tokens
+4. Run deposit tests: `pnpm run lib:test:usdc`
 
 **Use the modern test suite in `packages/icsi-lib/test/scripts/`:**
 
@@ -104,6 +109,19 @@ pnpm run test:sad_path    # Error handling tests
 ./scripts/deploy-mainnet.sh upgrade
 ```
 
+**Manual deployment (if script fails):**
+
+```bash
+# 1. Create canister with enough cycles (critical!)
+dfx canister create icp_subaccount_indexer --network ic --with-cycles 500000000000
+
+# 2. Build first
+pnpm run build:canister
+
+# 3. Deploy with your principal (hardcoded, not command substitution)
+dfx deploy icp_subaccount_indexer --network ic --argument '(variant { Mainnet }, 5: nat64, 0: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "your-principal-here")'
+```
+
 ### Code Quality
 
 ```bash
@@ -138,17 +156,29 @@ Also, don't add "Claude" as a co-author, and don't add "Claude" to the commit me
 The system supports three token types:
 
 - **ICP**: Native Internet Computer token
+  - Ledger: `ryjl3-tyaaa-aaaaa-aaaba-cai`
+  - Fee: 10,000 e8s (0.0001 ICP)
+  - Address format: Hex AccountIdentifier
 - **ckUSDC**: Chain-key USDC (ICRC-1 standard)
+  - Ledger: `xevnm-gaaaa-aaaar-qafnq-cai`
+  - Fee: 10,000 micro-units (0.01 ckUSDC) - NOT 10!
+  - Address format: ICRC-1 textual
 - **ckUSDT**: Chain-key USDT (ICRC-1 standard)
+  - Ledger: `cngnf-vqaaa-aaaar-qag4q-cai`
+  - Fee: 10,000 micro-units (0.01 ckUSDT)
+  - Address format: ICRC-1 textual
 
 Each token type has unified APIs for deposits, balances, and sweeping operations.
 
 ## Subaccount System
 
 - **Generation**: Deterministic based on nonces for reproducibility
-- **Format**: Hex string sub-account IDs
+- **Format**:
+  - ICP: Hex string AccountIdentifier (64 characters)
+  - ckUSDC/ckUSDT: ICRC-1 textual format (e.g., `canister-id-checksum.nonce`)
 - **Indexing**: Hash-based lookup with efficient storage
 - **Compatibility**: Supports both traditional ICP account IDs and ICRC-1 textual format
+- **Important**: Each token type may use different address formats!
 
 ## Development Workflow
 
@@ -162,8 +192,10 @@ Each token type has unified APIs for deposits, balances, and sweeping operations
 - **Legacy Scripts**: Avoid `.maintain/legacy/` and `packages/icsi-lib/test/scripts/legacy/` scripts for testing
 - **Environment Files**: Test scripts generate `.env.test` files with credentials
 - **Webhook Testing**: Uses ngrok for local webhook tunneling
+- **Webhook Format**: Sends transaction hash as query parameter, NOT JSON body
 - **State Management**: Canister uses stable structures for upgrade-safe storage
 - **Authentication**: Principal-based access control with caller guards
+- **Token Fees**: ckUSDC/ckUSDT use 10,000 micro-units (0.01), not 10!
 
 ## Testing Environment Setup
 
@@ -174,3 +206,178 @@ Each token type has unified APIs for deposits, balances, and sweeping operations
 5. Run test scripts to verify functionality
 
 See `TESTING_GUIDE.md` for detailed testing procedures.
+
+## Lessons Learned from Testing (Critical for Future Claude)
+
+After conducting 10+ testing attempts documented in `docs/logs/`, here are critical insights that will save you hours of debugging:
+
+### 1. Mainnet Deployment Gotchas
+
+**Cycles Management is Critical**
+
+- A 1.9MB WASM file requires ~460B cycles for deployment (not the default amount!)
+- Always create canisters with extra cycles: `--with-cycles 500000000000`
+- Monitor cycles with `dfx canister status` - insufficient cycles cause cryptic errors
+- Keep a buffer of at least 200B cycles for operations
+
+**Principal Format in Deployment**
+
+```bash
+# ❌ NEVER do this - command substitution fails in Candid arguments
+dfx deploy --argument '(variant { Mainnet }, 5, 0, "ledger-id", $(dfx identity get-principal))'
+
+# ✅ ALWAYS use hardcoded principal
+dfx deploy --argument '(variant { Mainnet }, 5, 0, "ledger-id", "gf3g2-eaeha-...-qqe")'
+```
+
+### 2. Multi-Token Testing Insights
+
+**Token-Specific Quirks**
+
+- **ICP**: Uses hex AccountIdentifier format (64 chars)
+- **ckUSDC/ckUSDT**: Uses ICRC-1 textual format with CRC32 checksum (e.g., `canister-id-checksum.5`)
+- **Critical**: ckUSDC fee is 10,000 micro-units (0.01 ckUSDC), NOT 10!
+
+**Block Processing State**
+
+- Each token maintains independent `next_block` state
+- After canister upgrades, you may need to manually set:
+  ```bash
+  dfx canister call <id> set_token_next_block_update '(variant { CKUSDC }, 366986 : nat64)'
+  ```
+
+### 3. Authorization and Custodian Issues
+
+**The Silent Killer: Mismatched Principals**
+
+- Library calls fail with "Unauthorized" if custodian doesn't match your principal
+- Always check: `dfx canister call <id> get_custodian`
+- Fix by upgrading with correct principal in initialization arguments
+
+**Post-Upgrade Hook**
+
+- The canister's `post_upgrade` function MUST set the custodian
+- Without this, all authenticated calls fail silently
+
+### 4. Webhook Integration Reality
+
+**Webhook Format Changed**
+
+- Documentation may say JSON body, but implementation sends:
+  ```
+  POST /webhook?tx_hash=<hash>
+  ```
+- Extract from query parameters, not request body!
+
+**ngrok Setup**
+
+- Webhook testing requires public URL - use ngrok
+- The test script handles this automatically
+- Keep webhook server running during all deposit tests
+
+### 5. Testing Workflow That Actually Works
+
+```bash
+# 1. Always start fresh
+pnpm run clean && pnpm install
+
+# 2. For mainnet testing, set faster polling (then restore later)
+dfx canister call <id> set_interval '(30 : nat64)'  # Testing
+# Don't forget to restore: set_interval '(500 : nat64)'  # Production
+
+# 3. Run webhook server FIRST (keep it running)
+pnpm run lib:test:webhook
+
+# 4. Then run deposit tests in another terminal
+pnpm run lib:test:usdc
+
+# 5. Wait patiently - indexing takes 30-45 seconds
+```
+
+### 6. Debugging Transaction Detection Failures
+
+**Common Causes**
+
+1. Token not registered (check `get_registered_tokens`)
+2. Wrong `next_block` for token (use `set_token_next_block_update`)
+3. Insufficient polling interval (30s for testing, 500s for production)
+4. Multi-token support not deployed (requires canister upgrade)
+
+**Verification Commands**
+
+```bash
+# Check if transactions are being indexed
+dfx canister call <id> get_transactions_count
+
+# List recent transactions
+dfx canister call <id> list_transactions '(opt 10)'
+
+# Check specific token balance
+dfx canister call <id> get_balance '(variant { CKUSDC })'
+```
+
+### 7. Environment Setup That Prevents Pain
+
+**Always Use Test Wallets**
+
+- Generate fresh: `pnpm run lib:generate:wallet`
+- Fund with small amounts only
+- Never reuse mnemonics from logs
+
+**Canister ID Management**
+
+- Save canister IDs immediately after creation
+- Add to `.env.test`: `USER_VAULT_CANISTER_ID="your-id"`
+- Keep `canister_ids.json` updated
+
+### 8. What the Scripts Actually Do
+
+**Modern Test Scripts** (use these):
+
+- `testICPDeposit.sh`: Sends 0.001 ICP to generated subaccount
+- `testUSDCDeposit.sh`: Sends 0.1 ckUSDC with proper 0.01 fee
+- `testWebhook.ts`: Express server + ngrok + auto-configuration
+
+**Legacy Scripts** (avoid unless necessary):
+
+- Manual token registration (now automatic)
+- Complex multi-step processes
+- No integrated webhook testing
+
+### 9. Production Deployment Checklist
+
+1. ✅ Sufficient ICP for cycles (at least 0.1 ICP)
+2. ✅ Build canister first: `pnpm run build:canister`
+3. ✅ Use deployment script: `./scripts/deploy-mainnet.sh deploy`
+4. ✅ Verify token registration: `get_registered_tokens`
+5. ✅ Set production interval: `set_interval '(500 : nat64)'`
+6. ✅ Configure webhook URL for production
+7. ✅ Test with small amounts first
+
+### 10. Time-Saving Commands Reference
+
+```bash
+# Quick canister health check
+dfx canister status <id> --network ic
+
+# Add more cycles if running low
+dfx canister deposit-cycles 200000000000 <id> --network ic
+
+# Full state inspection
+dfx canister call <id> get_custodian
+dfx canister call <id> get_registered_tokens
+dfx canister call <id> get_interval
+dfx canister call <id> get_webhook_url
+dfx canister call <id> get_nonce
+```
+
+## When Things Go Wrong
+
+Check `docs/logs/TESTING_ATTEMPT_*.md` files - they document real issues and solutions:
+
+- Attempt 1-2: Cycles and deployment issues
+- Attempt 3-4: Authorization fixes
+- Attempt 5-6: Webhook integration
+- Attempt 7-10: Multi-token support
+
+Each log shows the exact error and the fix that worked.
