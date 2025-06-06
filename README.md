@@ -12,9 +12,13 @@ ICSI (ICP Sub-Account Indexer) is a robust solution designed to streamline the m
 
 The ICSI canister provides methods that allow organizations to primarily carry out several operations:
 
-- Generate sub-account-id in the form of hex_string
-- Track incoming ICP-token transfers into created sub-account-ids
-- Manage ICP-tokens that reside in the sub-account-ids
+- Generate sub-account-ids supporting both formats:
+  - **ICP**: Traditional hex_string AccountIdentifier format
+  - **ckUSDC/ckUSDT**: ICRC-1 textual format (e.g., `canister-id-checksum.index`)
+- Track incoming token transfers (ICP, ckUSDC, ckUSDT) into created sub-account-ids
+- Manage multi-token balances across all sub-accounts
+- Send webhook notifications for incoming deposits (transaction hash as query parameter)
+- Sweep tokens from sub-accounts to main principal
 
 ### Video Demo
 
@@ -66,34 +70,75 @@ ICSI is built with a focus on modularity and extensibility. The core components 
 
 ## Canister Methods
 
-The canister provides several methods to assist with ICP-token deposit management. The complete methods can be observed inside
+The canister provides several methods to assist with multi-token deposit management. The complete methods can be observed inside
 [Candid File](./src/icp_subaccount_indexer/icp_subaccount_indexer.did)
 
-```
-add_subaccount : () -> (variant { Ok : text; Err : Error });
+### Core Methods
+
+```candid
+// Generate deposit addresses
+add_subaccount : (opt TokenType) -> (variant { Ok : text; Err : Error });
+generate_icp_deposit_address : (nat32) -> (text);
+generate_icrc1_deposit_address : (TokenType, nat32) -> (text);
+
+// Token operations
+sweep : (TokenType) -> (variant { Ok : vec text; Err : Error });
+single_sweep : (TokenType, text) -> (variant { Ok : vec text; Err : Error });
+sweep_all : (TokenType) -> (variant { Ok : vec text; Err : Error });
+
+// Balance queries
+get_balance : (TokenType) -> (nat);
+
+// Transaction management
+get_transactions_count : () -> (nat64);
+list_transactions : (opt nat64) -> (vec Transaction);
+get_transaction : (text) -> (opt Transaction);
 ```
 
-This method returns sub-account-id in hex_string format.
+### Address Format Examples
+
+- **ICP**: `bd54f8b5e0fe4c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b` (hex)
+- **ckUSDC**: `y3hne-ryaaa-aaaag-aucea-cai-dzfvpaa.5` (ICRC-1 textual)
+- **ckUSDT**: `y3hne-ryaaa-aaaag-aucea-cai-2jmuz5q.10` (ICRC-1 textual)
+
+### Supported Token Types
+
+```candid
+type TokenType = variant { ICP; CKUSDC; CKUSDT };
+```
+
+The canister automatically registers all three token types during initialization:
+
+- **ICP**: `ryjl3-tyaaa-aaaaa-aaaba-cai` (Native ICP ledger)
+- **ckUSDC**: `xevnm-gaaaa-aaaar-qafnq-cai` (Chain-key USDC)
+- **ckUSDT**: `cngnf-vqaaa-aaaar-qag4q-cai` (Chain-key USDT)
+
+### Webhook Configuration
+
+```candid
+set_webhook_url : (text) -> ();
+get_webhook_url : () -> (opt text);
+```
+
+Webhooks send POST requests with transaction hash as query parameter:
 
 ```
-sweep : () -> (variant { Ok : vec text; Err : Error });
+POST https://your-webhook.com/endpoint?tx_hash=<transaction_hash>
 ```
-
-This method forwards ICP-token that are sitting on each sub-account-ids
-
-```
-single_sweep : (text) -> (variant { Ok : vec text; Err : Error });
-```
-
-This method forwards ICP-token that was transacted within a single tx_hash provided in the argument
 
 ## Project Structure
 
 This is a pnpm workspace monorepo containing:
 
-- **Root**: DFX canister and webpack configuration
-- **packages/icsi-lib**: TypeScript library for interacting with ICSI
-- **.maintain/legacy/script**: Legacy test scripts
+- **Root**: DFX canister configuration, deployment scripts, and build tools
+- **src/icp_subaccount_indexer/**: Rust canister implementation
+- **packages/icsi-lib/**: TypeScript SDK for canister interaction
+  - `/src`: Library source code
+  - `/test/scripts`: Modern test suite (shell and TypeScript)
+  - `/test/scripts/legacy`: Deprecated test scripts
+- **scripts/**: Production deployment scripts
+- **.maintain/**: Maintenance scripts and tools
+- **docs/logs/**: Detailed testing logs and procedures
 
 See [WORKSPACE.md](./WORKSPACE.md) for detailed monorepo documentation.
 
@@ -113,11 +158,16 @@ See [WORKSPACE.md](./WORKSPACE.md) for detailed monorepo documentation.
    # Install all dependencies (monorepo)
    pnpm install
 
+   # Start local replica with old metering (required for ICP ledger)
+   pnpm run start:local:env
+
    # Deploy locally with ICP ledger
    pnpm run deploy:local
+   # OR use the deployment script directly
+   .maintain/deploy.sh --network local [--clean]
 
-   # Run library tests from root
-   pnpm run lib:test:usdc
+   # Generate test wallet for testing
+   pnpm run lib:generate:wallet
    ```
 
 3. **Mainnet Deployment**
@@ -153,40 +203,63 @@ See [Deployment Guide](./docs/canister-deployment-guideline.md) for detailed ins
 
 ### Testing
 
-#### Modern Test Suite (Recommended)
+#### Quick Testing Guide
 
-The TypeScript test suite in `packages/icsi-lib/test/scripts/` provides comprehensive testing:
+The project includes a comprehensive test suite for multi-token deposits and webhook functionality:
 
 ```bash
-# From root directory (monorepo commands)
+# From root directory (recommended)
 pnpm install  # Install all workspace dependencies
 
-# Generate test wallet
+# Step 1: Generate test wallet
 pnpm run lib:generate:wallet
+# Fund the wallet with test tokens (see TESTING_GUIDE.md)
 
-# Test various deposits
-pnpm run lib:test:icp    # Test ICP deposits
-pnpm run lib:test:usdc   # Test USDC deposits
-pnpm run lib:test:usdt   # Test USDT deposits
-
-# Test webhook functionality
+# Step 2: Start webhook server (keep running in separate terminal)
 pnpm run lib:test:webhook
 
-# Or run directly in the package
-cd packages/icsi-lib
-pnpm run test:usdc-deposit
+# Step 3: Run deposit tests (in new terminal)
+pnpm run lib:test:icp    # Test ICP deposits (0.001 ICP)
+pnpm run lib:test:usdc   # Test ckUSDC deposits (0.1 ckUSDC)
+pnpm run lib:test:usdt   # Test ckUSDT deposits (0.1 ckUSDT)
 ```
 
-See [Testing Guide](./TESTING_GUIDE.md) for complete documentation.
+**Key Testing Features:**
 
-#### Legacy Test Scripts
+- **Multi-token support**: Test ICP, ckUSDC, and ckUSDT deposits
+- **Automated webhook testing**: ngrok integration for local webhook testing
+- **ICRC-1 compliance**: Proper handling of ICRC-1 textual addresses
+- **Production-ready**: Follows actual mainnet testing procedures
+- **Comprehensive logging**: All tests documented in `docs/logs/`
 
-Legacy scripts in `.maintain/` are deprecated but still available:
+**Important Testing Notes:**
 
-- `.maintain/test.sh` - Basic ICP transfer tests
-- `.maintain/script/index.js` - Interactive CLI tool
+1. **Mainnet testing costs real money** - Each test uses actual tokens
+2. **Webhook server must stay running** - Keep the webhook terminal open
+3. **Transaction indexing takes time** - Wait 30-45 seconds for detection
+4. **Use test wallets only** - Never use personal wallets for testing
 
-See [Legacy Scripts Documentation](./.maintain/DEPRECATED.md) for migration guide.
+See [Testing Guide](./TESTING_GUIDE.md) for complete documentation including:
+
+- Manual DFX commands for advanced testing
+- Troubleshooting common errors
+- Production deployment procedures
+- Detailed test logs and lessons learned
+
+#### Test Scripts Architecture
+
+**Modern Scripts** (`packages/icsi-lib/test/scripts/`):
+
+- Shell scripts for complete deposit workflows
+- TypeScript webhook server with ngrok integration
+- Automated test wallet generation
+
+**Legacy Scripts** (`packages/icsi-lib/test/scripts/legacy/`):
+
+- Manual token operations (deprecated)
+- Use modern test suite instead
+
+See [Testing Guide](./TESTING_GUIDE.md#test-script-architecture) for details.
 
 ## Conclusion
 
