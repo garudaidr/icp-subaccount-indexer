@@ -548,7 +548,7 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
                                         }
                                         "from" => {
                                             if let Icrc3Value::Array(arr) = value {
-                                                if let Some(Icrc3Value::Blob(b)) = arr.get(0) {
+                                                if let Some(Icrc3Value::Blob(b)) = arr.first() {
                                                     from_bytes = AccountIdentifier::new(
                                                         &Principal::from_slice(b),
                                                         &DEFAULT_SUBACCOUNT,
@@ -564,7 +564,7 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
                                                     if let (
                                                         Some(Icrc3Value::Blob(principal)),
                                                         Some(Icrc3Value::Blob(subaccount)),
-                                                    ) = (arr.get(0), arr.get(1))
+                                                    ) = (arr.first(), arr.get(1))
                                                     {
                                                         let p = Principal::from_slice(principal);
                                                         let sub = if subaccount.len() == 32 {
@@ -2068,10 +2068,11 @@ async fn set_token_next_block_update(token_type: TokenType, block: u64) -> Resul
 fn get_all_token_blocks() -> Result<Vec<(TokenType, u64)>, String> {
     authenticate()?;
 
-    let mut result = vec![];
-    result.push((TokenType::ICP, get_token_next_block(&TokenType::ICP)));
-    result.push((TokenType::CKUSDC, get_token_next_block(&TokenType::CKUSDC)));
-    result.push((TokenType::CKUSDT, get_token_next_block(&TokenType::CKUSDT)));
+    let result = vec![
+        (TokenType::ICP, get_token_next_block(&TokenType::ICP)),
+        (TokenType::CKUSDC, get_token_next_block(&TokenType::CKUSDC)),
+        (TokenType::CKUSDT, get_token_next_block(&TokenType::CKUSDT)),
+    ];
 
     Ok(result)
 }
