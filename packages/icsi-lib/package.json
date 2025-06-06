@@ -17,9 +17,9 @@
     "test:scripts": "ts-node test/scripts/runAll.ts",
     "test:script": "ts-node",
     "generate:wallet": "ts-node test/scripts/generateWallet.ts",
-    "test:icp-deposit": "ts-node test/scripts/testICPDeposit.ts",
-    "test:usdc-deposit": "ts-node test/scripts/testUSDCDeposit.ts",
-    "test:usdt-deposit": "ts-node test/scripts/testUSDTDeposit.ts",
+    "test:icp-deposit": "./test/scripts/testICPDeposit.sh",
+    "test:usdc-deposit": "./test/scripts/testUSDCDeposit.sh",
+    "test:usdt-deposit": "./test/scripts/testUSDTDeposit.sh",
     "test:webhook": "ts-node test/scripts/testWebhook.ts"
   },
   "keywords": [

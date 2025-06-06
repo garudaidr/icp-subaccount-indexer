@@ -2,9 +2,101 @@
 
 This directory contains test scripts for interacting with the Internet Computer Subaccount Indexer (ICSI) library.
 
-## Configuration
+## Overview
 
-Before running the scripts, you need to configure your environment variables:
+There are two types of test scripts available:
+
+1. **Shell Scripts (Recommended)** - Use dfx CLI with dfx identity management for safer testing
+2. **TypeScript Scripts (Legacy)** - Use environment files with seed phrases (moved to `legacy/` directory)
+
+## Shell Scripts (Recommended)
+
+The modern test scripts use the dfx CLI and dfx identity system for safer testing without exposing seed phrases in environment files.
+
+### Prerequisites
+
+1. **Install dfx** - Make sure you have the DFINITY SDK installed
+2. **Create/Switch Identity** - Use `dfx identity` commands to manage your test identity
+3. **Fund Your Identity** - Ensure your dfx identity has sufficient tokens for testing
+
+### Available Shell Scripts
+
+#### 1. ICP Deposit Test
+
+Tests ICP token deposits to the ICSI canister:
+
+```bash
+# Local testing
+./scripts/testICPDeposit.sh <ICSI_CANISTER_ID> --network local
+
+# Mainnet testing  
+./scripts/testICPDeposit.sh <ICSI_CANISTER_ID> --network ic
+```
+
+#### 2. ckUSDC Deposit Test
+
+Tests ckUSDC token deposits to the ICSI canister:
+
+```bash
+# Local testing
+./scripts/testUSDCDeposit.sh <ICSI_CANISTER_ID> --network local
+
+# Mainnet testing
+./scripts/testUSDCDeposit.sh <ICSI_CANISTER_ID> --network ic
+```
+
+#### 3. ckUSDT Deposit Test
+
+Tests ckUSDT token deposits to the ICSI canister:
+
+```bash
+# Local testing
+./scripts/testUSDTDeposit.sh <ICSI_CANISTER_ID> --network local
+
+# Mainnet testing
+./scripts/testUSDTDeposit.sh <ICSI_CANISTER_ID> --network ic
+```
+
+#### 4. Webhook Test (TypeScript)
+
+Tests webhook functionality - still uses TypeScript for Express server setup:
+
+```bash
+pnpm run test:script -- test/scripts/testWebhook.ts
+```
+
+### Shell Script Features
+
+- **Safe Identity Management** - Uses dfx identity system instead of seed phrases
+- **Network Support** - Supports both local and mainnet networks
+- **Balance Validation** - Checks sufficient funds before transfers
+- **Error Handling** - Comprehensive error checking and user feedback
+- **Transaction Verification** - Waits for indexing and verifies deposits
+- **Colored Output** - Uses emojis and colors for better readability
+
+### dfx Identity Setup
+
+```bash
+# Create a new identity for testing
+dfx identity new test-identity
+
+# Switch to the test identity
+dfx identity use test-identity
+
+# Get your principal (for funding)
+dfx identity get-principal
+
+# Get your account ID (for ICP transfers)
+dfx ledger account-id
+```
+
+## Legacy TypeScript Scripts
+
+The original TypeScript scripts have been moved to the `legacy/` directory. These scripts require environment file configuration.
+
+### Configuration for Legacy Scripts
+
+Before running legacy scripts, you need to configure your environment variables:
 
 1. Copy the `.env.example` file to `.env` in the root directory of the project:
 
@@ -27,21 +119,7 @@ USER_VAULT_CANISTER_ID=your_canister_id_here
 HOST=https://ic0.app
 ```
 
-These environment variables will be loaded automatically by the test scripts.
-
-### Important Notes
-
-1. For local development with a local replica, make sure the HOST is set to `http://localhost:4943` and the agent will automatically fetch the root key.
-
-2. If you're using the mainnet (HOST=https://ic0.app), ensure your canister ID and seed phrase are correct.
-
-3. Make sure your user vault canister is deployed and accessible from the network you're connecting to.
-
-4. The SEED_PHRASE must have the necessary permissions to interact with the specified user vault canister.
-
-## Available Scripts
-
-### Real Scripts (Require Proper Configuration)
+### Legacy Scripts (Require Environment Configuration)
 
 These scripts connect to the Internet Computer network and require a properly configured .env file:
 
@@ -49,100 +127,110 @@ These scripts connect to the Internet Computer network and require a properly co
 
 Retrieves deposit addresses for all registered token types:
 
-```
-pnpm run test:script -- test/scripts/getDepositAddresses.ts
+```bash
+pnpm run test:script -- test/scripts/legacy/getDepositAddresses.ts
 ```
 
 #### 2. Get Balances
 
 Checks balances for all subaccounts:
 
-```
-pnpm run test:script -- test/scripts/getBalances.ts
+```bash
+pnpm run test:script -- test/scripts/legacy/getBalances.ts
 ```
 
 #### 3. Register Tokens
 
 Registers tokens with their ledger canister IDs:
 
-```
-pnpm run test:script -- test/scripts/registerTokens.ts
+```bash
+pnpm run test:script -- test/scripts/legacy/registerTokens.ts
 ```
 
 #### 4. Sweep All Tokens
 
 Sweeps tokens from all subaccounts using different methods:
 
-```
-pnpm run test:script -- test/scripts/sweepAll.ts
-```
-
-#### 5. Run All Tests
-
-Runs all the scripts in sequence:
-
-```
-pnpm run test:scripts
+```bash
+pnpm run test:script -- test/scripts/legacy/sweepAll.ts
 ```
 
-### Mock Scripts (No Configuration Required)
+#### 5. Legacy Deposit Tests
 
-These mock scripts demonstrate the functionality without actually connecting to the Internet Computer network:
+The original TypeScript deposit test scripts:
 
-#### 1. Mock Get Deposit Addresses
+```bash
+# ICP deposit test (legacy)
+pnpm run test:script -- test/scripts/legacy/testICPDeposit.ts
 
-Demonstrates how to retrieve deposit addresses with mock data:
+# ckUSDC deposit test (legacy) 
+pnpm run test:script -- test/scripts/legacy/testUSDCDeposit.ts
 
-```
-pnpm run test:script -- test/scripts/mockGetDepositAddresses.ts
-```
-
-#### 2. Mock Get Balances
-
-Demonstrates checking balances with mock data:
-
-```
-pnpm run test:script -- test/scripts/mockGetBalances.ts
+# ckUSDT deposit test (legacy)
+pnpm run test:script -- test/scripts/legacy/testUSDTDeposit.ts
 ```
 
-#### 3. Mock Register Tokens
+#### 6. Run All Legacy Tests
 
-Demonstrates registering tokens with mock data:
+Runs all the legacy scripts in sequence:
 
-```
-pnpm run test:script -- test/scripts/mockRegisterTokens.ts
-```
-
-#### 4. Mock Sweep All Tokens
-
-Demonstrates sweeping tokens with mock data:
-
-```
-pnpm run test:script -- test/scripts/mockSweepAll.ts
+```bash
+pnpm run test:script -- test/scripts/legacy/runAll.ts
 ```
 
-#### 5. Mock Run All Tests
+## Migration Guide
 
-Runs all mock scripts in sequence:
+### From Legacy Scripts to Shell Scripts
 
-```
-pnpm run test:script -- test/scripts/mockRunAll.ts
-```
+The new shell scripts offer several advantages over the legacy TypeScript scripts:
+
+1. **No Seed Phrase Exposure** - Uses dfx identity system instead of environment files
+2. **Better Error Handling** - More user-friendly error messages and validation
+3. **Network Flexibility** - Easy switching between local and mainnet
+4. **No Build Required** - Direct execution without TypeScript compilation
+
+### When to Use Each Type
+
+**Use Shell Scripts for:**
+- Token deposit testing (ICP, ckUSDC, ckUSDT)
+- Quick validation of canister functionality
+- CI/CD pipelines and automated testing
+- Local development and debugging
+
+**Use Legacy TypeScript Scripts for:**
+- Complex testing scenarios requiring programmatic control
+- Integration with existing TypeScript test suites
+- Advanced token management operations (sweeping, clearing, etc.)
+- Webhook testing (testWebhook.ts)
 
 ## Creating Your Own Scripts
 
-You can use these scripts as templates to create your own test scripts. Make sure to:
+### Shell Script Template
 
-1. Import the necessary functions from the ICSI library
-2. Import the agent and canister ID from `config.ts`
-3. Handle errors properly with try/catch blocks and Result types
-4. Export your main function as the default export
-5. Add logic to run the script directly when executed via Node.js
+For creating new shell scripts, use this template:
 
-Example structure:
+```bash
+#!/bin/bash
+set -e
+
+# Your script logic here
+ICSI_CANISTER_ID="$1"
+NETWORK="${3:-local}"
+
+# Get current identity
+PRINCIPAL=$(dfx identity get-principal)
+echo "Using principal: $PRINCIPAL"
+
+# Call canister methods
+dfx canister --network "$NETWORK" call "$ICSI_CANISTER_ID" someMethod '()'
+```
+
+### TypeScript Script Template
+
+For creating new TypeScript scripts, use this template:
 
 ```typescript
-import { agent, USER_VAULT_CANISTER_ID } from './config';
+import { agent, USER_VAULT_CANISTER_ID } from './legacy/config';
 import { someFunction } from '../../src';
 import { Principal } from '@dfinity/principal';
 
@@ -175,3 +263,18 @@ if (require.main === module) {
 
 export default myScript;
 ```
+
+## Troubleshooting
+
+### Shell Script Issues
+
+1. **Permission Denied** - Make sure scripts are executable: `chmod +x script.sh`
+2. **dfx Not Found** - Install DFINITY SDK: `sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"`
+3. **Identity Not Found** - Create identity: `dfx identity new test-identity`
+4. **Insufficient Funds** - Fund your dfx identity with required tokens
+
+### Legacy Script Issues
+
+1. **Environment Variables** - Ensure `.env` file is properly configured
+2. **Network Connection** - Check HOST URL and canister accessibility
+3. **Seed Phrase Format** - Verify seed phrase is valid BIP-39 mnemonic

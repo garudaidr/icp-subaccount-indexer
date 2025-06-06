@@ -21,34 +21,6 @@ interface WebhookPayload {
   transactionHash?: string;
 }
 
-// Token configuration for formatting
-const TOKEN_CONFIGS = {
-  ICP: { symbol: 'ICP', decimals: 8 },
-  CKUSDC: { symbol: 'USDC', decimals: 6 },
-  CKUSDT: { symbol: 'USDT', decimals: 6 },
-};
-
-function formatTokenAmount(amount: string, tokenType: string): string {
-  const config = TOKEN_CONFIGS[tokenType as keyof typeof TOKEN_CONFIGS];
-  if (!config) return `${amount} ${tokenType}`;
-
-  const numAmount = Number(amount) / Math.pow(10, config.decimals);
-  return `${numAmount.toFixed(config.decimals)} ${config.symbol}`;
-}
-
-function getTokenEmoji(tokenType: string): string {
-  switch (tokenType) {
-    case 'ICP':
-      return '⚡';
-    case 'CKUSDC':
-      return '💵';
-    case 'CKUSDT':
-      return '💴';
-    default:
-      return '💰';
-  }
-}
-
 async function main() {
   dotenv.config({ path: path.join(__dirname, '../../.env') });
 
