@@ -29,7 +29,7 @@ Tests ICP token deposits to the ICSI canister:
 # Local testing
 ./scripts/testICPDeposit.sh <ICSI_CANISTER_ID> --network local
 
-# Mainnet testing  
+# Mainnet testing
 ./scripts/testICPDeposit.sh <ICSI_CANISTER_ID> --network ic
 ```
 
@@ -163,7 +163,7 @@ The original TypeScript deposit test scripts:
 # ICP deposit test (legacy)
 pnpm run test:script -- test/scripts/legacy/testICPDeposit.ts
 
-# ckUSDC deposit test (legacy) 
+# ckUSDC deposit test (legacy)
 pnpm run test:script -- test/scripts/legacy/testUSDCDeposit.ts
 
 # ckUSDT deposit test (legacy)
@@ -192,12 +192,14 @@ The new shell scripts offer several advantages over the legacy TypeScript script
 ### When to Use Each Type
 
 **Use Shell Scripts for:**
+
 - Token deposit testing (ICP, ckUSDC, ckUSDT)
 - Quick validation of canister functionality
 - CI/CD pipelines and automated testing
 - Local development and debugging
 
 **Use Legacy TypeScript Scripts for:**
+
 - Complex testing scenarios requiring programmatic control
 - Integration with existing TypeScript test suites
 - Advanced token management operations (sweeping, clearing, etc.)
