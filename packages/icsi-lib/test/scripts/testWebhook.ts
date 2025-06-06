@@ -21,6 +21,30 @@ interface WebhookPayload {
   transactionHash?: string;
 }
 
+// Token configuration for formatting
+const TOKEN_CONFIGS = {
+  ICP: { symbol: 'ICP', decimals: 8 },
+  CKUSDC: { symbol: 'USDC', decimals: 6 },
+  CKUSDT: { symbol: 'USDT', decimals: 6 },
+};
+
+function formatTokenAmount(amount: string, tokenType: string): string {
+  const config = TOKEN_CONFIGS[tokenType as keyof typeof TOKEN_CONFIGS];
+  if (!config) return `${amount} ${tokenType}`;
+  
+  const numAmount = Number(amount) / Math.pow(10, config.decimals);
+  return `${numAmount.toFixed(config.decimals)} ${config.symbol}`;
+}
+
+function getTokenEmoji(tokenType: string): string {
+  switch (tokenType) {
+    case 'ICP': return '⚡';
+    case 'CKUSDC': return '💵';
+    case 'CKUSDT': return '💴';
+    default: return '💰';
+  }
+}
+
 async function main() {
   dotenv.config({ path: path.join(__dirname, '../../.env') });
 
@@ -45,8 +69,27 @@ async function main() {
 
   // Webhook endpoint
   app.post('/webhook', (req: express.Request, res: express.Response) => {
-    const payload = req.body;
-    console.log('\n📨 Webhook received:');
+    const payload: WebhookPayload = req.body;
+    const emoji = getTokenEmoji(payload.tokenType);
+    const formattedAmount = formatTokenAmount(payload.amount, payload.tokenType);
+    const timestamp = new Date(Number(payload.timestamp) / 1000000);
+    
+    console.log('\n🔔 WEBHOOK RECEIVED!');
+    console.log('==================');
+    console.log(`${emoji} Token: ${payload.tokenType}`);
+    console.log(`💰 Amount: ${formattedAmount}`);
+    console.log(`📦 Block: ${payload.blockIndex}`);
+    console.log(`⏰ Time: ${timestamp.toISOString()}`);
+    console.log(`📨 Event: ${payload.eventType}`);
+    console.log(`📍 From: ${payload.from}`);
+    console.log(`📍 To: ${payload.to}`);
+    if (payload.transactionHash) {
+      console.log(`🔗 Hash: ${payload.transactionHash}`);
+    }
+    console.log('==================');
+    
+    // Also log raw payload for debugging
+    console.log('\n📋 Raw payload:');
     console.log(JSON.stringify(payload, null, 2));
 
     receivedWebhooks.push(payload);
@@ -54,15 +97,35 @@ async function main() {
     res.status(200).json({
       status: 'received',
       message: 'Webhook processed successfully',
+      tokenType: payload.tokenType,
+      amount: formattedAmount,
     });
   });
 
   // Status endpoint
   app.get('/status', (req: express.Request, res: express.Response) => {
+    const tokenSummary = receivedWebhooks.reduce((acc, webhook) => {
+      const tokenType = webhook.tokenType;
+      if (!acc[tokenType]) {
+        acc[tokenType] = { count: 0, totalAmount: 0 };
+      }
+      acc[tokenType].count++;
+      acc[tokenType].totalAmount += Number(webhook.amount);
+      return acc;
+    }, {} as Record<string, { count: number; totalAmount: number }>);
+
     res.json({
       status: 'running',
       webhooksReceived: receivedWebhooks.length,
-      webhooks: receivedWebhooks,
+      tokenSummary,
+      recentWebhooks: receivedWebhooks.slice(-5).map(webhook => ({
+        tokenType: webhook.tokenType,
+        amount: formatTokenAmount(webhook.amount, webhook.tokenType),
+        blockIndex: webhook.blockIndex,
+        timestamp: new Date(Number(webhook.timestamp) / 1000000).toISOString(),
+        eventType: webhook.eventType,
+      })),
+      allWebhooks: receivedWebhooks,
     });
   });
 
@@ -110,11 +173,22 @@ async function main() {
     console.log(`Status endpoint: ${ngrokUrl}/status`);
 
     console.log('\n⏳ Waiting for webhooks...');
-    console.log('💡 To trigger a webhook:');
-    console.log('   1. Send USDC to your ICSI deposit address');
-    console.log('   2. Run: npm run test:usdc-deposit');
-    console.log('   3. Wait for the transaction to be indexed (~30 seconds)');
-    console.log('\n🛑 Press Ctrl+C to stop the server\n');
+    console.log('💡 To trigger webhooks, run these commands in separate terminals:');
+    console.log('');
+    console.log('   💵 USDC Test:');
+    console.log('      pnpm lib:test:usdc');
+    console.log('');
+    console.log('   💴 USDT Test:');
+    console.log('      pnpm lib:test:usdt');
+    console.log('');
+    console.log('   ⚡ ICP Test:');
+    console.log('      pnpm lib:test:icp');
+    console.log('');
+    console.log('   📊 All Tests:');
+    console.log('      pnpm lib:test:all');
+    console.log('');
+    console.log('🕐 Wait ~30 seconds after each deposit for indexing');
+    console.log('🛑 Press Ctrl+C to stop the server\n');
 
     // Keep server running
     process.on('SIGINT', async () => {
@@ -132,14 +206,19 @@ async function main() {
         `\n📊 Summary: Received ${receivedWebhooks.length} webhook(s)`
       );
       if (receivedWebhooks.length > 0) {
-        console.log('Webhooks:');
+        console.log('\n🎯 Webhook Summary:');
+        console.log('==================');
         receivedWebhooks.forEach((webhook, index) => {
-          console.log(
-            `\n${index + 1}. ${webhook.eventType} - ${webhook.tokenType}`
-          );
-          console.log(`   Amount: ${webhook.amount}`);
-          console.log(`   Block: ${webhook.blockIndex}`);
+          const emoji = getTokenEmoji(webhook.tokenType);
+          const formattedAmount = formatTokenAmount(webhook.amount, webhook.tokenType);
+          const timestamp = new Date(Number(webhook.timestamp) / 1000000);
+          
+          console.log(`\n${index + 1}. ${emoji} ${webhook.tokenType} ${webhook.eventType.toUpperCase()}`);
+          console.log(`   💰 Amount: ${formattedAmount}`);
+          console.log(`   📦 Block: ${webhook.blockIndex}`);
+          console.log(`   ⏰ Time: ${timestamp.toLocaleString()}`);
         });
+        console.log('==================');
       }
 
       await ngrok.disconnect();
