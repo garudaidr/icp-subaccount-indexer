@@ -9,6 +9,26 @@ This guide will walk you through testing the ICP Subaccount Indexer (ICSI) canis
 3. **ICP wallet** with some ICP for fees
 4. **CKUSDC tokens** for testing deposits
 
+## Testing
+
+### Modern Test Suite
+
+The modern test suite is in `packages/icsi-lib/test/scripts/`. Use it for testing.
+
+Here are a list of the available tests:
+
+- `test:icp` - Test ICP deposits
+- `test:usdc` - Test ckUSDC deposits
+- `test:usdt` - Test ckUSDT deposits
+- `test:webhook` - Test webhook functionality
+- `test:all` - Run all tests
+
+Run any test with:
+
+```bash
+pnpm run test:script test/scripts/scriptName.ts
+```
+
 ## Step 1: Generate Test Wallet
 
 First, generate a new test wallet for isolated testing:
@@ -170,9 +190,13 @@ Check the webhook terminal to see the deposit notification:
 - Always use separate wallets for testing
 - Keep your production seed phrases secure
 
-## Additional Test Scripts
+## Logs
 
-Other available test scripts in `packages/icsi-lib/test/scripts/`:
+The logs for each test are in `docs/logs/`. You can see each test's logs in the file named `TESTING_ATTEMPT_1.md`, `TESTING_ATTEMPT_2.md`, etc. Do not use the seed phrase from the logs to generate a new wallet and don't use the same seed phrase for personal or production use.
+
+## Legacy Test Scripts
+
+Other available test scripts in `packages/icsi-lib/test/scripts/legacy/`:
 
 - `registerTokens.ts` - Register ICP, CKUSDC, CKUSDT
 - `getDepositAddresses.ts` - Get all deposit addresses
@@ -180,8 +204,10 @@ Other available test scripts in `packages/icsi-lib/test/scripts/`:
 - `sweepAll.ts` - Sweep tokens from subaccounts
 - `clearTransactions.ts` - Clear transaction history
 
-Run any script with:
+Run any legacy script with:
 
 ```bash
-pnpm test:script test/scripts/scriptName.ts
+pnpm test:script test/scripts/legacy/scriptName.ts
 ```
+
+However, avoid using the legacy scripts for testing. Use the modern test suite in `packages/icsi-lib/test/scripts/` instead.
