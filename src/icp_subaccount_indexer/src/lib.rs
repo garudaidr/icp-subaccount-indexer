@@ -33,7 +33,7 @@ use types::TokenType;
 
 use memory::{
     CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
-    PRINCIPAL, TOKEN_LEDGER_PRINCIPALS, TRANSACTIONS, WEBHOOK_URL,
+    PRINCIPAL, TOKEN_LEDGER_PRINCIPALS, TOKEN_NEXT_BLOCKS, TRANSACTIONS, WEBHOOK_URL,
 };
 
 // Canister IDs for ICRC tokens
@@ -278,6 +278,31 @@ fn get_subaccount(accountid: &AccountIdentifier) -> Result<Subaccount, Error> {
             }
         }
     })
+}
+
+// Helper functions for per-token block tracking
+fn get_token_id(token_type: &TokenType) -> u8 {
+    match token_type {
+        TokenType::ICP => 1,
+        TokenType::CKUSDC => 2,
+        TokenType::CKUSDT => 3,
+    }
+}
+
+fn get_token_next_block(token_type: &TokenType) -> u64 {
+    TOKEN_NEXT_BLOCKS.with(|blocks| {
+        let blocks_borrow = blocks.borrow();
+        let token_id = get_token_id(token_type);
+        blocks_borrow.get(&token_id).unwrap_or(1) // Default to block 1
+    })
+}
+
+fn set_token_next_block(token_type: &TokenType, block: u64) {
+    TOKEN_NEXT_BLOCKS.with(|blocks| {
+        let mut blocks_mut = blocks.borrow_mut();
+        let token_id = get_token_id(token_type);
+        blocks_mut.insert(token_id, block);
+    });
 }
 
 fn to_sweep_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), Error> {
@@ -702,96 +727,73 @@ async fn query_token_ledger(
 async fn call_query_blocks() {
     ic_cdk::println!("Starting periodic block checking");
 
-    // Get the current next block value
-    let next_block = NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get());
-    let mut icp_in_registered_tokens = false;
-
-    // Get the default ICP ledger principal
-    let default_icp_principal =
-        PRINCIPAL.with(
-            |stored_ref| match stored_ref.borrow().get().get_principal() {
-                Some(result) => Some(result),
-                None => {
-                    ic_cdk::println!("ERROR in call_query_blocks:");
-                    ic_cdk::println!("  ICP Principal is not set");
-                    ic_cdk::println!(
-                        "  This is a critical error that prevents querying the ledger"
-                    );
-                    None
-                }
-            },
-        );
-
-    if default_icp_principal.is_none() {
-        return;
-    }
-
-    // Process registered token ledgers
+    // Process each registered token with its own block counter
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
         for (_, (token_type, token_principal)) in tl.borrow().iter() {
-            ic_cdk::println!("Scheduling query for token type: {:?}", token_type);
-
-            // Clone values for use in async block
             let token_type_clone = token_type.clone();
             let token_principal_clone = token_principal;
-            let current_next_block = next_block;
 
-            // Check if ICP is in registered tokens
-            if token_type_clone == TokenType::ICP {
-                icp_in_registered_tokens = true;
+            // Get the specific next block for this token
+            let token_next_block = get_token_next_block(&token_type_clone);
 
-                // Process ICP directly
-                IcCdkSpawnManager::run(async move {
-                    let result = query_token_ledger(
-                        token_type_clone.clone(),
-                        token_principal_clone,
-                        current_next_block,
-                    )
-                    .await;
-                    ic_cdk::println!("ICP token ledger query completed with result: {}", result);
+            ic_cdk::println!(
+                "Processing {:?} from block {} on ledger {}",
+                token_type_clone,
+                token_next_block,
+                token_principal_clone
+            );
 
-                    // Update the global next block value with ICP result
+            IcCdkSpawnManager::run(async move {
+                let result = query_token_ledger(
+                    token_type_clone.clone(),
+                    token_principal_clone,
+                    token_next_block,
+                )
+                .await;
+
+                ic_cdk::println!(
+                    "{:?} ledger query completed. New block: {}",
+                    token_type_clone,
+                    result
+                );
+
+                // Update the token-specific next block
+                set_token_next_block(&token_type_clone, result);
+
+                // For ICP, also update legacy NEXT_BLOCK for backward compatibility
+                if token_type_clone == TokenType::ICP {
                     NEXT_BLOCK.with(|next_block_ref| {
                         let _ = next_block_ref.borrow_mut().set(result);
                     });
-                });
-            } else {
-                // Process other tokens in separate tasks
-                IcCdkSpawnManager::run(async move {
-                    let result = query_token_ledger(
-                        token_type_clone.clone(),
-                        token_principal_clone,
-                        current_next_block,
-                    )
-                    .await;
-                    ic_cdk::println!(
-                        "Token ledger query for {:?} completed with result: {}",
-                        token_type_clone,
-                        result
-                    );
-                });
-            }
+                }
+            });
         }
     });
 
-    // If ICP is not in registered tokens, process it with default principal
-    if !icp_in_registered_tokens && default_icp_principal.is_some() {
-        let icp_principal = default_icp_principal.unwrap();
-        ic_cdk::println!("Processing default ICP ledger");
+    // Handle default ICP if not in registered tokens
+    let icp_registered = TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+        tl.borrow()
+            .iter()
+            .any(|(_, (token_type, _))| token_type == TokenType::ICP)
+    });
 
-        let icp_result = query_token_ledger(TokenType::ICP, icp_principal, next_block).await;
-        ic_cdk::println!(
-            "Default ICP token ledger query completed with result: {}",
-            icp_result
-        );
+    if !icp_registered {
+        if let Some(icp_principal) =
+            PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().get_principal())
+        {
+            let icp_next_block = get_token_next_block(&TokenType::ICP);
+            ic_cdk::println!("Processing default ICP from block {}", icp_next_block);
 
-        // Update the next block value
-        let updated_block_count = icp_result;
+            let icp_result =
+                query_token_ledger(TokenType::ICP, icp_principal, icp_next_block).await;
 
-        // Update the global next block value
-        NEXT_BLOCK.with(|next_block_ref| {
-            let _ = next_block_ref.borrow_mut().set(updated_block_count);
-        });
+            set_token_next_block(&TokenType::ICP, icp_result);
+
+            // Also update legacy NEXT_BLOCK for backward compatibility
+            NEXT_BLOCK.with(|next_block_ref| {
+                let _ = next_block_ref.borrow_mut().set(icp_result);
+            });
+        }
     }
 
     ic_cdk::println!("Block checking cycle completed");
@@ -864,6 +866,11 @@ async fn init(
         timers_ref.replace(timer_id);
     });
 
+    // Initialize per-token block tracking
+    set_token_next_block(&TokenType::ICP, 1);
+    set_token_next_block(&TokenType::CKUSDC, 1);
+    set_token_next_block(&TokenType::CKUSDT, 1);
+
     reconstruct_subaccounts();
 }
 
@@ -910,6 +917,32 @@ fn reconstruct_network() {
     });
 }
 
+fn migrate_block_tracking() {
+    // Check if migration is needed
+    let needs_migration = TOKEN_NEXT_BLOCKS.with(|blocks| blocks.borrow().is_empty());
+
+    if needs_migration {
+        ic_cdk::println!("Migrating to per-token block tracking...");
+
+        // Get the current single NEXT_BLOCK value
+        let current_next_block = NEXT_BLOCK.with(|nb| *nb.borrow().get());
+
+        // Set ICP to use the existing next_block value
+        set_token_next_block(&TokenType::ICP, current_next_block);
+
+        // Initialize ckUSDC and ckUSDT to start from block 1
+        set_token_next_block(&TokenType::CKUSDC, 1);
+        set_token_next_block(&TokenType::CKUSDT, 1);
+
+        ic_cdk::println!(
+            "Migration complete: ICP={}, ckUSDC=1, ckUSDT=1",
+            current_next_block
+        );
+    } else {
+        ic_cdk::println!("Per-token block tracking already initialized, skipping migration");
+    }
+}
+
 #[ic_cdk::post_upgrade]
 async fn post_upgrade() {
     ic_cdk::println!("Running post_upgrade...");
@@ -918,6 +951,9 @@ async fn post_upgrade() {
 
     reconstruct_subaccounts();
     reconstruct_network();
+
+    // Migrate existing deployments to per-token block tracking
+    migrate_block_tracking();
 
     // Set the current caller as custodian principal if not already set
     let caller = api::caller();
@@ -1790,6 +1826,49 @@ fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
         Ok(_) => Ok(true),
         Err(e) => Err(Error { message: e }),
     }
+}
+
+// Query/Update methods for per-token block management
+#[query]
+fn get_token_next_block_query(token_type: TokenType) -> Result<u64, String> {
+    authenticate()?;
+    Ok(get_token_next_block(&token_type))
+}
+
+#[update]
+async fn set_token_next_block_update(token_type: TokenType, block: u64) -> Result<u64, Error> {
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
+    set_token_next_block(&token_type, block);
+    Ok(block)
+}
+
+#[query]
+fn get_all_token_blocks() -> Result<Vec<(TokenType, u64)>, String> {
+    authenticate()?;
+
+    let mut result = vec![];
+    result.push((TokenType::ICP, get_token_next_block(&TokenType::ICP)));
+    result.push((TokenType::CKUSDC, get_token_next_block(&TokenType::CKUSDC)));
+    result.push((TokenType::CKUSDT, get_token_next_block(&TokenType::CKUSDT)));
+
+    Ok(result)
+}
+
+#[update]
+async fn reset_token_blocks() -> Result<String, Error> {
+    authenticate().map_err(|e| {
+        ic_cdk::println!("Authentication error: {}", e);
+        Error { message: e }
+    })?;
+
+    set_token_next_block(&TokenType::ICP, 1);
+    set_token_next_block(&TokenType::CKUSDC, 1);
+    set_token_next_block(&TokenType::CKUSDT, 1);
+
+    Ok("All token blocks reset to 1".to_string())
 }
 
 // Enable Candid export

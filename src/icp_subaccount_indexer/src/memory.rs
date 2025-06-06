@@ -14,6 +14,7 @@ const CUSTODIAN_PRINCIPAL_MEMORY: MemoryId = MemoryId::new(5);
 const NETWORK_MEMORY: MemoryId = MemoryId::new(6);
 const WEBHOOK_URL_MEMORY: MemoryId = MemoryId::new(7);
 const TOKEN_LEDGER_MEMORY: MemoryId = MemoryId::new(8);
+const TOKEN_NEXT_BLOCKS_MEMORY: MemoryId = MemoryId::new(9);
 
 thread_local! {
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
@@ -70,6 +71,11 @@ thread_local! {
     pub static TOKEN_LEDGER_PRINCIPALS: RefCell<StableBTreeMap<u64, (TokenType, candid::Principal), Memory>> = RefCell::new(
         StableBTreeMap::init(
             MEMORY_MANAGER.with(|m| m.borrow().get(TOKEN_LEDGER_MEMORY))
+        )
+    );
+    pub static TOKEN_NEXT_BLOCKS: RefCell<StableBTreeMap<u8, u64, Memory>> = RefCell::new(
+        StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(TOKEN_NEXT_BLOCKS_MEMORY))
         )
     );
 }
