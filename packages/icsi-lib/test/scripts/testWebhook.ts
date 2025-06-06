@@ -31,17 +31,21 @@ const TOKEN_CONFIGS = {
 function formatTokenAmount(amount: string, tokenType: string): string {
   const config = TOKEN_CONFIGS[tokenType as keyof typeof TOKEN_CONFIGS];
   if (!config) return `${amount} ${tokenType}`;
-  
+
   const numAmount = Number(amount) / Math.pow(10, config.decimals);
   return `${numAmount.toFixed(config.decimals)} ${config.symbol}`;
 }
 
 function getTokenEmoji(tokenType: string): string {
   switch (tokenType) {
-    case 'ICP': return '⚡';
-    case 'CKUSDC': return '💵';
-    case 'CKUSDT': return '💴';
-    default: return '💰';
+    case 'ICP':
+      return '⚡';
+    case 'CKUSDC':
+      return '💵';
+    case 'CKUSDT':
+      return '💴';
+    default:
+      return '💰';
   }
 }
 
@@ -69,62 +73,53 @@ async function main() {
 
   // Webhook endpoint
   app.post('/webhook', (req: express.Request, res: express.Response) => {
-    const payload: WebhookPayload = req.body;
-    const emoji = getTokenEmoji(payload.tokenType);
-    const formattedAmount = formatTokenAmount(payload.amount, payload.tokenType);
-    const timestamp = new Date(Number(payload.timestamp) / 1000000);
-    
+    // The canister sends tx_hash as a query parameter, not JSON body
+    const txHash = req.query.tx_hash as string;
+    const payload = req.body;
+
     console.log('\n🔔 WEBHOOK RECEIVED!');
     console.log('==================');
-    console.log(`${emoji} Token: ${payload.tokenType}`);
-    console.log(`💰 Amount: ${formattedAmount}`);
-    console.log(`📦 Block: ${payload.blockIndex}`);
-    console.log(`⏰ Time: ${timestamp.toISOString()}`);
-    console.log(`📨 Event: ${payload.eventType}`);
-    console.log(`📍 From: ${payload.from}`);
-    console.log(`📍 To: ${payload.to}`);
-    if (payload.transactionHash) {
-      console.log(`🔗 Hash: ${payload.transactionHash}`);
-    }
-    console.log('==================');
-    
-    // Also log raw payload for debugging
-    console.log('\n📋 Raw payload:');
-    console.log(JSON.stringify(payload, null, 2));
 
-    receivedWebhooks.push(payload);
+    if (txHash) {
+      console.log(`🔗 Transaction Hash: ${txHash}`);
+    }
+
+    // Log raw request details for debugging
+    console.log('\n📋 Request Details:');
+    console.log('Query Parameters:', req.query);
+    console.log('Headers:', req.headers);
+    console.log('Body:', req.body);
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('==================');
+
+    // Create a webhook record for tracking
+    const webhookRecord = {
+      timestamp: new Date().toISOString(),
+      txHash: txHash || 'unknown',
+      method: req.method,
+      url: req.url,
+      query: req.query,
+      body: req.body,
+      headers: req.headers,
+    };
+
+    receivedWebhooks.push(webhookRecord as any);
 
     res.status(200).json({
       status: 'received',
       message: 'Webhook processed successfully',
-      tokenType: payload.tokenType,
-      amount: formattedAmount,
+      txHash: txHash,
+      receivedAt: new Date().toISOString(),
     });
   });
 
   // Status endpoint
   app.get('/status', (req: express.Request, res: express.Response) => {
-    const tokenSummary = receivedWebhooks.reduce((acc, webhook) => {
-      const tokenType = webhook.tokenType;
-      if (!acc[tokenType]) {
-        acc[tokenType] = { count: 0, totalAmount: 0 };
-      }
-      acc[tokenType].count++;
-      acc[tokenType].totalAmount += Number(webhook.amount);
-      return acc;
-    }, {} as Record<string, { count: number; totalAmount: number }>);
-
     res.json({
       status: 'running',
       webhooksReceived: receivedWebhooks.length,
-      tokenSummary,
-      recentWebhooks: receivedWebhooks.slice(-5).map(webhook => ({
-        tokenType: webhook.tokenType,
-        amount: formatTokenAmount(webhook.amount, webhook.tokenType),
-        blockIndex: webhook.blockIndex,
-        timestamp: new Date(Number(webhook.timestamp) / 1000000).toISOString(),
-        eventType: webhook.eventType,
-      })),
+      recentWebhooks: receivedWebhooks.slice(-5),
       allWebhooks: receivedWebhooks,
     });
   });
@@ -173,7 +168,9 @@ async function main() {
     console.log(`Status endpoint: ${ngrokUrl}/status`);
 
     console.log('\n⏳ Waiting for webhooks...');
-    console.log('💡 To trigger webhooks, run these commands in separate terminals:');
+    console.log(
+      '💡 To trigger webhooks, run these commands in separate terminals:'
+    );
     console.log('');
     console.log('   💵 USDC Test:');
     console.log('      pnpm lib:test:usdc');
@@ -209,14 +206,12 @@ async function main() {
         console.log('\n🎯 Webhook Summary:');
         console.log('==================');
         receivedWebhooks.forEach((webhook, index) => {
-          const emoji = getTokenEmoji(webhook.tokenType);
-          const formattedAmount = formatTokenAmount(webhook.amount, webhook.tokenType);
-          const timestamp = new Date(Number(webhook.timestamp) / 1000000);
-          
-          console.log(`\n${index + 1}. ${emoji} ${webhook.tokenType} ${webhook.eventType.toUpperCase()}`);
-          console.log(`   💰 Amount: ${formattedAmount}`);
-          console.log(`   📦 Block: ${webhook.blockIndex}`);
-          console.log(`   ⏰ Time: ${timestamp.toLocaleString()}`);
+          console.log(
+            `\n${index + 1}. 🔗 Transaction Hash: ${(webhook as any).txHash}`
+          );
+          console.log(`   ⏰ Received: ${(webhook as any).timestamp}`);
+          console.log(`   📡 Method: ${(webhook as any).method}`);
+          console.log(`   🌐 URL: ${(webhook as any).url}`);
         });
         console.log('==================');
       }
