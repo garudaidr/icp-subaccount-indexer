@@ -1,0 +1,58 @@
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    wget \
+    git \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - \
+    && apt-get install -y nodejs
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install wasm32 target
+RUN rustup target add wasm32-unknown-unknown
+
+# Install DFX with proper architecture detection
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then \
+        echo "Installing DFX for ARM64..."; \
+        curl -fsSL https://github.com/dfinity/sdk/releases/download/0.23.0/dfx-0.23.0-aarch64-linux.tar.gz -o dfx.tar.gz && \
+        tar -xzf dfx.tar.gz && \
+        mv dfx /usr/local/bin/ && \
+        rm dfx.tar.gz; \
+    else \
+        echo "Installing DFX for x86_64..."; \
+        DFX_VERSION=0.23.0 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"; \
+    fi
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy dfx configuration
+COPY dfx.json .
+COPY canister_ids.json .
+
+# Create networks directory for DFX
+RUN mkdir -p /root/.config/dfx/networks
+
+# Expose DFX ports
+EXPOSE 4943 8000 8080
+
+# Health check for DFX
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:4943/_/api/v2/status || exit 1
+
+# Start DFX in replica mode with old metering
+CMD ["dfx", "start", "--clean", "--host", "0.0.0.0:4943", "--artificial-delay", "0"]

@@ -1,0 +1,78 @@
+services:
+  dfx:
+    build:
+      context: ../../..
+      dockerfile: packages/icsi-lib/docker/Dockerfile.dfx
+    ports:
+      - '4943:4943'
+      - '8000:8000'
+      - '8080:8080'
+    volumes:
+      - ../../../:/workspace
+      - dfx_data:/root/.local/share/dfx
+    environment:
+      - DFX_NETWORK=local
+      - DFX_CONFIG_ROOT=/root/.config/dfx
+    command: >
+      bash -c "
+        cd /workspace &&
+        echo 'Starting DFX with old metering...' &&
+        dfx start --clean --host 0.0.0.0:4943 --artificial-delay 0 &
+        DFX_PID=$$! &&
+        echo 'Waiting for DFX to be ready...' &&
+        timeout 60 bash -c 'until curl -s http://localhost:4943/_/api/v2/status > /dev/null; do sleep 2; done' &&
+        echo 'DFX is ready!' &&
+        wait $$DFX_PID
+      "
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:4943/_/api/v2/status']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  test-tokens:
+    build:
+      context: ../../..
+      dockerfile: packages/icsi-lib/docker/Dockerfile.dfx
+    depends_on:
+      dfx:
+        condition: service_healthy
+    volumes:
+      - ../../../:/workspace
+      - dfx_data:/root/.local/share/dfx
+    environment:
+      - DFX_NETWORK=local
+      - DFX_CONFIG_ROOT=/root/.config/dfx
+    working_dir: /workspace
+    command: >
+      bash -c "
+        echo 'Deploying test token canisters...' &&
+        cd /workspace &&
+        ./packages/icsi-lib/scripts/deploy-test-tokens.sh
+      "
+
+  icsi-indexer:
+    build:
+      context: ../../..
+      dockerfile: packages/icsi-lib/docker/Dockerfile.dfx
+    depends_on:
+      test-tokens:
+        condition: service_completed_successfully
+    volumes:
+      - ../../../:/workspace
+      - dfx_data:/root/.local/share/dfx
+    environment:
+      - DFX_NETWORK=local
+      - DFX_CONFIG_ROOT=/root/.config/dfx
+    working_dir: /workspace
+    command: >
+      bash -c "
+        echo 'Deploying ICSI indexer canister...' &&
+        cd /workspace &&
+        pnpm run build:canister &&
+        dfx deploy icp_subaccount_indexer --network local --argument '(variant { Local }, 5: nat64, 0: nat32, \"rdmx6-jaaaa-aaaaa-aaadq-cai\", \"$(dfx identity get-principal)\")'
+      "
+
+volumes:
+  dfx_data:
