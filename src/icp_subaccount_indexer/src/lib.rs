@@ -1,6 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
 use core::future::Future;
-use futures::future::join_all;
 use ic_cdk::api;
 use ic_cdk::api::{
     call::CallResult,
@@ -28,6 +27,7 @@ use ic_ledger_types::{
     AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs, DEFAULT_SUBACCOUNT,
     MAINNET_LEDGER_CANISTER_ID,
 };
+use icrc_ledger_types::icrc1::transfer::TransferArg as Icrc1TransferArg;
 use num_traits::ToPrimitive;
 
 use types::{Block, E8s, Operation, Timestamp, TokenType, Transaction, Transfer};
@@ -415,6 +415,67 @@ fn to_refund_args(tx: &StoredTransactions) -> Result<(TransferArgs, Principal), 
     } // end match
 }
 
+fn to_icrc1_sweep_args(tx: &StoredTransactions) -> Result<(Icrc1TransferArg, Principal), Error> {
+    let custodian_principal_opt =
+        CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+    let custodian_principal = custodian_principal_opt
+        .get_principal()
+        .ok_or_else(|| Error {
+            message: "Failed to get custodian principal".to_string(),
+        })?;
+
+    let operation = tx.operation.as_ref().ok_or_else(|| {
+        let error_msg = "Operation is None".to_string();
+        ic_cdk::println!("Error: {}", error_msg);
+        Error { message: error_msg }
+    })?;
+
+    match operation {
+        Operation::Transfer(data) => {
+            // Get the subaccount that received the funds
+            let topup_to = data.to.clone();
+            let topup_to = topup_to.as_slice();
+            let sweep_from = AccountIdentifier::from_slice(topup_to).map_err(|err| {
+                let error_msg = format!("Error converting to to AccountIdentifier: {:?}", err);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
+            })?;
+            let result = get_subaccount(&sweep_from);
+            let sweep_source_subaccount = result.map_err(|err| {
+                let error_msg = format!("Error getting from_subaccount: {}", err.message);
+                ic_cdk::println!("{}", error_msg);
+                Error { message: error_msg }
+            })?;
+
+            // Calculate amount (subtract fee)
+            let amount = data.amount.e8s - 10_000;
+
+            // Get the ledger canister ID for the token type
+            let token_ledger_canister_id = get_token_ledger_canister_id(&tx.token_type);
+
+            // Create ICRC-1 transfer arguments
+            let transfer_arg = Icrc1TransferArg {
+                to: icrc_ledger_types::icrc1::account::Account {
+                    owner: custodian_principal,
+                    subaccount: None,
+                },
+                fee: Some(candid::Nat::from(10_000u64)),
+                memo: None,
+                from_subaccount: Some(sweep_source_subaccount.0),
+                created_at_time: None,
+                amount: candid::Nat::from(amount),
+            };
+
+            Ok((transfer_arg, token_ledger_canister_id))
+        }
+        _ => {
+            let error_msg = "Operation is not a transfer".to_string();
+            ic_cdk::println!("Error: {}", error_msg);
+            Err(Error { message: error_msg })
+        }
+    }
+}
+
 fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Error> {
     let index = tx.index;
     let mut tx_clone = tx.clone();
@@ -434,6 +495,31 @@ fn update_status(tx: &StoredTransactions, status: SweepStatus) -> Result<(), Err
             Err(Error { message: error_msg })
         }
     }
+}
+
+#[derive(CandidType, Deserialize, Debug, Clone)]
+enum Icrc1TransferError {
+    BadFee {
+        expected_fee: candid::Nat,
+    },
+    BadBurn {
+        min_burn_amount: candid::Nat,
+    },
+    InsufficientFunds {
+        balance: candid::Nat,
+    },
+    TooOld,
+    CreatedInFuture {
+        ledger_time: u64,
+    },
+    Duplicate {
+        duplicate_of: candid::Nat,
+    },
+    TemporarilyUnavailable,
+    GenericError {
+        error_code: candid::Nat,
+        message: String,
+    },
 }
 
 #[cfg(not(any(test, feature = "happy_path", feature = "sad_path")))]
@@ -666,6 +752,31 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
             }
             Err((error, message)) => {
                 let error_message = format!("unexpected error: {:?}, message: {}", error, message);
+                Err(error_message)
+            }
+        }
+    }
+
+    async fn icrc1_transfer(
+        args: icrc_ledger_types::icrc1::transfer::TransferArg,
+        token_ledger_canister_id: Principal,
+    ) -> Result<candid::Nat, String> {
+        let result: CallResult<(Result<candid::Nat, Icrc1TransferError>,)> =
+            ic_cdk::call(token_ledger_canister_id, "icrc1_transfer", (args,)).await;
+
+        match result {
+            Ok((Ok(block_index),)) => Ok(block_index),
+            Ok((Err(transfer_error),)) => {
+                let error_message = format!("ICRC-1 transfer error: {:?}", transfer_error);
+                ic_cdk::println!("{}", error_message);
+                Err(error_message)
+            }
+            Err((code, message)) => {
+                let error_message = format!(
+                    "ICRC-1 transfer call failed: {:?}, message: {}",
+                    code, message
+                );
+                ic_cdk::println!("{}", error_message);
                 Err(error_message)
             }
         }
@@ -1527,8 +1638,6 @@ async fn sweep() -> Result<Vec<String>, Error> {
         Error { message: e }
     })?;
 
-    let mut futures = Vec::new();
-
     // get relevant txs
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -1560,47 +1669,65 @@ async fn sweep() -> Result<Vec<String>, Error> {
         result
     });
 
-    for tx in txs.iter() {
-        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
-
-        ic_cdk::println!(
-            "transfer_args: {:?}, token_type: {:?}",
-            transfer_args,
-            tx.1.token_type
-        );
-
-        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
-        futures.push(future);
-    }
-
-    let responses = join_all(futures).await;
-
     let mut results = Vec::<String>::new();
 
-    // Trigger subsequent process here
-    for (index, response) in responses.iter().enumerate() {
-        let tx = txs[index].1.clone();
-        match response {
-            Ok(_) => {
-                let status_update = update_status(&tx, SweepStatus::Swept);
+    // Process each transaction
+    for tx in txs.iter() {
+        let tx_data = tx.1.clone();
+
+        let transfer_result = match tx_data.token_type {
+            TokenType::ICP => {
+                let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICP transfer_args: {:?}, token_type: {:?}",
+                    transfer_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
+                    .await
+                    .map(|idx| idx.to_string())
+            }
+            TokenType::CKUSDC | TokenType::CKUSDT => {
+                let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICRC-1 transfer_args: {:?}, token_type: {:?}",
+                    icrc1_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::icrc1_transfer(icrc1_args, token_ledger_canister_id)
+                    .await
+                    .map(|nat| nat.to_string())
+            }
+        };
+
+        match transfer_result {
+            Ok(block_idx) => {
+                let status_update = update_status(&tx_data, SweepStatus::Swept);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                    results.push(format!(
+                        "tx: {}, sweep: ok (block {}), status_update: ok",
+                        tx_data.index, block_idx
+                    ));
                 } else {
                     results.push(format!(
-                        "tx: {}, sweep: ok, status_update: {}",
-                        tx.index,
+                        "tx: {}, sweep: ok (block {}), status_update: {}",
+                        tx_data.index,
+                        block_idx,
                         status_update.unwrap_err().message
                     ));
                 }
             }
             Err(e) => {
-                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                let status_update = update_status(&tx_data, SweepStatus::FailedToSweep);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: ok",
+                        tx_data.index, e
+                    ));
                 } else {
                     results.push(format!(
                         "tx: {}, sweep: {}, status_update: {}",
-                        tx.index,
+                        tx_data.index,
                         e,
                         status_update.unwrap_err().message
                     ));
@@ -1619,8 +1746,6 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
         Error { message: e }
     })?;
 
-    let mut futures = Vec::new();
-
     // get relevant txs
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -1634,47 +1759,65 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
         filtered_transactions
     });
 
-    for tx in txs.iter() {
-        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
-
-        ic_cdk::println!(
-            "transfer_args: {:?}, token_type: {:?}",
-            transfer_args,
-            tx.1.token_type
-        );
-
-        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
-        futures.push(future);
-    }
-
-    let responses = join_all(futures).await;
-
     let mut results = Vec::<String>::new();
 
-    // Trigger subsequent process here
-    for (index, response) in responses.iter().enumerate() {
-        let tx = txs[index].1.clone();
-        match response {
-            Ok(_) => {
-                let status_update = update_status(&tx, SweepStatus::Swept);
+    // Process each transaction
+    for tx in txs.iter() {
+        let tx_data = tx.1.clone();
+
+        let transfer_result = match tx_data.token_type {
+            TokenType::ICP => {
+                let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICP transfer_args: {:?}, token_type: {:?}",
+                    transfer_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
+                    .await
+                    .map(|idx| idx.to_string())
+            }
+            TokenType::CKUSDC | TokenType::CKUSDT => {
+                let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICRC-1 transfer_args: {:?}, token_type: {:?}",
+                    icrc1_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::icrc1_transfer(icrc1_args, token_ledger_canister_id)
+                    .await
+                    .map(|nat| nat.to_string())
+            }
+        };
+
+        match transfer_result {
+            Ok(block_idx) => {
+                let status_update = update_status(&tx_data, SweepStatus::Swept);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                    results.push(format!(
+                        "tx: {}, sweep: ok (block {}), status_update: ok",
+                        tx_data.index, block_idx
+                    ));
                 } else {
                     results.push(format!(
-                        "tx: {}, sweep: ok, status_update: {}",
-                        tx.index,
+                        "tx: {}, sweep: ok (block {}), status_update: {}",
+                        tx_data.index,
+                        block_idx,
                         status_update.unwrap_err().message
                     ));
                 }
             }
             Err(e) => {
-                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                let status_update = update_status(&tx_data, SweepStatus::FailedToSweep);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: ok",
+                        tx_data.index, e
+                    ));
                 } else {
                     results.push(format!(
                         "tx: {}, sweep: {}, status_update: {}",
-                        tx.index,
+                        tx_data.index,
                         e,
                         status_update.unwrap_err().message
                     ));
@@ -1742,18 +1885,49 @@ async fn sweep_subaccount(
         TokenType::CKUSDT => CKUSDT_LEDGER_CANISTER_ID,
     };
 
-    let transfer_args = TransferArgs {
-        memo: Memo(0),
-        amount: Tokens::from_e8s(amount_e8s),
-        fee: Tokens::from_e8s(10_000),
-        from_subaccount: Some(subaccount),
-        to: custodian_id,
-        created_at_time: None,
-    };
+    match token_type {
+        TokenType::ICP => {
+            let transfer_args = TransferArgs {
+                memo: Memo(0),
+                amount: Tokens::from_e8s(amount_e8s),
+                fee: Tokens::from_e8s(10_000),
+                from_subaccount: Some(subaccount),
+                to: custodian_id,
+                created_at_time: None,
+            };
 
-    InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
-        .await
-        .map_err(|e| Error { message: e })
+            InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
+                .await
+                .map_err(|e| Error { message: e })
+        }
+        TokenType::CKUSDC | TokenType::CKUSDT => {
+            let custodian_principal_opt =
+                CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
+            let custodian_principal =
+                custodian_principal_opt
+                    .get_principal()
+                    .ok_or_else(|| Error {
+                        message: "Failed to get custodian principal".to_string(),
+                    })?;
+
+            let icrc1_args = Icrc1TransferArg {
+                to: icrc_ledger_types::icrc1::account::Account {
+                    owner: custodian_principal,
+                    subaccount: None,
+                },
+                fee: Some(candid::Nat::from(10_000u64)),
+                memo: None,
+                from_subaccount: Some(subaccount.0),
+                created_at_time: None,
+                amount: candid::Nat::from(amount_e8s),
+            };
+
+            InterCanisterCallManager::icrc1_transfer(icrc1_args, token_ledger_canister_id)
+                .await
+                .map(|nat| nat.0.to_u64().unwrap_or(0))
+                .map_err(|e| Error { message: e })
+        }
+    }
 }
 
 #[update]
@@ -1901,8 +2075,6 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
         Error { message: e }
     })?;
 
-    let mut futures = Vec::new();
-
     // get relevant txs
     let txs = TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
@@ -1936,47 +2108,65 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
         result
     });
 
-    for tx in txs.iter() {
-        let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx.1)?;
-
-        ic_cdk::println!(
-            "transfer_args: {:?}, token_type: {:?}",
-            transfer_args,
-            tx.1.token_type
-        );
-
-        let future = InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id);
-        futures.push(future);
-    }
-
-    let responses = join_all(futures).await;
-
     let mut results = Vec::<String>::new();
 
-    // Trigger subsequent process here
-    for (index, response) in responses.iter().enumerate() {
-        let tx = txs[index].1.clone();
-        match response {
-            Ok(_) => {
-                let status_update = update_status(&tx, SweepStatus::Swept);
+    // Process each transaction
+    for tx in txs.iter() {
+        let tx_data = tx.1.clone();
+
+        let transfer_result = match tx_data.token_type {
+            TokenType::ICP => {
+                let (transfer_args, token_ledger_canister_id) = to_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICP transfer_args: {:?}, token_type: {:?}",
+                    transfer_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::transfer(transfer_args, token_ledger_canister_id)
+                    .await
+                    .map(|idx| idx.to_string())
+            }
+            TokenType::CKUSDC | TokenType::CKUSDT => {
+                let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
+                ic_cdk::println!(
+                    "ICRC-1 transfer_args: {:?}, token_type: {:?}",
+                    icrc1_args,
+                    tx_data.token_type
+                );
+                InterCanisterCallManager::icrc1_transfer(icrc1_args, token_ledger_canister_id)
+                    .await
+                    .map(|nat| nat.to_string())
+            }
+        };
+
+        match transfer_result {
+            Ok(block_idx) => {
+                let status_update = update_status(&tx_data, SweepStatus::Swept);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: ok, status_update: ok", tx.index));
+                    results.push(format!(
+                        "tx: {}, sweep: ok (block {}), status_update: ok",
+                        tx_data.index, block_idx
+                    ));
                 } else {
                     results.push(format!(
-                        "tx: {}, sweep: ok, status_update: {}",
-                        tx.index,
+                        "tx: {}, sweep: ok (block {}), status_update: {}",
+                        tx_data.index,
+                        block_idx,
                         status_update.unwrap_err().message
                     ));
                 }
             }
             Err(e) => {
-                let status_update = update_status(&tx, SweepStatus::FailedToSweep);
+                let status_update = update_status(&tx_data, SweepStatus::FailedToSweep);
                 if status_update.is_ok() {
-                    results.push(format!("tx: {}, sweep: {}, status_update: ok", tx.index, e));
+                    results.push(format!(
+                        "tx: {}, sweep: {}, status_update: ok",
+                        tx_data.index, e
+                    ));
                 } else {
                     results.push(format!(
                         "tx: {}, sweep: {}, status_update: {}",
-                        tx.index,
+                        tx_data.index,
                         e,
                         status_update.unwrap_err().message
                     ));

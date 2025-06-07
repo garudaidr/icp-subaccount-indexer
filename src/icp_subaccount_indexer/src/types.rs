@@ -550,6 +550,11 @@ pub trait InterCanisterCallManagerTrait {
         args: TransferArgs,
         token_ledger_canister_id: Principal,
     ) -> Result<BlockIndex, String>;
+
+    async fn icrc1_transfer(
+        args: TransferArg,
+        token_ledger_canister_id: Principal,
+    ) -> Result<candid::Nat, String>;
 }
 
 pub struct InterCanisterCallManager;
