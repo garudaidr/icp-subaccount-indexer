@@ -1,6 +1,20 @@
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { isNotEmptyOrError } from './utils';
-import { _SERVICE, idlFactory, TokenType } from './userVault.did';
+import {
+  _SERVICE,
+  idlFactory,
+  TokenType,
+  Result_2,
+  Result_3,
+  Result_5,
+  Result_7,
+  Result_6,
+  Result_4,
+  Result_8,
+  Result_1,
+  Result,
+  Result_9,
+} from './userVault.did';
 
 /**
  * Creates an actor for interacting with a user vault canister.
@@ -28,13 +42,13 @@ function createUserVaultActor(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {bigint} [upToIndex] - The number of blocks for the transactions to fetch.
- * @returns {Promise<StoredTransactions[]>} - The list of transactions.
+ * @returns {Promise<Result_9>} - The list of transactions wrapped in a Result.
  */
 export async function getUserVaultTransactions(
   agent: HttpAgent,
   userVaultCanisterId: string,
   upToIndex?: bigint
-) {
+): Promise<Result_9> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   return await actor.list_transactions(upToIndex ? [upToIndex] : []);
 }
@@ -44,13 +58,20 @@ export async function getUserVaultTransactions(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<bigint>} - The interval value.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getUserVaultInterval(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<bigint> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_interval();
+  const result = await actor.get_interval();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -58,13 +79,20 @@ export async function getUserVaultInterval(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<number>} - The transaction count.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getTransactionsCount(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<number> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_transactions_count();
+  const result = await actor.get_transactions_count();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -72,10 +100,20 @@ export async function getTransactionsCount(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<number>} - The nonce value.
+ * @throws {Error} - Throws if the call returns an error.
  */
-export async function getNonce(agent: HttpAgent, userVaultCanisterId: string) {
+export async function getNonce(
+  agent: HttpAgent,
+  userVaultCanisterId: string
+): Promise<number> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_nonce();
+  const result = await actor.get_nonce();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -83,13 +121,20 @@ export async function getNonce(agent: HttpAgent, userVaultCanisterId: string) {
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<number>} - The subaccount count.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getSubaccountCount(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<number> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_subaccount_count();
+  const result = await actor.get_subaccount_count();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -97,16 +142,24 @@ export async function getSubaccountCount(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {number} index - The index of the subaccount.
+ * @param {TokenType} tokenType - The token type for the subaccount.
  * @returns {Promise<string>} - The subaccount ID.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getSubaccountId(
   agent: HttpAgent,
   userVaultCanisterId: string,
   index: number,
   tokenType: TokenType
-) {
+): Promise<string> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_subaccountid(index, [tokenType]);
+  const result = await actor.get_subaccountid(index, [tokenType]);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err.message);
+  }
 }
 
 /**
@@ -114,14 +167,20 @@ export async function getSubaccountId(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<string>} - A promise that resolves to the webhook URL.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getWebhookUrl(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<string> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_webhook_url();
+  const result = await actor.get_webhook_url();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -129,14 +188,20 @@ export async function getWebhookUrl(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<string>} - A promise that resolves to the canister principal.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getCanisterPrincipal(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<string> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_canister_principal();
+  const result = await actor.get_canister_principal();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -145,15 +210,21 @@ export async function getCanisterPrincipal(
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {number} index - The index of the subaccount.
  * @returns {Promise<string>} - A promise that resolves to the ICRC-1 account.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getIcrcAccount(
   agent: HttpAgent,
   userVaultCanisterId: string,
   index: number
-) {
+): Promise<string> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_icrc_account(index);
+  const result = await actor.get_icrc_account(index);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err.message);
+  }
 }
 
 /**
@@ -161,14 +232,24 @@ export async function getIcrcAccount(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<"Mainnet" | "Local">} - A promise that resolves to the network.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getNetwork(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<'Mainnet' | 'Local'> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_network();
+  const result = await actor.get_network();
+
+  if ('Ok' in result) {
+    if ('Mainnet' in result.Ok) {
+      return 'Mainnet';
+    } else {
+      return 'Local';
+    }
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -176,14 +257,20 @@ export async function getNetwork(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<bigint>} - A promise that resolves to the next block.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getNextBlock(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<bigint> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_next_block();
+  const result = await actor.get_next_block();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
@@ -191,27 +278,32 @@ export async function getNextBlock(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @returns {Promise<bigint | undefined>} - A promise that resolves to the oldest block or undefined.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getOldestBlock(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<bigint | undefined> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_oldest_block();
+  const result = await actor.get_oldest_block();
+
+  if ('Ok' in result) {
+    return result.Ok.length > 0 ? result.Ok[0] : undefined;
+  } else {
+    throw new Error(result.Err);
+  }
 }
 
 /**
  * Gets the token types registered with the user vault.
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
- * @returns {Promise<[TokenType, string][]>} - A promise that resolves to an array of token types and their canister IDs.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @returns {Promise<Result_7>} - The registered tokens wrapped in a Result.
  */
 export async function getRegisteredTokens(
   agent: HttpAgent,
   userVaultCanisterId: string
-) {
+): Promise<Result_7> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   return await actor.get_registered_tokens();
 }
@@ -222,13 +314,19 @@ export async function getRegisteredTokens(
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {string} txHash - The transaction hash.
  * @returns {Promise<TokenType>} - A promise that resolves to the token type.
- * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
+ * @throws {Error} - Throws if the call returns an error.
  */
 export async function getTransactionTokenType(
   agent: HttpAgent,
   userVaultCanisterId: string,
   txHash: string
-) {
+): Promise<TokenType> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  return await actor.get_transaction_token_type(txHash);
+  const result = await actor.get_transaction_token_type(txHash);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
 }
