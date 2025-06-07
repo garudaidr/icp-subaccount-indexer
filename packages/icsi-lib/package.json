@@ -13,11 +13,22 @@
     "clean": "rimraf dist",
     "prepare": "pnpm run clean && pnpm run build",
     "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts' 'test/**/*.ts'",
+    "type-check": "tsc --noEmit",
     "generate:wallet": "ts-node test/scripts/generateWallet.ts",
     "test:icp-deposit": "./test/scripts/testICPDeposit.sh",
     "test:usdc-deposit": "./test/scripts/testUSDCDeposit.sh",
     "test:usdt-deposit": "./test/scripts/testUSDTDeposit.sh",
-    "test:webhook": "ts-node test/scripts/testWebhook.ts"
+    "test:webhook": "ts-node test/scripts/testWebhook.ts",
+    "test": "jest",
+    "test:unit": "jest --config jest.config.unit.js",
+    "test:integration": "jest --config jest.config.integration.js",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "docker:up": "docker-compose -f docker/docker-compose.test.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.test.yml down -v",
+    "docker:test": "docker-compose -f docker/docker-compose.test.yml up --abort-on-container-exit"
   },
   "keywords": [
     "internet-computer",
@@ -45,9 +56,11 @@
     "secp256k1": "^5.0.1"
   },
   "devDependencies": {
+    "@jest/test-sequencer": "^29.5.0",
     "@types/express": "^4.17.17",
     "@types/hdkey": "^2.0.1",
-    "@types/node": "^18.15.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^18.19.110",
     "@types/secp256k1": "^4.0.6",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
