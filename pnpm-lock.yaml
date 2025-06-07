@@ -117,14 +117,20 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1
     devDependencies:
+      "@jest/test-sequencer":
+        specifier: ^29.5.0
+        version: 29.7.0
       "@types/express":
         specifier: ^4.17.17
         version: 4.17.21
       "@types/hdkey":
         specifier: ^2.0.1
         version: 2.1.0
+      "@types/jest":
+        specifier: ^29.5.14
+        version: 29.5.14
       "@types/node":
-        specifier: ^18.15.0
+        specifier: ^18.19.110
         version: 18.19.110
       "@types/secp256k1":
         specifier: ^4.0.6
@@ -1005,6 +1011,12 @@ packages:
     resolution:
       {
         integrity: sha512-pk2B1NWalF9toCRu6gjBzR69syFjP4Od8WRAX+0mmf9lAjCRicLOWc+ZrxZHx/0XRjotgkF9t6iaMJ+aXcOdZQ==,
+      }
+
+  "@types/jest@29.5.14":
+    resolution:
+      {
+        integrity: sha512-ZN+4sdnLUbo8EVvVc2ao0GFW6oVrQRPn4K2lglySj7APvSrgzxHiNNK99us4WDMi57xxA2yggblIAMNhXOotLQ==,
       }
 
   "@types/json-schema@7.0.15":
@@ -5869,6 +5881,11 @@ snapshots:
   "@types/istanbul-reports@3.0.4":
     dependencies:
       "@types/istanbul-lib-report": 3.0.3
+
+  "@types/jest@29.5.14":
+    dependencies:
+      expect: 29.7.0
+      pretty-format: 29.7.0
 
   "@types/json-schema@7.0.15": {}
 
