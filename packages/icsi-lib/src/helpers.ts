@@ -70,12 +70,7 @@ export async function getDepositAddresses(
   for (const [tokenType, tokenName] of tokens) {
     try {
       // Get nonce for subaccount creation
-      const nonceResult = await getNonce(agent, canisterId);
-      let index = 0;
-
-      if ('Ok' in nonceResult) {
-        index = nonceResult.Ok;
-      }
+      const index = await getNonce(agent, canisterId);
 
       // Try to create subaccount (might already exist)
       await addSubaccountForToken(agent, canisterId, tokenType).catch(() => {
@@ -83,27 +78,21 @@ export async function getDepositAddresses(
       });
 
       // Get subaccount ID
-      const subaccountIdResult = await getSubaccountId(
+      const subaccountId = await getSubaccountId(
         agent,
         canisterId,
         index,
         tokenType
       );
-      if ('Err' in subaccountIdResult) {
-        continue;
-      }
 
       // Get ICRC account (deposit address)
-      const icrcAccountResult = await getIcrcAccount(agent, canisterId, index);
-      if ('Err' in icrcAccountResult) {
-        continue;
-      }
+      const icrcAccount = await getIcrcAccount(agent, canisterId, index);
 
       addresses.push({
         tokenType,
         tokenName,
-        subaccountId: subaccountIdResult.Ok,
-        depositAddress: icrcAccountResult.Ok,
+        subaccountId,
+        depositAddress: icrcAccount,
       });
     } catch (error) {
       console.error(`Error processing token ${tokenName}:`, error);
