@@ -1008,6 +1008,276 @@ mod tests {
             );
             assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
         }
+
+        // New tests for multi-token support
+
+        #[test]
+        fn test_get_registered_tokens() {
+            // Initially should be empty since no tokens are registered by default in tests
+            let result = get_registered_tokens();
+            assert!(result.is_ok(), "Getting registered tokens should succeed");
+
+            let tokens = result.unwrap();
+            // In test environment, tokens are not automatically registered
+            assert_eq!(tokens.len(), 0, "Should have 0 token types initially");
+        }
+
+        #[test]
+        fn test_get_transaction_token_type() {
+            // Setup a transaction with specific token type
+            populate_transactions(1, None);
+
+            // Get the transaction hash from populated transactions
+            let tx_hash = TRANSACTIONS.with(|t| {
+                let transactions = t.borrow();
+                transactions
+                    .get(&1)
+                    .map(|tx| tx.tx_hash.clone())
+                    .unwrap_or_else(|| "HASH-IS-NOT-AVAILABLE".to_string())
+            });
+
+            // Get the transaction token type
+            let result = get_transaction_token_type(tx_hash);
+            assert!(
+                result.is_ok(),
+                "Getting transaction token type should succeed"
+            );
+            assert_eq!(
+                result.unwrap(),
+                TokenType::ICP,
+                "Should return ICP token type"
+            );
+        }
+
+        #[test]
+        fn test_get_transaction_token_type_not_found() {
+            let result = get_transaction_token_type("non-existent-hash".to_string());
+            assert!(result.is_err(), "Should fail for non-existent transaction");
+            assert_eq!(
+                result.unwrap_err(),
+                "Transaction not found",
+                "Should return correct error message"
+            );
+        }
+
+        #[test]
+        fn test_get_token_next_block_query() {
+            // This function returns the next block for a specific token
+            let result = get_token_next_block_query(TokenType::CKUSDC);
+            assert!(result.is_ok(), "Getting token next block should succeed");
+            // Should return 1 by default
+            assert_eq!(result.unwrap(), 1, "Should return default block 1");
+        }
+
+        #[test]
+        fn test_get_all_token_blocks() {
+            let result = get_all_token_blocks();
+            assert!(result.is_ok(), "Getting all token blocks should succeed");
+
+            let blocks = result.unwrap();
+            // In production, this returns all three token types with default block 1
+            // The actual behavior depends on the implementation
+            assert!(blocks.len() <= 3, "Should have at most 3 token blocks");
+            // All blocks should default to 1
+            for (_, block) in blocks {
+                assert_eq!(block, 1, "All blocks should default to 1");
+            }
+        }
+
+        #[test]
+        fn test_get_network() {
+            // The network is set during initialization, let's test it
+            let result = get_network();
+            assert!(result.is_ok(), "Getting network should succeed");
+            // Network could be either Local or Mainnet depending on initialization
+        }
+
+        #[test]
+        fn test_get_next_block() {
+            // Test getting the next block
+            let result = get_next_block();
+            assert!(result.is_ok(), "Getting next block should succeed");
+            // Should have some default value
+            assert!(result.unwrap() >= 0, "Should return a valid block number");
+        }
+
+        #[test]
+        fn test_get_canister_principal() {
+            let result = get_canister_principal();
+            assert!(result.is_ok(), "Getting canister principal should succeed");
+            // Should return the principal as a string
+            let principal_str = result.unwrap();
+            assert!(
+                !principal_str.is_empty(),
+                "Principal string should not be empty"
+            );
+            // Verify it's a valid principal format
+            assert_eq!(principal_str, STATIC_PRINCIPAL.lock().unwrap().to_text());
+        }
+
+        #[test]
+        fn test_get_transactions_count() {
+            // Clear transactions first
+            TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+            // Initially should be 0
+            let result = get_transactions_count();
+            assert!(result.is_ok(), "Getting transactions count should succeed");
+            assert_eq!(result.unwrap(), 0, "Should have 0 transactions initially");
+
+            // Add some transactions
+            populate_transactions(5, None);
+
+            let result = get_transactions_count();
+            assert!(result.is_ok(), "Getting transactions count should succeed");
+            assert_eq!(result.unwrap(), 5, "Should have 5 transactions");
+        }
+
+        #[test]
+        fn test_get_oldest_block() {
+            // Clear transactions first
+            TRANSACTIONS.with(|t| t.borrow_mut().clear_new());
+
+            // Without transactions
+            let result = get_oldest_block();
+            assert!(result.is_ok(), "Getting oldest block should succeed");
+            assert_eq!(
+                result.unwrap(),
+                None,
+                "Should return None when no transactions"
+            );
+
+            // Add transactions starting from block 10
+            TRANSACTIONS.with(|t| {
+                let mut transactions = t.borrow_mut();
+                for i in 10..15 {
+                    let transaction = Transaction {
+                        memo: i,
+                        icrc1_memo: None,
+                        operation: None,
+                        created_at_time: Timestamp {
+                            timestamp_nanos: 1000,
+                        },
+                    };
+                    let hash = format!("hash-{}", i);
+                    transactions.insert(
+                        i,
+                        StoredTransactions::new(
+                            i,
+                            transaction,
+                            hash,
+                            TokenType::ICP,
+                            *STATIC_PRINCIPAL.lock().unwrap(),
+                        ),
+                    );
+                }
+            });
+
+            let result = get_oldest_block();
+            assert!(result.is_ok(), "Getting oldest block should succeed");
+            assert_eq!(
+                result.unwrap(),
+                Some(10),
+                "Should return Some(10) as the oldest block number"
+            );
+        }
+
+        #[test]
+        fn test_get_subaccount_count() {
+            // Clear subaccounts first
+            LIST_OF_SUBACCOUNTS.with(|s| s.borrow_mut().clear());
+
+            // Initially should be 0
+            let result = get_subaccount_count();
+            assert!(result.is_ok(), "Getting subaccount count should succeed");
+            assert_eq!(result.unwrap(), 0, "Should have 0 subaccounts initially");
+
+            // Add some subaccounts
+            setup_principals();
+
+            let result = get_subaccount_count();
+            assert!(result.is_ok(), "Getting subaccount count should succeed");
+            assert_eq!(result.unwrap(), 3, "Should have 3 subaccounts");
+        }
+
+        #[test]
+        fn test_get_nonce() {
+            // Set a specific nonce
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(42);
+            });
+
+            let result = get_nonce();
+            assert!(result.is_ok(), "Getting nonce should succeed");
+            assert_eq!(result.unwrap(), 42, "Should return the correct nonce");
+        }
+
+        #[test]
+        fn test_canister_status() {
+            let result = canister_status();
+            assert!(result.is_ok(), "Getting canister status should succeed");
+
+            let status = result.unwrap();
+            // Status should contain operational message in JSON format
+            assert!(
+                status.contains("operational"),
+                "Status should contain operational status"
+            );
+            assert!(
+                status.contains("message"),
+                "Status should be in JSON format with message field"
+            );
+        }
+
+        #[test]
+        fn test_add_subaccount_multiple_token_types() {
+            // Test adding subaccounts for each token type
+            let token_types = vec![TokenType::ICP, TokenType::CKUSDC, TokenType::CKUSDT];
+
+            for token_type in token_types {
+                let result = add_subaccount(Some(token_type.clone()));
+                assert!(
+                    result.is_ok(),
+                    "Adding subaccount for {:?} should succeed",
+                    token_type
+                );
+
+                let address = result.unwrap();
+                match token_type {
+                    TokenType::ICP => {
+                        // ICP addresses should be hex format (64 chars)
+                        assert_eq!(address.len(), 64, "ICP address should be 64 hex chars");
+                    }
+                    TokenType::CKUSDC | TokenType::CKUSDT => {
+                        // ICRC-1 addresses should contain the canister principal
+                        assert!(
+                            address.contains(&STATIC_PRINCIPAL.lock().unwrap().to_text()),
+                            "ICRC-1 address should contain canister principal"
+                        );
+                    }
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_different_tokens() {
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+
+            // Test sweeping with different token types
+            let token_amounts = vec![
+                (TokenType::ICP, 1.5),
+                (TokenType::CKUSDC, 100.25),
+                (TokenType::CKUSDT, 50.75),
+            ];
+
+            for (token_type, amount) in token_amounts {
+                let result =
+                    sweep_subaccount(subaccountid_hex.clone(), amount, token_type.clone()).await;
+                assert!(result.is_ok(), "Sweeping {:?} should succeed", token_type);
+                assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
+            }
+        }
     }
 
     #[cfg(feature = "sad_path")]
@@ -1404,6 +1674,146 @@ mod tests {
                 "Invalid amount: overflow or negative value",
                 "Error message should indicate invalid amount"
             );
+        }
+
+        // New sad path tests for multi-token support
+        #[test]
+        fn test_get_transaction_token_type_invalid_id() {
+            let result = get_transaction_token_type("invalid-hash-max".to_string());
+            assert!(result.is_err(), "Should fail for invalid transaction ID");
+            assert_eq!(
+                result.unwrap_err(),
+                "Transaction not found",
+                "Should return correct error message"
+            );
+        }
+
+        #[test]
+        fn test_convert_to_icrc_account_invalid_length() {
+            // Test with various invalid hex lengths
+            let invalid_lengths = vec![
+                "1234",                                                               // Too short
+                "12345678", // Still too short
+                "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12", // Too long
+                "",         // Empty
+            ];
+
+            for hex in invalid_lengths {
+                let result = convert_to_icrc_account(hex.to_string());
+                assert!(
+                    result.is_err(),
+                    "convert_to_icrc_account with length {} should fail",
+                    hex.len()
+                );
+                let error_msg = result.unwrap_err().message;
+                assert!(
+                    error_msg.contains("Invalid") || error_msg.contains("length"),
+                    "Error should indicate invalid format"
+                );
+            }
+        }
+
+        #[test]
+        fn test_validate_icrc_account_malformed() {
+            let malformed_accounts = vec![
+                "ryjl3-tyaaa-aaaaa-aaaba-cai-checksum.xyz.abc", // Multiple periods
+                "ryjl3-tyaaa-aaaaa-aaaba-cai..1234",            // Double period
+                ".1234",                                        // Starting with period
+                "principal.",                                   // Ending with period
+                "ryjl3-tyaaa-aaaaa-aaaba-cai-.1234",            // Ending dash before period
+            ];
+
+            for account in malformed_accounts {
+                let result = validate_icrc_account(account.to_string());
+                assert!(
+                    result.is_err(),
+                    "Malformed account '{}' should fail validation",
+                    account
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn test_sweep_subaccount_zero_amount() {
+            let (_, to_subaccountid, _) = setup_principals();
+            let subaccountid_hex = to_subaccountid.to_hex();
+
+            let result = sweep_subaccount(subaccountid_hex, 0.0, TokenType::ICP).await;
+            // In sad path tests, transfer always fails with "transfer failed"
+            assert!(result.is_err(), "Sweeping should fail in sad path tests");
+            let error_msg = result.unwrap_err().message;
+            // In sad path, the InterCanisterCallManager returns "transfer failed"
+            assert_eq!(
+                error_msg, "transfer failed",
+                "Should get transfer failed error"
+            );
+        }
+
+        #[test]
+        fn test_get_subaccountid_out_of_bounds() {
+            // Set max nonce to a low value
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(10);
+            });
+
+            // Try to get subaccount with nonce higher than max
+            let result = get_subaccountid(20, Some(TokenType::ICP));
+            assert!(result.is_err(), "Should fail for out of bounds nonce");
+            assert_eq!(
+                result.unwrap_err().message,
+                "Index out of bounds",
+                "Should return correct error message"
+            );
+        }
+
+        #[test]
+        fn test_clear_transactions_invalid_parameters() {
+            populate_transactions(10, None);
+
+            // Test with index that would clear all transactions
+            let result = clear_transactions(Some(u64::MAX), None);
+            assert!(result.is_ok(), "Should succeed but clear all transactions");
+            let remaining = result.unwrap();
+            assert_eq!(remaining.len(), 0, "Should have cleared all transactions");
+        }
+
+        #[tokio::test]
+        async fn test_single_sweep_invalid_hash_format() {
+            setup_sweep_environment();
+
+            // Test with invalid hash formats
+            let invalid_hashes = vec![
+                "",                  // Empty hash
+                "not-a-valid-hash",  // Invalid format
+                "123",               // Too short
+                " hash-with-space ", // Contains spaces
+            ];
+
+            for hash in invalid_hashes {
+                let result = single_sweep(hash.to_string()).await;
+                assert!(result.is_ok(), "Should return ok but with empty results");
+                let sweep_results = result.unwrap();
+                assert!(
+                    sweep_results.is_empty()
+                        || sweep_results.iter().all(|r| r.contains("not found")),
+                    "Should indicate transaction not found for hash: {}",
+                    hash
+                );
+            }
+
+            teardown_sweep_environment();
+        }
+
+        #[test]
+        fn test_get_all_token_blocks_returns_defaults() {
+            let result = get_all_token_blocks();
+            assert!(result.is_ok(), "Should succeed with default blocks");
+            let blocks = result.unwrap();
+            // In test environment, might not have all tokens registered
+            assert!(blocks.len() <= 3, "Should have at most 3 token types");
+            for (_, block) in blocks {
+                assert_eq!(block, 1, "All should have default block 1");
+            }
         }
     }
 }

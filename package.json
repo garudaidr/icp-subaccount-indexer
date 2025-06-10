@@ -15,7 +15,7 @@
     "generate:did": "pnpm run generate:did:backend && pnpm run generate:did:ts",
     "generate:did:ts": "didc bind src/icp_subaccount_indexer/icp_subaccount_indexer.did -t ts > src/icp_subaccount_indexer/icp_subaccount_indexer.did.ts",
     "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_subaccount_indexer && candid-extractor target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm > src/icp_subaccount_indexer/icp_subaccount_indexer.did",
-    "format": "cargo fmt && prettier --write . && pnpm --filter @jagad/icsi format",
+    "format": "cargo fmt && prettier --write . && pnpm --filter @jagad/icsi format && cargo clippy -- -D warnings",
     "test:backend": "pnpm run test:happy_path && pnpm run test:sad_path",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",
