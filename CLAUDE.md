@@ -207,6 +207,19 @@ Each token type has unified APIs for deposits, balances, and sweeping operations
 
 See `TESTING_GUIDE.md` for detailed testing procedures.
 
+## Testnet/Mainnet Debugging and Testing
+
+When working with deployed canisters that appear stuck or unresponsive, you may need to debug block processing issues, adjust polling intervals for testing, or fix webhook configurations. Common issues include:
+
+- **Canister stuck on archived blocks**: When next_block is too far behind the ledger tip
+- **Slow transaction detection**: Polling intervals too slow for testing
+- **Missing webhook notifications**: Incorrect or outdated webhook URLs
+- **Cycle management**: Balancing fast polling with cost efficiency
+
+**For complete debugging procedures, troubleshooting steps, and production best practices, see: `docs/TESTNET_DEBUGGING_GUIDE.md`**
+
+This guide contains real-world debugging scenarios, step-by-step fixes, and critical safety procedures to prevent cycle waste during testing.
+
 ## Lessons Learned from Testing (Critical for Future Claude)
 
 After conducting 10+ testing attempts documented in `docs/logs/`, here are critical insights that will save you hours of debugging:
