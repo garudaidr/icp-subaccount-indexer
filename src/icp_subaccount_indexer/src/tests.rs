@@ -2,6 +2,7 @@
 mod tests {
     use crate::types::*;
     use crate::*;
+    use icrc_ledger_types::icrc1::transfer::TransferArg;
     use once_cell::sync::Lazy;
 
     impl TimerManagerTrait for TimerManager {
@@ -683,6 +684,13 @@ mod tests {
             ) -> Result<BlockIndex, String> {
                 Ok(1)
             }
+
+            async fn icrc1_transfer(
+                _args: TransferArg,
+                _token_ledger_canister_id: Principal,
+            ) -> Result<candid::Nat, String> {
+                Ok(candid::Nat::from(1u64))
+            }
         }
 
         #[test]
@@ -1170,6 +1178,13 @@ mod tests {
                 _args: TransferArgs,
                 _token_ledger_canister_id: Principal,
             ) -> Result<BlockIndex, String> {
+                Err(ERROR_MESSAGE.to_string())
+            }
+
+            async fn icrc1_transfer(
+                _args: TransferArg,
+                _token_ledger_canister_id: Principal,
+            ) -> Result<candid::Nat, String> {
                 Err(ERROR_MESSAGE.to_string())
             }
         }
