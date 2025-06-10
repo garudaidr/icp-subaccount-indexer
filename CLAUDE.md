@@ -22,6 +22,28 @@ This is a **pnpm workspace monorepo** with the following key components:
 - **DFX**: Internet Computer SDK for deployment
 - **pnpm**: Workspace dependency management
 
+## CRITICAL: Pre-Testing Requirements
+
+**BEFORE conducting ANY testing or debugging with deployed canisters, Claude MUST:**
+
+1. **Read the debugging guides first:**
+
+   - **Testnet**: `docs/TESTNET_DEBUGGING_GUIDE.md`
+   - **Devnet**: `docs/DEVNET_DEBUGGING_GUIDE.md`
+
+2. **Understand the current state:**
+
+   - Check canister IDs, current next_block positions, intervals
+   - Verify correct identity setup (testnet_custodian vs default)
+   - Set up environment variables: `export DFX_WARNING=-mainnet_plaintext_identity`
+
+3. **Plan cycle-efficient approach:**
+   - Use production intervals (500s) unless testing requires temporary fast polling
+   - Always restore production settings after testing
+   - Consider aligning devnet with testnet for consistency
+
+**Failure to read these guides will result in wasted time, inefficient cycle usage, and potential canister issues.**
+
 ## Essential Commands
 
 For all of the commands below, use `pnpm` instead of `yarn` or `npm`. Even when you want to run a script that is in a different package, use `pnpm run <script>` instead of `yarn run <script>` or `npm run <script>`. For Rust scripts, use `cargo <script>`, but most scripts will already available in the `package.json` of the package that you want to run the script from.

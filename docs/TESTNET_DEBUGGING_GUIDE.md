@@ -38,6 +38,9 @@ dfx identity use testnet_custodian
 # Get the principal (needed for authorization)
 dfx identity get-principal
 # Example output: a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae
+
+# Suppress DFX mainnet security warnings
+export DFX_WARNING=-mainnet_plaintext_identity
 ```
 
 For devnet debugging:
@@ -48,7 +51,35 @@ dfx identity use default
 
 # Get your principal
 dfx identity get-principal
+# Example: gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe
+
+# Suppress DFX mainnet security warnings
+export DFX_WARNING=-mainnet_plaintext_identity
 ```
+
+### Current Reference Data (as of October 2025)
+
+**Testnet Canister State:**
+
+- **Canister ID**: `uiz2m-baaaa-aaaal-qjbxq-cai`
+- **Identity**: `testnet_custodian`
+- **Principal**: `a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae`
+- **Current next_block**: `15,954,744`
+- **Interval**: `500` seconds (production optimal)
+- **Purpose**: Shared staging environment
+
+**Devnet Reference:**
+
+- **Canister ID**: `y3hne-ryaaa-aaaag-aucea-cai` (example)
+- **Identity**: `default`
+- **Principal**: `gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe` (example)
+- **Current next_block**: `15,954,744` (aligned with testnet)
+
+**Ledger Reference (October 2025):**
+
+- **Current tip**: ~`24,700,138`
+- **Non-archived range**: Starts at ~`24,699,000`
+- **Archived blocks**: Everything before ~`24,699,000`
 
 ## Prerequisites
 
@@ -94,11 +125,16 @@ Temporarily reduce the polling interval for testing, then restore to production 
 First, ensure you're using the correct identity and canister ID:
 
 ```bash
-# For testnet: Get canister ID from test_canister_ids.json
+# Set up environment (suppress DFX warnings)
+export DFX_WARNING=-mainnet_plaintext_identity
+
+# For testnet: Switch identity and get canister ID
+dfx identity use testnet_custodian
 CANISTER_ID=$(cat test_canister_ids.json | jq -r '.icp_subaccount_indexer.ic')
 echo "Testnet Canister ID: $CANISTER_ID"
 
-# For devnet: Get canister ID from canister_ids.json
+# For devnet: Switch identity and get canister ID
+dfx identity use default
 CANISTER_ID=$(cat canister_ids.json | jq -r '.icp_subaccount_indexer.ic')
 echo "Devnet Canister ID: $CANISTER_ID"
 
