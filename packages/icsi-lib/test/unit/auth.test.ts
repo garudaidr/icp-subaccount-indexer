@@ -5,7 +5,7 @@ import { createHostAgentAndIdentityFromSeed } from '../../src/utils';
 describe('Auth Functions', () => {
   const testSeed =
     'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-  const testHost = global.testConfig?.dfxHost || 'http://localhost:4943';
+  const testHost = (global as any).testConfig?.dfxHost || 'http://localhost:4943';
 
   describe('addHttpAgentFromSeed', () => {
     it('should execute action with HTTP agent from seed phrase', async () => {
