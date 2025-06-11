@@ -19,10 +19,12 @@ services:
       bash -c "
         cd /workspace &&
         echo 'Installing dependencies...' &&
-        npm install -g pnpm &&
         pnpm install &&
+        echo 'Installing DFX...' &&
+        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        export PATH=\"/root/.local/share/dfx/bin:$$PATH\" &&
         echo 'Starting DFX with old metering...' &&
-        dfx start --clean --host 0.0.0.0:4943 --artificial-delay 0 &
+        dfx start --clean --host 0.0.0.0:4943 --use-old-metering &
         DFX_PID=$$! &&
         echo 'Waiting for DFX to be ready...' &&
         timeout 60 bash -c 'until curl -s http://localhost:4943/_/api/v2/status > /dev/null; do sleep 2; done' &&
@@ -55,8 +57,10 @@ services:
     command: >
       bash -c "
         echo 'Installing dependencies...' &&
-        npm install -g pnpm &&
         pnpm install &&
+        echo 'Installing DFX...' &&
+        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        export PATH=\"/root/.local/share/dfx/bin:$$PATH\" &&
         echo 'Deploying test token canisters...' &&
         cd /workspace &&
         ./packages/icsi-lib/scripts/deploy-test-tokens.sh
@@ -81,8 +85,13 @@ services:
     command: >
       bash -c "
         echo 'Installing dependencies...' &&
-        npm install -g pnpm &&
         pnpm install &&
+        echo 'Installing DFX and tools...' &&
+        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        cargo install candid-extractor &&
+        wget -O /usr/local/bin/didc \"https://github.com/dfinity/candid/releases/latest/download/didc-linux\" &&
+        chmod +x /usr/local/bin/didc &&
+        export PATH=\"/root/.local/share/dfx/bin:$$PATH\" &&
         echo 'Building canister...' &&
         pnpm run build:canister &&
         echo 'Deploying ICSI indexer canister...' &&
