@@ -119,7 +119,7 @@ export interface _SERVICE {
   single_sweep: ActorMethod<[string], Result_13>;
   sweep: ActorMethod<[], Result_13>;
   sweep_by_token_type: ActorMethod<[TokenType], Result_13>;
-  sweep_subaccount: ActorMethod<[string, number, TokenType], Result_12>;
+  sweep_subaccount: ActorMethod<[string, number, [] | [TokenType]], Result_12>;
   transform: ActorMethod<[TransformArgs], HttpResponse>;
   validate_icrc_account: ActorMethod<[string], Result_14>;
 }

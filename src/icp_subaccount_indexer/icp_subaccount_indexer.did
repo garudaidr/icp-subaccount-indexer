@@ -94,7 +94,7 @@ service : (Network, nat64, nat32, text, text) -> {
   single_sweep : (text) -> (Result_13);
   sweep : () -> (Result_13);
   sweep_by_token_type : (TokenType) -> (Result_13);
-  sweep_subaccount : (text, float64, TokenType) -> (Result_12);
+  sweep_subaccount : (text, float64, opt TokenType) -> (Result_12);
   transform : (TransformArgs) -> (HttpResponse) query;
   validate_icrc_account : (text) -> (Result_14) query;
 }
