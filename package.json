@@ -7,7 +7,6 @@
     "build:canister": "pnpm run generate:did:backend",
     "build:lib": "pnpm --filter @jagad/icsi build",
     "prebuild": "dfx generate",
-    "start": "webpack serve --mode development --env development",
     "start:local:env": "dfx start --clean --host 127.0.0.1:8000 --use-old-metering",
     "deploy:local": ".maintain/deploy.sh",
     "deploy:ic": "dfx deploy --network=ic",
@@ -16,49 +15,43 @@
     "generate:did:ts": "didc bind src/icp_subaccount_indexer/icp_subaccount_indexer.did -t ts > src/icp_subaccount_indexer/icp_subaccount_indexer.did.ts",
     "generate:did:backend": "cargo build --release --target wasm32-unknown-unknown --package icp_subaccount_indexer && candid-extractor target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm > src/icp_subaccount_indexer/icp_subaccount_indexer.did",
     "format": "cargo fmt && prettier --write . && pnpm --filter @jagad/icsi format && cargo clippy -- -D warnings",
+    "format:check": "cargo fmt --check && prettier --check . && pnpm --filter @jagad/icsi format:check",
+    "type-check": "pnpm --filter @jagad/icsi type-check",
+    "test": "pnpm run test:backend && pnpm run test:lib",
     "test:backend": "pnpm run test:happy_path && pnpm run test:sad_path",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",
-    "test": "pnpm run test:backend",
+    "test:lib": "pnpm --filter @jagad/icsi test",
+    "test:lib:unit": "pnpm --filter @jagad/icsi test:unit",
+    "test:lib:integration": "pnpm --filter @jagad/icsi test:integration",
+    "test:lib:e2e": "pnpm --filter @jagad/icsi test:e2e",
+    "test:lib:e2e:ci": "pnpm --filter @jagad/icsi test:e2e:ci",
+    "test:lib:coverage": "pnpm --filter @jagad/icsi test:coverage",
+    "test:all": "pnpm run test:backend && pnpm run test:lib:unit && pnpm run test:lib:e2e",
+    "test:ci": "pnpm run test:backend && pnpm run test:lib:e2e:ci",
+    "docker:up": "cd packages/icsi-lib && pnpm run docker:up",
+    "docker:down": "cd packages/icsi-lib && pnpm run docker:down",
+    "docker:e2e": "cd packages/icsi-lib && pnpm run docker:e2e",
+    "docker:e2e:ci": "cd packages/icsi-lib && pnpm run docker:e2e:ci",
     "clean": "pnpm -r clean",
-    "install:all": "pnpm install",
     "lib:generate:wallet": "pnpm --filter @jagad/icsi generate:wallet",
     "lib:test:icp": "pnpm --filter @jagad/icsi test:icp-deposit",
     "lib:test:usdc": "pnpm --filter @jagad/icsi test:usdc-deposit",
     "lib:test:usdt": "pnpm --filter @jagad/icsi test:usdt-deposit",
-    "lib:test:webhook": "pnpm --filter @jagad/icsi test:webhook",
-    "lib:test:all": "pnpm --filter @jagad/icsi test:scripts"
+    "lib:test:webhook": "pnpm --filter @jagad/icsi test:webhook"
   },
   "dependencies": {
-    "@dfinity/agent": "^1.0.1",
-    "@dfinity/candid": "^1.0.1",
-    "@dfinity/principal": "^1.0.1"
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^2.4.1",
+    "@dfinity/principal": "^2.4.1"
   },
   "devDependencies": {
-    "assert": "2.0.0",
-    "buffer": "6.0.3",
-    "copy-webpack-plugin": "^11.0.0",
-    "dotenv": "^16.0.3",
-    "prettier": "^3.2.5",
-    "events": "3.3.0",
-    "html-webpack-plugin": "5.5.0",
-    "process": "0.11.10",
-    "stream-browserify": "3.0.0",
-    "terser-webpack-plugin": "^5.3.3",
-    "util": "0.12.4",
-    "webpack": "^5.73.0",
-    "webpack-cli": "^4.10.0",
-    "webpack-dev-server": "^4.8.1"
+    "dotenv": "^16.5.0",
+    "prettier": "^3.5.3"
   },
   "engines": {
-    "node": ">=16.0.0",
+    "node": ">=20.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.15.0",
-  "browserslist": [
-    "last 2 chrome version",
-    "last 2 firefox version",
-    "last 2 safari version",
-    "last 2 edge version"
-  ]
+  "packageManager": "pnpm@8.15.0"
 }
