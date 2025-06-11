@@ -64,14 +64,18 @@ export default async function globalSetup(): Promise<void> {
       console.log(envContent);
 
       // Verify all required canister IDs are present
-      if (envContent.includes('USER_VAULT_CANISTER_ID=') && 
-          !envContent.includes('USER_VAULT_CANISTER_ID=\n')) {
+      if (
+        envContent.includes('USER_VAULT_CANISTER_ID=') &&
+        !envContent.includes('USER_VAULT_CANISTER_ID=\n')
+      ) {
         console.log('✅ All canisters deployed successfully!');
       } else {
         throw new Error('ICSI canister ID not found in environment file');
       }
     } else {
-      throw new Error('Environment file not created - deployment may have failed');
+      throw new Error(
+        'Environment file not created - deployment may have failed'
+      );
     }
 
     console.log('🎉 Test environment setup complete!');
@@ -80,7 +84,7 @@ export default async function globalSetup(): Promise<void> {
     process.env.TEST_ENV_READY = 'true';
   } catch (error) {
     console.error('❌ Failed to setup test environment:', error);
-    
+
     // Try to get logs for debugging
     try {
       console.log('🔍 Getting container logs for debugging...');
@@ -93,7 +97,7 @@ export default async function globalSetup(): Promise<void> {
     } catch (logError) {
       console.warn('Could not retrieve container logs:', logError);
     }
-    
+
     throw error;
   }
 }

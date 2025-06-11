@@ -5,6 +5,7 @@ This guide explains how to use the Docker-based testing environment for end-to-e
 ## Overview
 
 The Docker testing environment provides:
+
 - **Isolated DFX replica** running locally
 - **Test token canisters** (ICP, ckUSDC, ckUSDT)
 - **ICSI indexer canister** with proper configuration
@@ -43,6 +44,7 @@ The Docker environment consists of three services:
 ### Dependencies
 
 Services start in sequence:
+
 ```
 dfx → test-tokens → icsi-indexer
 ```
@@ -74,6 +76,7 @@ DFX_HOST=http://localhost:4943
 ### Token Configuration
 
 Test tokens are configured with:
+
 - **Transfer fee**: 10,000 micro-units (0.01 tokens)
 - **Minting account**: DFX default identity
 - **Initial balances**: Empty (tokens minted as needed)
@@ -125,16 +128,19 @@ Located in `test/integration/endToEnd.test.ts`:
 ### Test Categories
 
 1. **Complete Workflow Tests**
+
    - Multi-token registration
    - Subaccount generation
    - Address validation
 
 2. **Configuration Tests**
+
    - Webhook URL management
    - Polling interval settings
    - State persistence
 
 3. **Query Tests**
+
    - Transaction counting
    - Balance retrieval
    - State consistency
@@ -149,37 +155,41 @@ Located in `test/integration/endToEnd.test.ts`:
 ### Common Issues
 
 1. **Port conflicts**
+
    ```bash
    # Check if port 4943 is in use
    lsof -i :4943
-   
+
    # Kill existing DFX processes
    pkill dfx
    ```
 
 2. **Docker daemon not running**
+
    ```bash
    # Start Docker (macOS)
    open /Applications/Docker.app
-   
+
    # Start Docker (Linux)
    sudo systemctl start docker
    ```
 
 3. **Insufficient disk space**
+
    ```bash
    # Clean up Docker
    docker system prune -a
-   
+
    # Remove unused volumes
    docker volume prune
    ```
 
 4. **Canister deployment failures**
+
    ```bash
    # Check container logs
    docker-compose -f docker/docker-compose.test.yml logs icsi-indexer
-   
+
    # Restart with clean state
    pnpm run docker:down && pnpm run docker:e2e
    ```

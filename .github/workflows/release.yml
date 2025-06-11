@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: "Deployment environment"
         required: true
-        default: 'testnet'
+        default: "testnet"
         type: choice
         options:
           - testnet
@@ -22,7 +22,7 @@ jobs:
   validate-release:
     name: Validate Release
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,8 +35,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
@@ -50,17 +50,17 @@ jobs:
       - name: Build and validate canister
         run: |
           pnpm run build:canister
-          
+
           # Validate canister build
           if [ ! -f "target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm" ]; then
             echo "❌ Canister WASM not found!"
             exit 1
           fi
-          
+
           # Check WASM size (should be reasonable for IC deployment)
           WASM_SIZE=$(stat -c%s "target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm")
           echo "📦 Canister WASM size: $WASM_SIZE bytes"
-          
+
           if [ $WASM_SIZE -gt 2097152 ]; then # 2MB limit
             echo "⚠️ WASM size is large (>2MB), this may require significant cycles"
           fi
@@ -69,7 +69,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: validate-release
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate-release
     if: github.event_name == 'release'
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -124,9 +124,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "20"
+          cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install
@@ -145,7 +145,7 @@ jobs:
     needs: [validate-release, build-docker-image]
     if: github.event.inputs.environment == 'testnet' || (github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta'))
     environment: testnet
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -164,13 +164,13 @@ jobs:
       - name: Deploy to testnet
         run: |
           echo "🚀 Deploying to testnet..."
-          
+
           # Set testnet network
           export DFX_NETWORK=ic
-          
+
           # Build canister
           pnpm run build:canister
-          
+
           # Deploy using script (if exists) or manual deployment
           if [ -f "./scripts/deploy-testnet.sh" ]; then
             ./scripts/deploy-testnet.sh
@@ -178,7 +178,7 @@ jobs:
             echo "⚠️ No testnet deployment script found, using manual deployment"
             dfx deploy icp_subaccount_indexer --network ic --with-cycles 1000000000000
           fi
-          
+
           echo "✅ Testnet deployment completed"
 
   deploy-mainnet:
@@ -187,7 +187,7 @@ jobs:
     needs: [validate-release, build-docker-image, deploy-testnet]
     if: github.event.inputs.environment == 'mainnet' || (github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc'))
     environment: mainnet
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -206,14 +206,14 @@ jobs:
       - name: Deploy to mainnet
         run: |
           echo "🚀 Deploying to mainnet..."
-          
+
           # Set mainnet network
           export DFX_NETWORK=ic
           export DFX_WARNING=-mainnet_plaintext_identity
-          
+
           # Build canister
           pnpm run build:canister
-          
+
           # Deploy using the official deployment script
           if [ -f "./scripts/deploy-mainnet.sh" ]; then
             ./scripts/deploy-mainnet.sh upgrade
@@ -221,7 +221,7 @@ jobs:
             echo "❌ Mainnet deployment script not found!"
             exit 1
           fi
-          
+
           echo "✅ Mainnet deployment completed"
 
   notify-deployment:
@@ -229,20 +229,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-testnet, deploy-mainnet]
     if: always() && (needs.deploy-testnet.result != 'skipped' || needs.deploy-mainnet.result != 'skipped')
-    
+
     steps:
       - name: Deployment Summary
         run: |
           echo "🎯 Deployment Summary:"
           echo "Testnet: ${{ needs.deploy-testnet.result }}"
           echo "Mainnet: ${{ needs.deploy-mainnet.result }}"
-          
+
           if [[ "${{ needs.deploy-testnet.result }}" == "success" ]]; then
             echo "✅ Testnet deployment successful"
           elif [[ "${{ needs.deploy-testnet.result }}" == "failure" ]]; then
             echo "❌ Testnet deployment failed"
           fi
-          
+
           if [[ "${{ needs.deploy-mainnet.result }}" == "success" ]]; then
             echo "✅ Mainnet deployment successful"
           elif [[ "${{ needs.deploy-mainnet.result }}" == "failure" ]]; then

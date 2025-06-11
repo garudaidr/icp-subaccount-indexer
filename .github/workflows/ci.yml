@@ -14,7 +14,7 @@ jobs:
   test-unit:
     name: Unit Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,8 +27,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
@@ -45,7 +45,7 @@ jobs:
   test-backend:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
   test-e2e:
     name: End-to-End Tests
     runs-on: ubuntu-latest
-    
+
     services:
       docker:
         image: docker:dind
@@ -90,8 +90,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
@@ -116,7 +116,7 @@ jobs:
     name: Build Canister
     runs-on: ubuntu-latest
     needs: [test-unit, test-backend]
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -129,8 +129,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
@@ -168,7 +168,7 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -181,8 +181,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
@@ -205,7 +205,7 @@ jobs:
   lint-and-format:
     name: Lint and Format Check
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -218,8 +218,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
@@ -240,9 +240,17 @@ jobs:
   integration-test-summary:
     name: Integration Test Summary
     runs-on: ubuntu-latest
-    needs: [test-unit, test-backend, test-e2e, build-canister, security-audit, lint-and-format]
+    needs:
+      [
+        test-unit,
+        test-backend,
+        test-e2e,
+        build-canister,
+        security-audit,
+        lint-and-format,
+      ]
     if: always()
-    
+
     steps:
       - name: Check test results
         run: |
@@ -252,7 +260,7 @@ jobs:
           echo "Build: ${{ needs.build-canister.result }}"
           echo "Security Audit: ${{ needs.security-audit.result }}"
           echo "Lint and Format: ${{ needs.lint-and-format.result }}"
-          
+
           # Fail if any critical tests failed
           if [[ "${{ needs.test-unit.result }}" == "failure" || 
                 "${{ needs.test-backend.result }}" == "failure" || 
@@ -260,18 +268,18 @@ jobs:
             echo "Critical tests failed!"
             exit 1
           fi
-          
+
           # Warn about non-critical failures
           if [[ "${{ needs.test-e2e.result }}" == "failure" ]]; then
             echo "⚠️ E2E tests failed - this may indicate environment issues"
           fi
-          
+
           if [[ "${{ needs.security-audit.result }}" == "failure" ]]; then
             echo "⚠️ Security audit failed - review security issues"
           fi
-          
+
           if [[ "${{ needs.lint-and-format.result }}" == "failure" ]]; then
             echo "⚠️ Lint/format checks failed - code style issues detected"
           fi
-          
+
           echo "✅ Integration test pipeline completed"
