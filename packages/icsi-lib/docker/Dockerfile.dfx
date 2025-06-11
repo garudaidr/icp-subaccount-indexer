@@ -23,9 +23,14 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install wasm32 target
 RUN rustup target add wasm32-unknown-unknown
 
-# Install DFX using the universal installer
-RUN echo "Installing DFX..." && \
-    DFX_VERSION=0.23.0 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+# Install DFX manually for better compatibility
+RUN echo "Installing DFX manually..." && \
+    mkdir -p /root/.local/share/dfx/bin && \
+    curl -fsSL https://github.com/dfinity/sdk/releases/download/0.23.0/dfx-0.23.0-x86_64-linux.tar.gz -o dfx.tar.gz && \
+    tar -xzf dfx.tar.gz && \
+    mv dfx /root/.local/share/dfx/bin/ && \
+    chmod +x /root/.local/share/dfx/bin/dfx && \
+    rm dfx.tar.gz
 ENV PATH="/root/.local/share/dfx/bin:${PATH}"
 
 # Set working directory
