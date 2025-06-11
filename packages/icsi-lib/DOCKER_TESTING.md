@@ -18,6 +18,12 @@ The Docker testing environment provides:
 - pnpm package manager
 - Node.js 20+
 
+## Current Status
+
+> **Note on Apple Silicon (ARM64) Support**: The Docker setup currently has compatibility issues on Apple Silicon Macs due to DFX binary architecture requirements. The main test suite (`pnpm run test`) works perfectly without Docker on all platforms. Docker support is provided for optional CI environments and x86_64 systems.
+>
+> **Recommended**: Use `pnpm run test` for local development and testing. The Docker setup is optional and mainly intended for CI pipelines and x86_64 environments.
+
 ## Quick Start
 
 ```bash
