@@ -999,7 +999,7 @@ mod tests {
             let amount = 1.25; // 1.25 ICP
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, Some(TokenType::ICP)).await;
 
             // Assert
             assert!(
@@ -1273,7 +1273,8 @@ mod tests {
 
             for (token_type, amount) in token_amounts {
                 let result =
-                    sweep_subaccount(subaccountid_hex.clone(), amount, token_type.clone()).await;
+                    sweep_subaccount(subaccountid_hex.clone(), amount, Some(token_type.clone()))
+                        .await;
                 assert!(result.is_ok(), "Sweeping {:?} should succeed", token_type);
                 assert_eq!(result.unwrap(), 1, "BlockIndex should be 1");
             }
@@ -1599,9 +1600,12 @@ mod tests {
             let amount = 1.25;
 
             // Execute
-            let result =
-                sweep_subaccount(nonexistent_subaccountid.to_string(), amount, TokenType::ICP)
-                    .await;
+            let result = sweep_subaccount(
+                nonexistent_subaccountid.to_string(),
+                amount,
+                Some(TokenType::ICP),
+            )
+            .await;
 
             // Assert
             assert!(
@@ -1624,7 +1628,7 @@ mod tests {
             let amount = 1.25;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, Some(TokenType::ICP)).await;
 
             // Assert
             assert!(
@@ -1646,7 +1650,7 @@ mod tests {
             let amount = -1.0;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, Some(TokenType::ICP)).await;
 
             // Assert
             assert!(result.is_err(), "Sweeping with negative amount should fail");
@@ -1665,7 +1669,7 @@ mod tests {
             let amount = f64::MAX;
 
             // Execute
-            let result = sweep_subaccount(subaccountid_hex, amount, TokenType::ICP).await;
+            let result = sweep_subaccount(subaccountid_hex, amount, Some(TokenType::ICP)).await;
 
             // Assert
             assert!(result.is_err(), "Sweeping with overflow amount should fail");
@@ -1738,7 +1742,7 @@ mod tests {
             let (_, to_subaccountid, _) = setup_principals();
             let subaccountid_hex = to_subaccountid.to_hex();
 
-            let result = sweep_subaccount(subaccountid_hex, 0.0, TokenType::ICP).await;
+            let result = sweep_subaccount(subaccountid_hex, 0.0, Some(TokenType::ICP)).await;
             // In sad path tests, transfer always fails with "transfer failed"
             assert!(result.is_err(), "Sweeping should fail in sad path tests");
             let error_msg = result.unwrap_err().message;

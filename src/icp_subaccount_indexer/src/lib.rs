@@ -1833,7 +1833,7 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
 async fn sweep_subaccount(
     subaccountid_hex: String,
     amount: f64,
-    token_type: TokenType,
+    token_type: Option<TokenType>,
 ) -> Result<u64, Error> {
     authenticate().map_err(|e| {
         ic_cdk::println!("Authentication error: {}", e);
@@ -1877,6 +1877,9 @@ async fn sweep_subaccount(
             message: "Invalid amount: overflow or negative value".to_string(),
         });
     }
+
+    // Default to ICP if no token type is specified
+    let token_type = token_type.unwrap_or(TokenType::ICP);
 
     // Get the ledger canister ID for the token type
     let token_ledger_canister_id = match token_type {
