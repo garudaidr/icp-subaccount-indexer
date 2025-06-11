@@ -112,7 +112,7 @@ export interface _SERVICE {
   single_sweep: ActorMethod<[string], Result_12>;
   sweep: ActorMethod<[], Result_12>;
   sweep_by_token_type: ActorMethod<[TokenType], Result_12>;
-  sweep_subaccount: ActorMethod<[string, number, TokenType], Result_11>;
+  sweep_subaccount: ActorMethod<[string, number, [] | [TokenType]], Result_11>;
   transform: ActorMethod<[TransformArgs], HttpResponse>;
   validate_icrc_account: ActorMethod<[string], Result_13>;
 }
@@ -241,7 +241,7 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
     sweep: IDL.Func([], [Result_12], []),
     sweep_by_token_type: IDL.Func([TokenType], [Result_12], []),
     sweep_subaccount: IDL.Func(
-      [IDL.Text, IDL.Nat32, TokenType],
+      [IDL.Text, IDL.Float64, IDL.Opt(TokenType)],
       [Result_11],
       []
     ),

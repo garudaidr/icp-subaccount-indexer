@@ -234,7 +234,7 @@ export async function registerToken(
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {string} subaccountId - The ID of the subaccount to sweep from.
  * @param {number} amount - The amount to sweep.
- * @param {TokenType} tokenType - The token type to sweep (ICP, CKUSDC, or CKUSDT).
+ * @param {TokenType} [tokenType] - The token type to sweep (ICP, CKUSDC, or CKUSDT). Defaults to ICP if not provided.
  * @returns {Promise<any>} - A promise that resolves with the result of the sweep operation.
  * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
  */
@@ -243,12 +243,16 @@ export async function sweepSubaccountId(
   userVaultCanisterId: string,
   subaccountId: string,
   amount: number,
-  tokenType: TokenType = { ICP: null }
+  tokenType?: TokenType
 ) {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   // Ensure amount is explicitly a float by using parseFloat
   const floatAmount = parseFloat(amount.toString());
-  return await actor.sweep_subaccount(subaccountId, floatAmount, tokenType);
+  return await actor.sweep_subaccount(
+    subaccountId,
+    floatAmount,
+    tokenType ? [tokenType] : []
+  );
 }
 
 /**
