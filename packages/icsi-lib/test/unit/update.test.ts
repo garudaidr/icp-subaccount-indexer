@@ -43,11 +43,12 @@ describe('Update Functions', () => {
       refund: jest.fn(),
       sweep: jest.fn(),
       sweep_by_token_type: jest.fn(),
-      sweep_subaccount_id: jest.fn(),
+      sweep_subaccount: jest.fn(),
       convert_to_icrc_account: jest.fn(),
       validate_icrc_account: jest.fn(),
       single_sweep: jest.fn(),
       set_sweep_failed: jest.fn(),
+      get_registered_tokens: jest.fn(),
     };
 
     (Actor.createActor as jest.Mock).mockReturnValue(mockActor);
@@ -119,8 +120,10 @@ describe('Update Functions', () => {
 
       for (const tokenType of tokenTypes) {
         const mockResult = { Ok: `subaccount-${tokenType}` };
+        const mockRegisteredTokens = { Ok: [] }; // Empty array means no tokens registered yet
         mockActor.add_subaccount.mockResolvedValue(mockResult);
         mockActor.register_token.mockResolvedValue({ Ok: null });
+        mockActor.get_registered_tokens.mockResolvedValue(mockRegisteredTokens);
 
         const result = await addSubaccountForToken(
           mockAgent,
@@ -140,7 +143,10 @@ describe('Update Functions', () => {
 
     it('should handle missing custom canister IDs', async () => {
       const mockResult = { Ok: 'subaccount-id' };
+      const mockRegisteredTokens = { Ok: [] };
       mockActor.add_subaccount.mockResolvedValue(mockResult);
+      mockActor.get_registered_tokens.mockResolvedValue(mockRegisteredTokens);
+      mockActor.register_token.mockResolvedValue({ Ok: null });
 
       const result = await addSubaccountForToken(
         mockAgent,
@@ -249,7 +255,7 @@ describe('Update Functions', () => {
     });
 
     it('should clear transactions with index parameter', async () => {
-      const mockResult = [];
+      const mockResult: any[] = [];
       mockActor.clear_transactions.mockResolvedValue(mockResult);
 
       const result = await clearTransactions(mockAgent, canisterId, 10n);
@@ -260,7 +266,7 @@ describe('Update Functions', () => {
 
     it('should clear transactions with timestamp parameter', async () => {
       const timestamp = { timestamp_nanos: BigInt(Date.now() * 1_000_000) };
-      const mockResult = [];
+      const mockResult: any[] = [];
       mockActor.clear_transactions.mockResolvedValue(mockResult);
 
       const result = await clearTransactions(
@@ -375,9 +381,10 @@ describe('Update Functions', () => {
       const subaccountId = 'subaccount-123';
       const amount = 0.001;
 
-      mockActor.sweep_subaccount_id.mockResolvedValue(undefined);
+      const mockResult = { Ok: 12345n };
+      mockActor.sweep_subaccount.mockResolvedValue(mockResult);
 
-      await sweepSubaccountId(
+      const result = await sweepSubaccountId(
         mockAgent,
         canisterId,
         subaccountId,
@@ -385,10 +392,11 @@ describe('Update Functions', () => {
         Tokens.ICP
       );
 
-      expect(mockActor.sweep_subaccount_id).toHaveBeenCalledWith(
+      expect(result).toEqual(mockResult);
+      expect(mockActor.sweep_subaccount).toHaveBeenCalledWith(
         subaccountId,
         amount,
-        Tokens.ICP
+        [Tokens.ICP]
       );
     });
 
@@ -398,9 +406,10 @@ describe('Update Functions', () => {
       const tokenTypes = [Tokens.ICP, Tokens.CKUSDC, Tokens.CKUSDT];
 
       for (const tokenType of tokenTypes) {
-        mockActor.sweep_subaccount_id.mockResolvedValue(undefined);
+        const mockResult = { Ok: 54321n };
+        mockActor.sweep_subaccount.mockResolvedValue(mockResult);
 
-        await sweepSubaccountId(
+        const result = await sweepSubaccountId(
           mockAgent,
           canisterId,
           subaccountId,
@@ -408,10 +417,11 @@ describe('Update Functions', () => {
           tokenType
         );
 
-        expect(mockActor.sweep_subaccount_id).toHaveBeenCalledWith(
+        expect(result).toEqual(mockResult);
+        expect(mockActor.sweep_subaccount).toHaveBeenCalledWith(
           subaccountId,
           amount,
-          tokenType
+          [tokenType]
         );
       }
     });
@@ -470,7 +480,8 @@ describe('Update Functions', () => {
       ];
 
       for (const test of testAccounts) {
-        mockActor.validate_icrc_account.mockResolvedValue(test.expected);
+        const mockResult = { Ok: test.expected };
+        mockActor.validate_icrc_account.mockResolvedValue(mockResult);
 
         const isValid = await validateIcrcAccount(
           mockAgent,
