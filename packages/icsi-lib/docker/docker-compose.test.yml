@@ -10,12 +10,17 @@ services:
     volumes:
       - ../../../:/workspace
       - dfx_data:/root/.local/share/dfx
+      - node_modules:/workspace/node_modules
+      - pnpm_cache:/root/.local/share/pnpm
     environment:
       - DFX_NETWORK=local
       - DFX_CONFIG_ROOT=/root/.config/dfx
     command: >
       bash -c "
         cd /workspace &&
+        echo 'Installing dependencies...' &&
+        npm install -g pnpm &&
+        pnpm install &&
         echo 'Starting DFX with old metering...' &&
         dfx start --clean --host 0.0.0.0:4943 --artificial-delay 0 &
         DFX_PID=$$! &&
@@ -41,12 +46,17 @@ services:
     volumes:
       - ../../../:/workspace
       - dfx_data:/root/.local/share/dfx
+      - node_modules:/workspace/node_modules
+      - pnpm_cache:/root/.local/share/pnpm
     environment:
       - DFX_NETWORK=local
       - DFX_CONFIG_ROOT=/root/.config/dfx
     working_dir: /workspace
     command: >
       bash -c "
+        echo 'Installing dependencies...' &&
+        npm install -g pnpm &&
+        pnpm install &&
         echo 'Deploying test token canisters...' &&
         cd /workspace &&
         ./packages/icsi-lib/scripts/deploy-test-tokens.sh
@@ -62,17 +72,30 @@ services:
     volumes:
       - ../../../:/workspace
       - dfx_data:/root/.local/share/dfx
+      - node_modules:/workspace/node_modules
+      - pnpm_cache:/root/.local/share/pnpm
     environment:
       - DFX_NETWORK=local
       - DFX_CONFIG_ROOT=/root/.config/dfx
     working_dir: /workspace
     command: >
       bash -c "
-        echo 'Deploying ICSI indexer canister...' &&
-        cd /workspace &&
+        echo 'Installing dependencies...' &&
+        npm install -g pnpm &&
+        pnpm install &&
+        echo 'Building canister...' &&
         pnpm run build:canister &&
-        dfx deploy icp_subaccount_indexer --network local --argument '(variant { Local }, 5: nat64, 0: nat32, \"rdmx6-jaaaa-aaaaa-aaadq-cai\", \"$(dfx identity get-principal)\")'
+        echo 'Deploying ICSI indexer canister...' &&
+        ICP_CANISTER_ID=$$(dfx canister id icp_ledger_canister --network local) &&
+        PRINCIPAL=$$(dfx identity get-principal) &&
+        dfx deploy icp_subaccount_indexer --network local --argument \"(variant { Local }, 5: nat64, 0: nat32, \\\"$$ICP_CANISTER_ID\\\", \\\"$$PRINCIPAL\\\")\" &&
+        echo 'Updating environment file with canister ID...' &&
+        ICSI_CANISTER_ID=$$(dfx canister id icp_subaccount_indexer --network local) &&
+        sed -i \"s/USER_VAULT_CANISTER_ID=/USER_VAULT_CANISTER_ID=$$ICSI_CANISTER_ID/\" packages/icsi-lib/.env.docker &&
+        echo 'ICSI Indexer deployed with ID:' $$ICSI_CANISTER_ID
       "
 
 volumes:
   dfx_data:
+  node_modules:
+  pnpm_cache:
