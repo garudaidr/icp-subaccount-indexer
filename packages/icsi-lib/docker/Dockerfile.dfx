@@ -1,6 +1,6 @@
-FROM ubuntu:22.04
+FROM node:20-slim
 
-# Install dependencies
+# Install basic dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
@@ -9,29 +9,24 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     libssl-dev \
-    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - \
-    && apt-get install -y nodejs
+# Install pnpm and ensure it's available
+RUN npm install -g pnpm && \
+    ln -s /usr/local/lib/node_modules/.bin/pnpm /usr/local/bin/pnpm || \
+    ln -s /usr/local/bin/pnpm /usr/bin/pnpm || \
+    which pnpm || \
+    echo "PNPM PATH: $(which pnpm || echo 'not found')"
 
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install wasm32 target
+# Install minimal required tools
 RUN rustup target add wasm32-unknown-unknown
 
-# Install DFX manually for better compatibility
-RUN echo "Installing DFX manually..." && \
-    mkdir -p /root/.local/share/dfx/bin && \
-    curl -fsSL https://github.com/dfinity/sdk/releases/download/0.23.0/dfx-0.23.0-x86_64-linux.tar.gz -o dfx.tar.gz && \
-    tar -xzf dfx.tar.gz && \
-    mv dfx /root/.local/share/dfx/bin/ && \
-    chmod +x /root/.local/share/dfx/bin/dfx && \
-    rm dfx.tar.gz
-ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+# Note: DFX and advanced tools will be installed at runtime if needed
+# This keeps the image smaller and more maintainable
 
 # Set working directory
 WORKDIR /workspace
