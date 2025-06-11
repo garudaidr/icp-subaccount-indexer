@@ -1,8 +1,11 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
-  testMatch: ['<rootDir>/test/**/*.test.ts', '<rootDir>/test/**/*.spec.ts'],
+  setupFilesAfterEnv: ['<rootDir>/test/unit-setup.ts'],
+  testMatch: [
+    '<rootDir>/test/unit/**/*.test.ts',
+    '<rootDir>/test/unit/**/*.spec.ts',
+  ],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -10,13 +13,9 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
-  testTimeout: 120000, // 2 minutes for integration tests
-  maxWorkers: 1, // Run tests sequentially to avoid conflicts
+  testTimeout: 30000,
+  maxWorkers: '50%',
   verbose: true,
-  forceExit: true,
-  detectOpenHandles: true,
-  globalSetup: '<rootDir>/test/globalSetup.ts',
-  globalTeardown: '<rootDir>/test/globalTeardown.ts',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
@@ -28,5 +27,4 @@ module.exports = {
       },
     ],
   },
-  testSequencer: '<rootDir>/test/sequencer.js',
 };
