@@ -40,7 +40,7 @@ describe('Query Functions', () => {
       get_transactions_count: jest.fn(),
       get_nonce: jest.fn(),
       get_subaccount_count: jest.fn(),
-      get_subaccount_id: jest.fn(),
+      get_subaccountid: jest.fn(),
       get_webhook_url: jest.fn(),
       get_canister_principal: jest.fn(),
       get_icrc_account: jest.fn(),
@@ -112,7 +112,8 @@ describe('Query Functions', () => {
   describe('getUserVaultInterval', () => {
     it('should retrieve the interval value', async () => {
       const mockInterval = 500n;
-      mockActor.get_interval.mockResolvedValue(mockInterval);
+      const mockResult = { Ok: mockInterval };
+      mockActor.get_interval.mockResolvedValue(mockResult);
 
       const interval = await getUserVaultInterval(mockAgent, canisterId);
 
@@ -130,7 +131,8 @@ describe('Query Functions', () => {
   describe('getTransactionsCount', () => {
     it('should retrieve transaction count', async () => {
       const mockCount = 42;
-      mockActor.get_transactions_count.mockResolvedValue(mockCount);
+      const mockResult = { Ok: mockCount };
+      mockActor.get_transactions_count.mockResolvedValue(mockResult);
 
       const count = await getTransactionsCount(mockAgent, canisterId);
 
@@ -148,7 +150,8 @@ describe('Query Functions', () => {
   describe('getNonce', () => {
     it('should retrieve nonce value', async () => {
       const mockNonce = 5;
-      mockActor.get_nonce.mockResolvedValue(mockNonce);
+      const mockResult = { Ok: mockNonce };
+      mockActor.get_nonce.mockResolvedValue(mockResult);
 
       const nonce = await getNonce(mockAgent, canisterId);
 
@@ -166,7 +169,8 @@ describe('Query Functions', () => {
   describe('getSubaccountCount', () => {
     it('should retrieve subaccount count', async () => {
       const mockCount = 10;
-      mockActor.get_subaccount_count.mockResolvedValue(mockCount);
+      const mockResult = { Ok: mockCount };
+      mockActor.get_subaccount_count.mockResolvedValue(mockResult);
 
       const count = await getSubaccountCount(mockAgent, canisterId);
 
@@ -184,7 +188,7 @@ describe('Query Functions', () => {
   describe('getSubaccountId', () => {
     it('should retrieve subaccount ID for ICP', async () => {
       const mockResult = { Ok: 'subaccount-id-123' };
-      mockActor.get_subaccount_id.mockResolvedValue(mockResult);
+      mockActor.get_subaccountid.mockResolvedValue(mockResult);
 
       const result = await getSubaccountId(
         mockAgent,
@@ -193,22 +197,20 @@ describe('Query Functions', () => {
         Tokens.ICP
       );
 
-      expect(result).toEqual(mockResult);
-      expect(mockActor.get_subaccount_id).toHaveBeenCalledWith(0, Tokens.ICP);
+      expect(result).toEqual(mockResult.Ok);
+      expect(mockActor.get_subaccountid).toHaveBeenCalledWith(0, [Tokens.ICP]);
     });
 
     it('should handle Result with Err', async () => {
       const errorResult = { Err: { message: 'Subaccount not found' } };
-      mockActor.get_subaccount_id.mockResolvedValue(errorResult);
+      mockActor.get_subaccountid.mockResolvedValue(errorResult);
 
-      const result = await getSubaccountId(
+      await expect(getSubaccountId(
         mockAgent,
         canisterId,
         999,
         Tokens.ICP
-      );
-
-      expect(result).toEqual(errorResult);
+      )).rejects.toThrow('Subaccount not found');
     });
 
     it('should handle different token types', async () => {
@@ -216,7 +218,7 @@ describe('Query Functions', () => {
 
       for (const tokenType of tokenTypes) {
         const mockResult = { Ok: `subaccount-${tokenType}` };
-        mockActor.get_subaccount_id.mockResolvedValue(mockResult);
+        mockActor.get_subaccountid.mockResolvedValue(mockResult);
 
         const result = await getSubaccountId(
           mockAgent,
@@ -225,8 +227,8 @@ describe('Query Functions', () => {
           tokenType
         );
 
-        expect(result).toEqual(mockResult);
-        expect(mockActor.get_subaccount_id).toHaveBeenCalledWith(0, tokenType);
+        expect(result).toEqual(mockResult.Ok);
+        expect(mockActor.get_subaccountid).toHaveBeenCalledWith(0, [tokenType]);
       }
     });
 
@@ -240,7 +242,8 @@ describe('Query Functions', () => {
   describe('getWebhookUrl', () => {
     it('should retrieve webhook URL', async () => {
       const mockUrl = 'https://example.com/webhook';
-      mockActor.get_webhook_url.mockResolvedValue(mockUrl);
+      const mockResult = { Ok: mockUrl };
+      mockActor.get_webhook_url.mockResolvedValue(mockResult);
 
       const url = await getWebhookUrl(mockAgent, canisterId);
 
@@ -249,7 +252,8 @@ describe('Query Functions', () => {
     });
 
     it('should handle empty webhook URL', async () => {
-      mockActor.get_webhook_url.mockResolvedValue('');
+      const mockResult = { Ok: '' };
+      mockActor.get_webhook_url.mockResolvedValue(mockResult);
 
       const url = await getWebhookUrl(mockAgent, canisterId);
 
@@ -266,7 +270,8 @@ describe('Query Functions', () => {
   describe('getCanisterPrincipal', () => {
     it('should retrieve canister principal', async () => {
       const mockPrincipal = 'rdmx6-jaaaa-aaaaa-aaadq-cai';
-      mockActor.get_canister_principal.mockResolvedValue(mockPrincipal);
+      const mockResult = { Ok: mockPrincipal };
+      mockActor.get_canister_principal.mockResolvedValue(mockResult);
 
       const principal = await getCanisterPrincipal(mockAgent, canisterId);
 
@@ -288,7 +293,7 @@ describe('Query Functions', () => {
 
       const result = await getIcrcAccount(mockAgent, canisterId, 0);
 
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual(mockResult.Ok);
       expect(mockActor.get_icrc_account).toHaveBeenCalledWith(0);
     });
 
@@ -296,9 +301,7 @@ describe('Query Functions', () => {
       const errorResult = { Err: { message: 'Account not found' } };
       mockActor.get_icrc_account.mockResolvedValue(errorResult);
 
-      const result = await getIcrcAccount(mockAgent, canisterId, -1);
-
-      expect(result).toEqual(errorResult);
+      await expect(getIcrcAccount(mockAgent, canisterId, -1)).rejects.toThrow('Account not found');
     });
 
     it('should throw on empty canister ID', async () => {
@@ -311,21 +314,23 @@ describe('Query Functions', () => {
   describe('getNetwork', () => {
     it('should retrieve network type - Mainnet', async () => {
       const mockNetwork = { Mainnet: null };
-      mockActor.get_network.mockResolvedValue(mockNetwork);
+      const mockResult = { Ok: mockNetwork };
+      mockActor.get_network.mockResolvedValue(mockResult);
 
       const network = await getNetwork(mockAgent, canisterId);
 
-      expect(network).toEqual(mockNetwork);
+      expect(network).toEqual('Mainnet');
       expect(mockActor.get_network).toHaveBeenCalled();
     });
 
     it('should retrieve network type - Local', async () => {
       const mockNetwork = { Local: null };
-      mockActor.get_network.mockResolvedValue(mockNetwork);
+      const mockResult = { Ok: mockNetwork };
+      mockActor.get_network.mockResolvedValue(mockResult);
 
       const network = await getNetwork(mockAgent, canisterId);
 
-      expect(network).toEqual(mockNetwork);
+      expect(network).toEqual('Local');
       expect(mockActor.get_network).toHaveBeenCalled();
     });
 
@@ -339,7 +344,8 @@ describe('Query Functions', () => {
   describe('getNextBlock', () => {
     it('should retrieve next block', async () => {
       const mockNextBlock = 12345n;
-      mockActor.get_next_block.mockResolvedValue(mockNextBlock);
+      const mockResult = { Ok: mockNextBlock };
+      mockActor.get_next_block.mockResolvedValue(mockResult);
 
       const nextBlock = await getNextBlock(mockAgent, canisterId);
 
@@ -348,7 +354,8 @@ describe('Query Functions', () => {
     });
 
     it('should handle zero block', async () => {
-      mockActor.get_next_block.mockResolvedValue(0n);
+      const mockResult = { Ok: 0n };
+      mockActor.get_next_block.mockResolvedValue(mockResult);
 
       const nextBlock = await getNextBlock(mockAgent, canisterId);
 
@@ -365,7 +372,8 @@ describe('Query Functions', () => {
   describe('getOldestBlock', () => {
     it('should retrieve oldest block', async () => {
       const mockOldestBlock = 100n;
-      mockActor.get_oldest_block.mockResolvedValue(mockOldestBlock);
+      const mockResult = { Ok: [mockOldestBlock] };
+      mockActor.get_oldest_block.mockResolvedValue(mockResult);
 
       const oldestBlock = await getOldestBlock(mockAgent, canisterId);
 
@@ -374,7 +382,8 @@ describe('Query Functions', () => {
     });
 
     it('should handle undefined oldest block', async () => {
-      mockActor.get_oldest_block.mockResolvedValue(undefined);
+      const mockResult = { Ok: [] };
+      mockActor.get_oldest_block.mockResolvedValue(mockResult);
 
       const oldestBlock = await getOldestBlock(mockAgent, canisterId);
 
@@ -432,7 +441,7 @@ describe('Query Functions', () => {
         'hash123'
       );
 
-      expect(result).toEqual(mockResult);
+      expect(result).toEqual(mockResult.Ok);
       expect(mockActor.get_transaction_token_type).toHaveBeenCalledWith(
         'hash123'
       );
@@ -442,13 +451,11 @@ describe('Query Functions', () => {
       const errorResult = { Err: 'Transaction not found' };
       mockActor.get_transaction_token_type.mockResolvedValue(errorResult);
 
-      const result = await getTransactionTokenType(
+      await expect(getTransactionTokenType(
         mockAgent,
         canisterId,
         'non-existent'
-      );
-
-      expect(result).toEqual(errorResult);
+      )).rejects.toThrow('Transaction not found');
     });
 
     it('should throw on empty canister ID', async () => {
