@@ -196,7 +196,7 @@ describe('Helper Functions', () => {
     });
   });
 
-  describe.skip('getDepositAddresses', () => {
+  describe('getDepositAddresses', () => {
     it('should handle successful query response', async () => {
       // Mock the sequence of calls that getDepositAddresses makes
       mockGetRegisteredTokens.mockResolvedValue({
@@ -274,7 +274,7 @@ describe('Helper Functions', () => {
     });
   });
 
-  describe.skip('getBalances', () => {
+  describe('getBalances', () => {
     it('should calculate balances correctly', async () => {
       // Mock transactions response with proper structure
       // @ts-ignore - simplified mock for testing
@@ -507,7 +507,7 @@ describe('Helper Functions', () => {
     });
   });
 
-  describe.skip('getTransactionsByTokenType', () => {
+  describe('getTransactionsByTokenType', () => {
     it('should retrieve transactions for ICP', async () => {
       mockGetUserVaultTransactions.mockResolvedValue({
         Ok: [

@@ -1,8 +1,8 @@
 import { config } from 'dotenv';
 import { join } from 'path';
 
-// Load environment variables from docker environment
-config({ path: join(__dirname, '../.env.docker') });
+// Load environment variables from test environment
+config({ path: join(__dirname, '../.env.test') });
 
 // Set default timeout for all tests
 jest.setTimeout(120000);

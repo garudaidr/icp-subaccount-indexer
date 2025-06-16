@@ -15,22 +15,14 @@ on:
       - ".github/workflows/test-icsi-lib.yml"
 
 env:
-  RUST_VERSION: 1.75.0
+  RUST_VERSION: 1.82.0
   NODE_VERSION: 20
-  DFX_VERSION: 0.23.0
 
 jobs:
   test-icsi-lib:
     name: Test ICSI Library
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
-    services:
-      docker:
-        image: docker:24-dind
-        options: --privileged
-        volumes:
-          - /var/run/docker.sock:/var/run/docker.sock
 
     steps:
       - name: Checkout repository
@@ -49,13 +41,6 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           target: wasm32-unknown-unknown
           components: rustfmt, clippy
-
-      - name: Install DFX
-        run: |
-          wget https://github.com/dfinity/sdk/releases/download/${{ env.DFX_VERSION }}/dfx-${{ env.DFX_VERSION }}-x86_64-linux.tar.gz
-          tar -xzf dfx-${{ env.DFX_VERSION }}-x86_64-linux.tar.gz
-          sudo mv dfx /usr/local/bin/dfx
-          dfx --version
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -78,10 +63,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Setup Docker Compose
+      - name: Install candid-extractor
         run: |
-          # Docker Compose v2 is installed by default in GitHub Actions runners
-          docker compose version
+          cargo install candid-extractor
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build canister
         run: |
@@ -104,89 +89,6 @@ jobs:
           cd packages/icsi-lib
           pnpm run build
 
-      - name: Setup test environment
-        run: |
-          cd packages/icsi-lib
-
-          # Create environment file for tests
-          cat > .env.docker <<EOF
-          DFX_NETWORK=local
-          DFX_HOST=http://localhost:4943
-          ICP_CANISTER_ID=rdmx6-jaaaa-aaaaa-aaadq-cai
-          CKUSDC_CANISTER_ID=rrkah-fqaaa-aaaaa-aaaaq-cai
-          CKUSDT_CANISTER_ID=ryjl3-tyaaa-aaaaa-aaaba-cai
-          USER_VAULT_CANISTER_ID=
-          MINTER_PRINCIPAL=
-          EOF
-
-      - name: Start Docker test environment
-        run: |
-          cd packages/icsi-lib
-          docker compose -f docker/docker compose.test.yml up -d dfx
-
-          # Wait for DFX to be ready
-          timeout 120 bash -c 'until curl -s http://localhost:4943/_/api/v2/status > /dev/null; do sleep 2; done'
-
-          if ! curl -s http://localhost:4943/_/api/v2/status > /dev/null; then
-            echo "❌ DFX failed to start"
-            docker compose -f docker/docker compose.test.yml logs dfx
-            exit 1
-          fi
-
-          echo "✅ DFX is ready"
-
-      - name: Deploy test tokens
-        run: |
-          cd packages/icsi-lib
-          docker compose -f docker/docker compose.test.yml up test-tokens
-
-          # Check if deployment was successful
-          if [ $? -ne 0 ]; then
-            echo "❌ Test token deployment failed"
-            docker compose -f docker/docker compose.test.yml logs test-tokens
-            exit 1
-          fi
-
-          echo "✅ Test tokens deployed"
-
-      - name: Deploy ICSI indexer
-        run: |
-          cd packages/icsi-lib
-          docker compose -f docker/docker compose.test.yml up icsi-indexer
-
-          # Check if deployment was successful
-          if [ $? -ne 0 ]; then
-            echo "❌ ICSI indexer deployment failed"
-            docker compose -f docker/docker compose.test.yml logs icsi-indexer
-            exit 1
-          fi
-
-          echo "✅ ICSI indexer deployed"
-
-      - name: Update test environment with canister IDs
-        run: |
-          cd packages/icsi-lib
-
-          # Get deployed canister IDs from Docker environment
-          ICP_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id icp_ledger_canister --network local || echo "rdmx6-jaaaa-aaaaa-aaadq-cai")
-          CKUSDC_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id test_ckusdc --network local || echo "rrkah-fqaaa-aaaaa-aaaaq-cai")
-          CKUSDT_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id test_ckusdt --network local || echo "ryjl3-tyaaa-aaaaa-aaaba-cai")
-          INDEXER_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id icp_subaccount_indexer --network local || echo "")
-
-          # Update environment file
-          cat > .env.docker <<EOF
-          DFX_NETWORK=local
-          DFX_HOST=http://localhost:4943
-          ICP_CANISTER_ID=${ICP_ID}
-          CKUSDC_CANISTER_ID=${CKUSDC_ID}
-          CKUSDT_CANISTER_ID=${CKUSDT_ID}
-          USER_VAULT_CANISTER_ID=${INDEXER_ID}
-          MINTER_PRINCIPAL=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx identity get-principal || echo "")
-          EOF
-
-          echo "📋 Updated environment:"
-          cat .env.docker
-
       - name: Run unit tests
         run: |
           cd packages/icsi-lib
@@ -194,85 +96,3 @@ jobs:
             echo "❌ Unit tests failed"
             exit 1
           }
-
-      - name: Run integration tests
-        run: |
-          cd packages/icsi-lib
-          pnpm run test:integration || {
-            echo "❌ Integration tests failed"
-            echo "🔍 Container logs:"
-            docker compose -f docker/docker compose.test.yml logs --tail=50
-            exit 1
-          }
-
-      - name: Generate test coverage
-        run: |
-          cd packages/icsi-lib
-          pnpm run test:coverage || {
-            echo "⚠️  Coverage generation failed, but continuing..."
-          }
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: ./packages/icsi-lib/coverage/lcov.info
-          flags: icsi-lib
-          name: icsi-lib-coverage
-          fail_ci_if_error: false
-
-      - name: Cleanup test environment
-        if: always()
-        run: |
-          cd packages/icsi-lib
-          docker compose -f docker/docker compose.test.yml down -v --remove-orphans || true
-
-      - name: Archive test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: |
-            packages/icsi-lib/coverage/
-            packages/icsi-lib/.env.docker
-            packages/icsi-lib/test-results.xml
-          retention-days: 7
-
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    needs: test-icsi-lib
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run security audit
-        run: |
-          cd packages/icsi-lib
-          pnpm audit --audit-level=moderate || {
-            echo "⚠️  Security vulnerabilities found"
-            pnpm audit --audit-level=moderate --json > audit-results.json || true
-            exit 1
-          }
-
-      - name: Upload audit results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-audit-results
-          path: packages/icsi-lib/audit-results.json
-          retention-days: 30

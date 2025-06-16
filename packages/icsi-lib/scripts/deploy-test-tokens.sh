@@ -46,7 +46,7 @@ echo "   Test ckUSDC: $CKUSDC_CANISTER_ID"
 echo "   Test ckUSDT: $CKUSDT_CANISTER_ID"
 
 # Create environment file for tests
-cat > packages/icsi-lib/.env.docker <<EOF
+cat > packages/icsi-lib/.env.test <<EOF
 # Test Environment Configuration
 DFX_NETWORK=local
 ICP_CANISTER_ID=$ICP_CANISTER_ID
@@ -57,5 +57,5 @@ MINTER_PRINCIPAL=$MINTER_PRINCIPAL
 DFX_HOST=http://localhost:4943
 EOF
 
-echo "💾 Environment file created at packages/icsi-lib/.env.docker"
+echo "💾 Environment file created at packages/icsi-lib/.env.test"
 echo "🎉 Token deployment complete!"

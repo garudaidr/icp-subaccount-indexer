@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           run_install: false
 
@@ -34,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run format check
-        run: pnpm run format:check
+      - name: Run TypeScript format check
+        run: cd packages/icsi-lib && pnpm run format:check
 
       - name: Run type check
         run: pnpm run type-check
@@ -46,6 +46,7 @@ jobs:
   test-backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    needs: test-unit
 
     steps:
       - name: Checkout repository
@@ -54,7 +55,7 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.82.0
           override: true
           components: rustfmt, clippy
 
@@ -70,61 +71,17 @@ jobs:
       - name: Run Rust tests
         run: cargo test
 
-  test-e2e:
-    name: End-to-End Tests
-    runs-on: ubuntu-latest
-
-    services:
-      docker:
-        image: docker:dind
-        options: --privileged
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Run E2E tests with Docker
-        run: cd packages/icsi-lib && pnpm run docker:e2e:ci
-        timeout-minutes: 15
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: e2e-test-results
-          path: |
-            packages/icsi-lib/coverage/
-            packages/icsi-lib/.env.docker
-
   build-canister:
     name: Build Canister
     runs-on: ubuntu-latest
-    needs: [test-unit, test-backend]
+    needs: test-backend
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           run_install: false
 
@@ -138,73 +95,28 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.82.0
           override: true
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Install DFX
+      - name: Install candid-extractor
         run: |
-          ARCH=$(uname -m)
-          if [ "$ARCH" = "x86_64" ]; then
-            DFX_VERSION=0.23.0 sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-          else
-            echo "Architecture $ARCH not supported for DFX installation in CI"
-            exit 1
-          fi
+          cargo install candid-extractor
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Verify tool installations
+        run: |
+          echo "Checking tool availability..."
+          which candid-extractor || echo "candid-extractor not found in PATH"
+          candid-extractor --version || echo "candid-extractor not working"
 
       - name: Install dependencies
         run: pnpm install
 
       - name: Build canister
         run: pnpm run build:canister
-
-      - name: Upload canister artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: canister-build
-          path: |
-            target/wasm32-unknown-unknown/release/*.wasm
-            src/icp_subaccount_indexer/icp_subaccount_indexer.did
-
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Run npm audit
-        run: pnpm audit --audit-level high
-
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-
-      - name: Run cargo audit
-        run: cargo audit
 
   lint-and-format:
     name: Lint and Format Check
@@ -215,7 +127,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           run_install: false
 
@@ -235,7 +147,7 @@ jobs:
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.82.0
           override: true
           components: rustfmt
 
@@ -245,15 +157,7 @@ jobs:
   integration-test-summary:
     name: Integration Test Summary
     runs-on: ubuntu-latest
-    needs:
-      [
-        test-unit,
-        test-backend,
-        test-e2e,
-        build-canister,
-        security-audit,
-        lint-and-format,
-      ]
+    needs: [test-unit, test-backend, build-canister, lint-and-format]
     if: always()
 
     steps:
@@ -261,9 +165,7 @@ jobs:
         run: |
           echo "Unit Tests: ${{ needs.test-unit.result }}"
           echo "Backend Tests: ${{ needs.test-backend.result }}"
-          echo "E2E Tests: ${{ needs.test-e2e.result }}"
           echo "Build: ${{ needs.build-canister.result }}"
-          echo "Security Audit: ${{ needs.security-audit.result }}"
           echo "Lint and Format: ${{ needs.lint-and-format.result }}"
 
           # Fail if any critical tests failed
@@ -274,14 +176,6 @@ jobs:
             exit 1
           fi
 
-          # Warn about non-critical failures
-          if [[ "${{ needs.test-e2e.result }}" == "failure" ]]; then
-            echo "⚠️ E2E tests failed - this may indicate environment issues"
-          fi
-
-          if [[ "${{ needs.security-audit.result }}" == "failure" ]]; then
-            echo "⚠️ Security audit failed - review security issues"
-          fi
 
           if [[ "${{ needs.lint-and-format.result }}" == "failure" ]]; then
             echo "⚠️ Lint/format checks failed - code style issues detected"

@@ -84,6 +84,18 @@ pnpm run generate
 
 You can see the testing guide in `TESTING_GUIDE.md`. The modern test suite is in `packages/icsi-lib/test/scripts/` (except for the legacy tests in `packages/icsi-lib/test/scripts/legacy/`).
 
+**For GitHub Actions testing locally**, see `TESTING_LOCAL.md` and use the simplified test script:
+
+```bash
+# Quick tests (format + unit tests)
+./test-local.sh quick
+
+# Individual jobs
+./test-local.sh format-ts
+./test-local.sh format-rust
+./test-local.sh test-ts-unit
+```
+
 The logs for each test are in `docs/logs/`. You can see each test's logs in the file named `TESTING_ATTEMPT_1.md`, `TESTING_ATTEMPT_2.md`, etc. Do not use the seed phrase from the logs to generate a new wallet and don't use the same seed phrase for personal or production use.
 
 **Critical Testing Order**:

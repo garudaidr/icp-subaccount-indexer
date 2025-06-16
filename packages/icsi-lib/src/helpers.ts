@@ -185,6 +185,11 @@ export async function getTransactionsByTokenType(
   canisterId: string,
   tokenType: TokenType
 ): Promise<any[]> {
+  // Validate token type
+  if (!('ICP' in tokenType || 'CKUSDC' in tokenType || 'CKUSDT' in tokenType)) {
+    throw new Error('Invalid token type');
+  }
+
   const transactionsResult = await getUserVaultTransactions(
     agent,
     canisterId,

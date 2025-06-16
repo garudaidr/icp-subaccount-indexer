@@ -1,4 +1,4 @@
-// Unit test setup - no Docker dependency
+// Unit test setup
 jest.setTimeout(10000);
 
 // Add global type declarations first

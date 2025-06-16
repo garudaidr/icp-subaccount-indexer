@@ -1,6 +1,6 @@
 # ICSI Library Test Suite
 
-This directory contains comprehensive tests for the `@jagad/icsi` library, featuring both unit tests and end-to-end integration tests with Docker-based local ICP deployment.
+This directory contains comprehensive tests for the `@jagad/icsi` library, featuring both unit tests and end-to-end integration tests with local ICP deployment.
 
 ## Test Structure
 
@@ -32,10 +32,10 @@ test/
 - **Integration tests**: End-to-end workflow tests with real canister deployment
 - **Error scenarios**: Comprehensive sad path testing for robust error handling
 
-### 🐳 Docker-Based Test Environment
+### 🚀 Local Test Environment
 
-- **Isolated environment**: Each test run uses a fresh Docker environment
-- **Automatic setup**: Docker Compose handles DFX, token canisters, and indexer deployment
+- **Isolated environment**: Each test run uses a fresh local environment
+- **Automatic setup**: Scripts handle DFX, token canisters, and indexer deployment
 - **CI/CD ready**: Designed to run in GitHub Actions and other CI systems
 - **Mock tokens**: ICRC-1 compatible test tokens (ckUSDC, ckUSDT) for comprehensive testing
 
@@ -52,7 +52,6 @@ test/
 
 - Node.js 20+
 - pnpm
-- Docker and Docker Compose
 - dfx (Internet Computer SDK)
 
 ### Running Tests Locally
@@ -61,7 +60,7 @@ test/
 # Install dependencies
 pnpm install
 
-# Run all tests (includes Docker setup)
+# Run all tests (includes local setup)
 pnpm run test
 
 # Run only unit tests (fast)
@@ -77,17 +76,17 @@ pnpm run test:coverage
 pnpm run test:watch
 ```
 
-### Docker Environment Commands
+### Test Environment Commands
 
 ```bash
-# Start test environment manually
-pnpm run docker:up
+# Start local DFX environment
+pnpm run start:local:env
 
-# Stop and cleanup
-pnpm run docker:down
+# Deploy test tokens locally
+./packages/icsi-lib/scripts/deploy-test-tokens.sh
 
-# Run full test suite with Docker
-pnpm run docker:test
+# Run full test suite
+pnpm run test
 ```
 
 ## Test Categories
