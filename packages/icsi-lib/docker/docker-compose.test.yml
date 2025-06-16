@@ -21,7 +21,7 @@ services:
         echo 'Installing dependencies...' &&
         pnpm install &&
         echo 'Installing DFX...' &&
-        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        curl -fsSL https://sdk.dfinity.org/install.sh | DFX_VERSION=0.22.0 bash -s -- --no-modify-path &&
         export PATH=\"/root/.local/share/dfx/bin:$$PATH\" &&
         echo 'Starting DFX with old metering...' &&
         dfx start --clean --host 0.0.0.0:4943 --use-old-metering &
@@ -59,7 +59,7 @@ services:
         echo 'Installing dependencies...' &&
         pnpm install &&
         echo 'Installing DFX...' &&
-        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        curl -fsSL https://sdk.dfinity.org/install.sh | DFX_VERSION=0.22.0 bash -s -- --no-modify-path &&
         export PATH=\"/root/.local/share/dfx/bin:$$PATH\" &&
         echo 'Deploying test token canisters...' &&
         cd /workspace &&
@@ -87,7 +87,7 @@ services:
         echo 'Installing dependencies...' &&
         pnpm install &&
         echo 'Installing DFX and tools...' &&
-        DFX_VERSION=0.22.0 sh -ci \"$(curl -fsSL https://sdk.dfinity.org/install.sh)\" &&
+        curl -fsSL https://sdk.dfinity.org/install.sh | DFX_VERSION=0.22.0 bash -s -- --no-modify-path &&
         cargo install candid-extractor &&
         wget -O /usr/local/bin/didc \"https://github.com/dfinity/candid/releases/latest/download/didc-linux\" &&
         chmod +x /usr/local/bin/didc &&

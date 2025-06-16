@@ -23,6 +23,102 @@ mod tests {
         }
     }
 
+    // Happy path implementation - returns success
+    #[cfg(feature = "happy_path")]
+    impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+        async fn query_blocks(
+            _ledger_principal: Principal,
+            _req: QueryBlocksRequest,
+        ) -> CallResult<(QueryBlocksResponse,)> {
+            let response = QueryBlocksResponse {
+                certificate: None,       // Assuming no certificate for this example
+                blocks: vec![],          // Assuming no blocks for this example
+                chain_length: 0,         // Example value
+                first_block_index: 0,    // Example value
+                archived_blocks: vec![], // Assuming no archived blocks for this example
+            };
+            Ok((response,))
+        }
+
+        async fn transfer(
+            _args: TransferArgs,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<BlockIndex, String> {
+            Ok(1)
+        }
+
+        async fn icrc1_transfer(
+            _args: TransferArg,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<candid::Nat, String> {
+            Ok(candid::Nat::from(1u64))
+        }
+    }
+
+    // Sad path implementation - returns errors
+    #[cfg(feature = "sad_path")]
+    impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+        async fn query_blocks(
+            _ledger_principal: Principal,
+            _req: QueryBlocksRequest,
+        ) -> CallResult<(QueryBlocksResponse,)> {
+            let response = QueryBlocksResponse {
+                certificate: None,       // Assuming no certificate for this example
+                blocks: vec![],          // Assuming no blocks for this example
+                chain_length: 0,         // Example value
+                first_block_index: 0,    // Example value
+                archived_blocks: vec![], // Assuming no archived blocks for this example
+            };
+            Ok((response,))
+        }
+
+        async fn transfer(
+            _args: TransferArgs,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<BlockIndex, String> {
+            Err("transfer failed".to_string())
+        }
+
+        async fn icrc1_transfer(
+            _args: TransferArg,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<candid::Nat, String> {
+            Err("transfer failed".to_string())
+        }
+    }
+
+    // Default test implementation when no features are enabled
+    #[cfg(not(any(feature = "happy_path", feature = "sad_path")))]
+    impl InterCanisterCallManagerTrait for InterCanisterCallManager {
+        async fn query_blocks(
+            _ledger_principal: Principal,
+            _req: QueryBlocksRequest,
+        ) -> CallResult<(QueryBlocksResponse,)> {
+            let response = QueryBlocksResponse {
+                certificate: None,       // Assuming no certificate for this example
+                blocks: vec![],          // Assuming no blocks for this example
+                chain_length: 0,         // Example value
+                first_block_index: 0,    // Example value
+                archived_blocks: vec![], // Assuming no archived blocks for this example
+            };
+            Ok((response,))
+        }
+
+        async fn transfer(
+            _args: TransferArgs,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<BlockIndex, String> {
+            Ok(1)
+        }
+
+        async fn icrc1_transfer(
+            _args: TransferArg,
+            _token_ledger_canister_id: Principal,
+        ) -> Result<candid::Nat, String> {
+            Ok(candid::Nat::from(1u64))
+        }
+    }
+
     fn setup_principals() -> (AccountIdentifier, AccountIdentifier, AccountIdentifier) {
         // Setup CUSTODIAN_PRINCIPAL with a valid Principal
         let custodian_principal = *STATIC_PRINCIPAL.lock().unwrap();
@@ -661,36 +757,6 @@ mod tests {
 
             // Restore original principal
             *STATIC_PRINCIPAL.lock().unwrap() = original_principal;
-        }
-
-        impl InterCanisterCallManagerTrait for InterCanisterCallManager {
-            async fn query_blocks(
-                _ledger_principal: Principal,
-                _req: QueryBlocksRequest,
-            ) -> CallResult<(QueryBlocksResponse,)> {
-                let response = QueryBlocksResponse {
-                    certificate: None,       // Assuming no certificate for this example
-                    blocks: vec![],          // Assuming no blocks for this example
-                    chain_length: 0,         // Example value
-                    first_block_index: 0,    // Example value
-                    archived_blocks: vec![], // Assuming no archived blocks for this example
-                };
-                Ok((response,))
-            }
-
-            async fn transfer(
-                _args: TransferArgs,
-                _token_ledger_canister_id: Principal,
-            ) -> Result<BlockIndex, String> {
-                Ok(1)
-            }
-
-            async fn icrc1_transfer(
-                _args: TransferArg,
-                _token_ledger_canister_id: Principal,
-            ) -> Result<candid::Nat, String> {
-                Ok(candid::Nat::from(1u64))
-            }
         }
 
         #[test]
@@ -1428,36 +1494,6 @@ mod tests {
                 "Account not found in generated subaccounts",
                 "Error message should indicate account not found"
             );
-        }
-
-        impl InterCanisterCallManagerTrait for InterCanisterCallManager {
-            async fn query_blocks(
-                _ledger_principal: Principal,
-                _req: QueryBlocksRequest,
-            ) -> CallResult<(QueryBlocksResponse,)> {
-                let response = QueryBlocksResponse {
-                    certificate: None,       // Assuming no certificate for this example
-                    blocks: vec![],          // Assuming no blocks for this example
-                    chain_length: 0,         // Example value
-                    first_block_index: 0,    // Example value
-                    archived_blocks: vec![], // Assuming no archived blocks for this example
-                };
-                Ok((response,))
-            }
-
-            async fn transfer(
-                _args: TransferArgs,
-                _token_ledger_canister_id: Principal,
-            ) -> Result<BlockIndex, String> {
-                Err(ERROR_MESSAGE.to_string())
-            }
-
-            async fn icrc1_transfer(
-                _args: TransferArg,
-                _token_ledger_canister_id: Principal,
-            ) -> Result<candid::Nat, String> {
-                Err(ERROR_MESSAGE.to_string())
-            }
         }
 
         #[test]
