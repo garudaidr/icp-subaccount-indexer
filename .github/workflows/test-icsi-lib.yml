@@ -42,7 +42,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -82,9 +81,9 @@ jobs:
 
       - name: Install Docker Compose
         run: |
-          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose version
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker compose
+          sudo chmod +x /usr/local/bin/docker compose
+          docker compose version
 
       - name: Build canister
         run: |
@@ -125,14 +124,14 @@ jobs:
       - name: Start Docker test environment
         run: |
           cd packages/icsi-lib
-          docker-compose -f docker/docker-compose.test.yml up -d dfx
+          docker compose -f docker/docker compose.test.yml up -d dfx
 
           # Wait for DFX to be ready
           timeout 120 bash -c 'until curl -s http://localhost:4943/_/api/v2/status > /dev/null; do sleep 2; done'
 
           if ! curl -s http://localhost:4943/_/api/v2/status > /dev/null; then
             echo "❌ DFX failed to start"
-            docker-compose -f docker/docker-compose.test.yml logs dfx
+            docker compose -f docker/docker compose.test.yml logs dfx
             exit 1
           fi
 
@@ -141,12 +140,12 @@ jobs:
       - name: Deploy test tokens
         run: |
           cd packages/icsi-lib
-          docker-compose -f docker/docker-compose.test.yml up test-tokens
+          docker compose -f docker/docker compose.test.yml up test-tokens
 
           # Check if deployment was successful
           if [ $? -ne 0 ]; then
             echo "❌ Test token deployment failed"
-            docker-compose -f docker/docker-compose.test.yml logs test-tokens
+            docker compose -f docker/docker compose.test.yml logs test-tokens
             exit 1
           fi
 
@@ -155,12 +154,12 @@ jobs:
       - name: Deploy ICSI indexer
         run: |
           cd packages/icsi-lib
-          docker-compose -f docker/docker-compose.test.yml up icsi-indexer
+          docker compose -f docker/docker compose.test.yml up icsi-indexer
 
           # Check if deployment was successful
           if [ $? -ne 0 ]; then
             echo "❌ ICSI indexer deployment failed"
-            docker-compose -f docker/docker-compose.test.yml logs icsi-indexer
+            docker compose -f docker/docker compose.test.yml logs icsi-indexer
             exit 1
           fi
 
@@ -171,10 +170,10 @@ jobs:
           cd packages/icsi-lib
 
           # Get deployed canister IDs from Docker environment
-          ICP_ID=$(docker-compose -f docker/docker-compose.test.yml exec -T dfx dfx canister id icp_ledger_canister --network local || echo "rdmx6-jaaaa-aaaaa-aaadq-cai")
-          CKUSDC_ID=$(docker-compose -f docker/docker-compose.test.yml exec -T dfx dfx canister id test_ckusdc --network local || echo "rrkah-fqaaa-aaaaa-aaaaq-cai")
-          CKUSDT_ID=$(docker-compose -f docker/docker-compose.test.yml exec -T dfx dfx canister id test_ckusdt --network local || echo "ryjl3-tyaaa-aaaaa-aaaba-cai")
-          INDEXER_ID=$(docker-compose -f docker/docker-compose.test.yml exec -T dfx dfx canister id icp_subaccount_indexer --network local || echo "")
+          ICP_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id icp_ledger_canister --network local || echo "rdmx6-jaaaa-aaaaa-aaadq-cai")
+          CKUSDC_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id test_ckusdc --network local || echo "rrkah-fqaaa-aaaaa-aaaaq-cai")
+          CKUSDT_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id test_ckusdt --network local || echo "ryjl3-tyaaa-aaaaa-aaaba-cai")
+          INDEXER_ID=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx canister id icp_subaccount_indexer --network local || echo "")
 
           # Update environment file
           cat > .env.docker <<EOF
@@ -184,7 +183,7 @@ jobs:
           CKUSDC_CANISTER_ID=${CKUSDC_ID}
           CKUSDT_CANISTER_ID=${CKUSDT_ID}
           USER_VAULT_CANISTER_ID=${INDEXER_ID}
-          MINTER_PRINCIPAL=$(docker-compose -f docker/docker-compose.test.yml exec -T dfx dfx identity get-principal || echo "")
+          MINTER_PRINCIPAL=$(docker compose -f docker/docker compose.test.yml exec -T dfx dfx identity get-principal || echo "")
           EOF
 
           echo "📋 Updated environment:"
@@ -204,7 +203,7 @@ jobs:
           pnpm run test:integration || {
             echo "❌ Integration tests failed"
             echo "🔍 Container logs:"
-            docker-compose -f docker/docker-compose.test.yml logs --tail=50
+            docker compose -f docker/docker compose.test.yml logs --tail=50
             exit 1
           }
 
@@ -228,7 +227,7 @@ jobs:
         if: always()
         run: |
           cd packages/icsi-lib
-          docker-compose -f docker/docker-compose.test.yml down -v --remove-orphans || true
+          docker compose -f docker/docker compose.test.yml down -v --remove-orphans || true
 
       - name: Archive test results
         if: always()

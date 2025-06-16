@@ -16,7 +16,7 @@ export default async function globalTeardown(): Promise<void> {
   try {
     // Stop and remove all containers
     await execAsync(
-      `docker-compose -f ${dockerComposeFile} down -v --remove-orphans`,
+      `docker compose -f ${dockerComposeFile} down -v --remove-orphans`,
       {
         cwd: projectRoot,
       }

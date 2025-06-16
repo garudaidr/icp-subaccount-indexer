@@ -46,11 +46,11 @@ export const getIdentityFromSeed = (mnemonic: string, index = 0) => {
   if (!mnemonic || mnemonic.trim() === '') {
     throw new Error('Mnemonic seed phrase cannot be empty');
   }
-  
+
   if (!bip39.validateMnemonic(mnemonic)) {
     throw new Error('Invalid mnemonic seed phrase');
   }
-  
+
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   const masterKey = HDKey.fromMasterSeed(seed);
 

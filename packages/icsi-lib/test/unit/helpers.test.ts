@@ -24,7 +24,6 @@ jest.mock('../../src/update', () => ({
   addSubaccountForToken: jest.fn(),
 }));
 
-
 // Import the mocked functions
 import {
   getRegisteredTokens,
@@ -35,12 +34,23 @@ import {
 } from '../../src/query';
 import { addSubaccountForToken } from '../../src/update';
 
-const mockGetRegisteredTokens = getRegisteredTokens as jest.MockedFunction<typeof getRegisteredTokens>;
-const mockGetSubaccountId = getSubaccountId as jest.MockedFunction<typeof getSubaccountId>;
-const mockGetIcrcAccount = getIcrcAccount as jest.MockedFunction<typeof getIcrcAccount>;
-const mockGetUserVaultTransactions = getUserVaultTransactions as jest.MockedFunction<typeof getUserVaultTransactions>;
+const mockGetRegisteredTokens = getRegisteredTokens as jest.MockedFunction<
+  typeof getRegisteredTokens
+>;
+const mockGetSubaccountId = getSubaccountId as jest.MockedFunction<
+  typeof getSubaccountId
+>;
+const mockGetIcrcAccount = getIcrcAccount as jest.MockedFunction<
+  typeof getIcrcAccount
+>;
+const mockGetUserVaultTransactions =
+  getUserVaultTransactions as jest.MockedFunction<
+    typeof getUserVaultTransactions
+  >;
 const mockGetNonce = getNonce as jest.MockedFunction<typeof getNonce>;
-const mockAddSubaccountForToken = addSubaccountForToken as jest.MockedFunction<typeof addSubaccountForToken>;
+const mockAddSubaccountForToken = addSubaccountForToken as jest.MockedFunction<
+  typeof addSubaccountForToken
+>;
 
 describe('Helper Functions', () => {
   let mockAgent: jest.Mocked<HttpAgent>;
@@ -51,7 +61,7 @@ describe('Helper Functions', () => {
       call: jest.fn(),
       query: jest.fn(),
     } as any;
-    
+
     // Reset all mocks
     jest.clearAllMocks();
   });
@@ -195,19 +205,17 @@ describe('Helper Functions', () => {
           [{ CKUSDC: null }, 'CKUSDC'],
         ],
       });
-      
-      mockGetNonce
-        .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(1);
-      
+
+      mockGetNonce.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
+
       mockAddSubaccountForToken
         .mockResolvedValueOnce({ Ok: null })
         .mockResolvedValueOnce({ Ok: null });
-      
+
       mockGetSubaccountId
         .mockResolvedValueOnce('test-subaccount-1')
         .mockResolvedValueOnce('test-subaccount-2');
-        
+
       mockGetIcrcAccount
         .mockResolvedValueOnce('test-address-1')
         .mockResolvedValueOnce('test-address-2');
@@ -233,11 +241,15 @@ describe('Helper Functions', () => {
 
       await expect(
         getDepositAddresses(mockAgent, mockCanisterId)
-      ).rejects.toThrow('Failed to get registered tokens: No registered tokens');
+      ).rejects.toThrow(
+        'Failed to get registered tokens: No registered tokens'
+      );
     });
 
     it('should handle invalid canister ID', async () => {
-      mockGetRegisteredTokens.mockRejectedValue(new Error('Invalid canister ID'));
+      mockGetRegisteredTokens.mockRejectedValue(
+        new Error('Invalid canister ID')
+      );
 
       await expect(
         getDepositAddresses(mockAgent, 'invalid-id')
@@ -246,8 +258,10 @@ describe('Helper Functions', () => {
 
     it('should handle empty canister ID', async () => {
       // The function will likely throw when trying to query with empty canister ID
-      mockGetRegisteredTokens.mockRejectedValue(new Error('Canister ID cannot be empty'));
-      
+      mockGetRegisteredTokens.mockRejectedValue(
+        new Error('Canister ID cannot be empty')
+      );
+
       await expect(getDepositAddresses(mockAgent, '')).rejects.toThrow();
     });
 
@@ -269,54 +283,60 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(1000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(1000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
             tx_hash: 'hash1',
             token_ledger_canister_id: [],
-            icrc1_memo: []
+            icrc1_memo: [],
           },
           {
             index: BigInt(2),
             token_type: { CKUSDC: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(5000000) },
-                to: new Uint8Array([4, 5, 6])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(5000000) },
+                  to: new Uint8Array([4, 5, 6]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
             tx_hash: 'hash2',
             token_ledger_canister_id: [],
-            icrc1_memo: []
+            icrc1_memo: [],
           },
           {
             index: BigInt(3),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(500000) },
-                to: new Uint8Array([7, 8, 9])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(500000) },
+                  to: new Uint8Array([7, 8, 9]),
+                },
+              },
+            ],
             sweep_status: { Swept: null }, // This should be excluded
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
             tx_hash: 'hash3',
             token_ledger_canister_id: [],
-            icrc1_memo: []
+            icrc1_memo: [],
           },
         ],
       });
-      
+
       mockGetRegisteredTokens.mockResolvedValue({
         Ok: [
           [{ ICP: null }, 'ICP'],
@@ -353,7 +373,9 @@ describe('Helper Functions', () => {
     });
 
     it('should handle invalid canister ID', async () => {
-      mockGetUserVaultTransactions.mockRejectedValue(new Error('Invalid canister'));
+      mockGetUserVaultTransactions.mockRejectedValue(
+        new Error('Invalid canister')
+      );
 
       await expect(getBalances(mockAgent, 'invalid-id')).rejects.toThrow(
         'Invalid canister'
@@ -367,38 +389,42 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(1000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(1000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
             tx_hash: 'hash1',
             token_ledger_canister_id: [],
-            icrc1_memo: []
+            icrc1_memo: [],
           },
           {
             index: BigInt(2),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(2000000) },
-                to: new Uint8Array([4, 5, 6])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(2000000) },
+                  to: new Uint8Array([4, 5, 6]),
+                },
+              },
+            ],
             sweep_status: { Swept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
             tx_hash: 'hash2',
             token_ledger_canister_id: [],
-            icrc1_memo: []
+            icrc1_memo: [],
           },
         ],
       });
-      
+
       mockGetRegisteredTokens.mockResolvedValue({
         Ok: [[{ ICP: null }, 'ICP']],
       });
@@ -416,48 +442,54 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(1000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(1000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash1'
+            tx_hash: 'hash1',
           },
           {
             index: BigInt(2),
             token_type: { CKUSDC: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(2000000) },
-                to: new Uint8Array([4, 5, 6])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(2000000) },
+                  to: new Uint8Array([4, 5, 6]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash2'
+            tx_hash: 'hash2',
           },
           {
             index: BigInt(3),
             token_type: { CKUSDT: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(3000000) },
-                to: new Uint8Array([7, 8, 9])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(3000000) },
+                  to: new Uint8Array([7, 8, 9]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash3'
+            tx_hash: 'hash3',
           },
         ],
       });
-      
+
       mockGetRegisteredTokens.mockResolvedValue({
         Ok: [
           [{ ICP: null }, 'ICP'],
@@ -482,16 +514,18 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(1000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(1000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash1'
+            tx_hash: 'hash1',
           },
         ],
       });
@@ -513,16 +547,18 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { CKUSDC: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(5000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(5000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash1'
+            tx_hash: 'hash1',
           },
         ],
       });
@@ -544,16 +580,18 @@ describe('Helper Functions', () => {
           {
             index: BigInt(1),
             token_type: { CKUSDT: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(3000000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(3000000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(0),
-            tx_hash: 'hash1'
+            tx_hash: 'hash1',
           },
         ],
       });
@@ -591,7 +629,9 @@ describe('Helper Functions', () => {
     });
 
     it('should handle invalid canister ID', async () => {
-      mockGetUserVaultTransactions.mockRejectedValue(new Error('Invalid canister'));
+      mockGetUserVaultTransactions.mockRejectedValue(
+        new Error('Invalid canister')
+      );
 
       await expect(
         getTransactionsByTokenType(mockAgent, 'invalid-id', Tokens.ICP)
@@ -604,16 +644,18 @@ describe('Helper Functions', () => {
           {
             index: BigInt(10),
             token_type: { ICP: null },
-            operation: [{
-              Mint: {
-                amount: { e8s: BigInt(1500000) },
-                to: new Uint8Array([1, 2, 3])
-              }
-            }],
+            operation: [
+              {
+                Mint: {
+                  amount: { e8s: BigInt(1500000) },
+                  to: new Uint8Array([1, 2, 3]),
+                },
+              },
+            ],
             sweep_status: { NotSwept: null },
             created_at_time: { timestamp_nanos: BigInt(1234567890) },
             memo: BigInt(12345),
-            tx_hash: 'abcd1234'
+            tx_hash: 'abcd1234',
           },
         ],
       });
@@ -629,7 +671,7 @@ describe('Helper Functions', () => {
         amount: '1500000',
         timestamp: BigInt(1234567890),
         txHash: 'abcd1234',
-        memo: '12345'
+        memo: '12345',
       });
     });
   });

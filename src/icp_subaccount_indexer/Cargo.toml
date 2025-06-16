@@ -10,11 +10,11 @@ crate-type = ["cdylib"]
 
 [dev-dependencies]
 once_cell = "1.15"
-tokio = { version = "1.0", features = ["full", "macros"] }
+tokio = { version = "1.38", features = ["full", "macros"] }
 
 [dependencies]
 url = "2.5.2"
-futures = "0.3"
+futures = "0.3.31"
 serde = "1.0.197"
 serde_json = "1.0"
 sha2 = "0.10.8"
@@ -22,11 +22,11 @@ crc32fast = "1.4.0"
 hex = { version = "0.4.3", features = ["serde"] }
 
 candid = "0.10"
-ic-cdk = "0.12"
-ic-cdk-timers = "0.6"
+ic-cdk = "0.15"
+ic-cdk-timers = "0.7"
 icrc-ledger-types = "0.1.5"
 ic-ledger-types = "0.10.0"
-ic-cdk-macros = "0.8.4"
+ic-cdk-macros = "0.9"
 ic-stable-structures = "0.6.3"
 serde_cbor = "0.11.2"
 fmt = "0.1.0"

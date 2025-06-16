@@ -178,11 +178,11 @@ describe('Utils Functions', () => {
       // Create identities directly to verify they are different
       const identity1 = getIdentityFromSeed(seed1);
       const identity2 = getIdentityFromSeed(seed2);
-      
+
       expect(identity1.getPrincipal().toString()).not.toBe(
         identity2.getPrincipal().toString()
       );
-      
+
       // Both agents should be valid HttpAgent instances
       expect(agent1).toBeInstanceOf(HttpAgent);
       expect(agent2).toBeInstanceOf(HttpAgent);
@@ -191,7 +191,7 @@ describe('Utils Functions', () => {
     it('should handle different host URLs', () => {
       const hosts = [
         'http://localhost:4943',
-        'https://localhost:4943', 
+        'https://localhost:4943',
         'http://127.0.0.1:4943',
         'https://ic0.app',
       ];
@@ -221,7 +221,7 @@ describe('Utils Functions', () => {
       const malformedUrls = [
         'not-a-url',
         'ftp://invalid-protocol.com',
-        'http:/missing-slash.com', 
+        'http:/missing-slash.com',
         'http://[invalid:ipv6:address',
       ];
 
@@ -254,7 +254,7 @@ describe('Utils Functions', () => {
       // We can't easily access the private identity, but we can test that
       // the agent was created successfully with the same seed
       expect(agent).toBeInstanceOf(HttpAgent);
-      
+
       // If we create another agent with the same seed, they should have the same identity
       const identity2 = getIdentityFromSeed(testSeed);
       expect(identity.getPrincipal().toString()).toBe(
@@ -295,10 +295,7 @@ describe('Utils Functions', () => {
     });
 
     it('should work with production IC URLs', () => {
-      const productionUrls = [
-        'https://ic0.app',
-        'https://icp0.io',
-      ];
+      const productionUrls = ['https://ic0.app', 'https://icp0.io'];
 
       for (const url of productionUrls) {
         const agent = createHostAgentAndIdentityFromSeed(testSeed, url);

@@ -522,7 +522,7 @@ enum Icrc1TransferError {
     },
 }
 
-#[cfg(not(any(test, feature = "happy_path", feature = "sad_path")))]
+#[cfg(not(test))]
 impl InterCanisterCallManagerTrait for InterCanisterCallManager {
     async fn query_blocks(
         ledger_principal: Principal,

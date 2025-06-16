@@ -205,12 +205,9 @@ describe('Query Functions', () => {
       const errorResult = { Err: { message: 'Subaccount not found' } };
       mockActor.get_subaccountid.mockResolvedValue(errorResult);
 
-      await expect(getSubaccountId(
-        mockAgent,
-        canisterId,
-        999,
-        Tokens.ICP
-      )).rejects.toThrow('Subaccount not found');
+      await expect(
+        getSubaccountId(mockAgent, canisterId, 999, Tokens.ICP)
+      ).rejects.toThrow('Subaccount not found');
     });
 
     it('should handle different token types', async () => {
@@ -301,7 +298,9 @@ describe('Query Functions', () => {
       const errorResult = { Err: { message: 'Account not found' } };
       mockActor.get_icrc_account.mockResolvedValue(errorResult);
 
-      await expect(getIcrcAccount(mockAgent, canisterId, -1)).rejects.toThrow('Account not found');
+      await expect(getIcrcAccount(mockAgent, canisterId, -1)).rejects.toThrow(
+        'Account not found'
+      );
     });
 
     it('should throw on empty canister ID', async () => {
@@ -451,11 +450,9 @@ describe('Query Functions', () => {
       const errorResult = { Err: 'Transaction not found' };
       mockActor.get_transaction_token_type.mockResolvedValue(errorResult);
 
-      await expect(getTransactionTokenType(
-        mockAgent,
-        canisterId,
-        'non-existent'
-      )).rejects.toThrow('Transaction not found');
+      await expect(
+        getTransactionTokenType(mockAgent, canisterId, 'non-existent')
+      ).rejects.toThrow('Transaction not found');
     });
 
     it('should throw on empty canister ID', async () => {

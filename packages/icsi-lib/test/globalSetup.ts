@@ -18,16 +18,16 @@ export default async function globalSetup(): Promise<void> {
   try {
     // Stop any existing containers
     console.log('🧹 Cleaning up existing containers...');
-    await execAsync(`docker-compose -f ${dockerComposeFile} down -v`, {
+    await execAsync(`docker compose -f ${dockerComposeFile} down -v`, {
       cwd: projectRoot,
     }).catch(() => {
       // Ignore errors if containers don't exist
     });
 
-    // Start all services in sequence - docker-compose will handle the dependencies
+    // Start all services in sequence - docker compose will handle the dependencies
     console.log('🚀 Starting Docker test environment with all services...');
     await execAsync(
-      `docker-compose -f ${dockerComposeFile} up --abort-on-container-exit dfx test-tokens icsi-indexer`,
+      `docker compose -f ${dockerComposeFile} up --abort-on-container-exit dfx test-tokens icsi-indexer`,
       {
         cwd: projectRoot,
         timeout: 300000, // 5 minutes timeout
@@ -89,7 +89,7 @@ export default async function globalSetup(): Promise<void> {
     try {
       console.log('🔍 Getting container logs for debugging...');
       const { stdout } = await execAsync(
-        `docker-compose -f ${dockerComposeFile} logs`,
+        `docker compose -f ${dockerComposeFile} logs`,
         { cwd: projectRoot }
       );
       console.log('📝 Container logs:');
