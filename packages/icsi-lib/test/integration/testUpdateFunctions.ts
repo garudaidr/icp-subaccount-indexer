@@ -24,6 +24,7 @@ import {
   Tokens,
 } from '../../src/index';
 import { createAgent, DEVNET_CANISTER_ID, printConfig } from './config';
+import { formatResult } from './utils';
 
 async function testUpdateFunctions() {
   console.log('🚀 Testing Update Functions with Devnet Canister');
@@ -100,10 +101,7 @@ async function testUpdateFunctions() {
         tokenType,
         canisterId
       );
-      console.log(
-        `   ✅ Registration result:`,
-        JSON.stringify(result, null, 2)
-      );
+      console.log(`   ✅ Registration result:`, formatResult(result));
     } catch (error) {
       console.log(`   ❌ Error:`, (error as Error).message);
     }
@@ -134,10 +132,7 @@ async function testUpdateFunctions() {
   try {
     console.log('\n➕ Testing addSubaccount (ICP)');
     const result = await addSubaccount(agent, DEVNET_CANISTER_ID);
-    console.log(
-      '   ✅ Add subaccount result:',
-      JSON.stringify(result, null, 2)
-    );
+    console.log('   ✅ Add subaccount result:', formatResult(result));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -153,10 +148,7 @@ async function testUpdateFunctions() {
         DEVNET_CANISTER_ID,
         tokenType
       );
-      console.log(
-        `   ✅ Add subaccount result:`,
-        JSON.stringify(result, null, 2)
-      );
+      console.log(`   ✅ Add subaccount result:`, formatResult(result));
     } catch (error) {
       console.log(`   ❌ Error:`, (error as Error).message);
     }
@@ -192,10 +184,7 @@ async function testUpdateFunctions() {
       DEVNET_CANISTER_ID,
       testWebhookUrl
     );
-    console.log(
-      `   ✅ Set webhook URL result:`,
-      JSON.stringify(result, null, 2)
-    );
+    console.log(`   ✅ Set webhook URL result:`, formatResult(result));
 
     // Verify the change
     const newWebhookUrl = await getWebhookUrl(agent, DEVNET_CANISTER_ID);
@@ -237,7 +226,7 @@ async function testUpdateFunctions() {
       DEVNET_CANISTER_ID,
       testSubaccountId
     );
-    console.log('   ✅ Convert result:', JSON.stringify(result, null, 2));
+    console.log('   ✅ Convert result:', formatResult(result));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -249,7 +238,7 @@ async function testUpdateFunctions() {
   try {
     console.log('\n🧹 Testing sweep (all tokens)');
     const result = await sweep(agent, DEVNET_CANISTER_ID);
-    console.log('   ✅ Sweep result:', JSON.stringify(result, null, 2));
+    console.log('   ✅ Sweep result:', formatResult(result));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -265,7 +254,7 @@ async function testUpdateFunctions() {
         DEVNET_CANISTER_ID,
         tokenType
       );
-      console.log(`   ✅ Sweep result:`, JSON.stringify(result, null, 2));
+      console.log(`   ✅ Sweep result:`, formatResult(result));
     } catch (error) {
       console.log(`   ❌ Error:`, (error as Error).message);
     }
@@ -290,10 +279,7 @@ async function testUpdateFunctions() {
         0.001,
         firstTx.token_type
       );
-      console.log(
-        '   ✅ Sweep subaccount result:',
-        JSON.stringify(result, null, 2)
-      );
+      console.log('   ✅ Sweep subaccount result:', formatResult(result));
     } else {
       console.log(
         '   ℹ️  No transactions found, testing with minimal parameters'
@@ -304,10 +290,7 @@ async function testUpdateFunctions() {
         'test-subaccount',
         0.001
       );
-      console.log(
-        '   ✅ Sweep subaccount result:',
-        JSON.stringify(result, null, 2)
-      );
+      console.log('   ✅ Sweep subaccount result:', formatResult(result));
     }
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
@@ -331,7 +314,7 @@ async function testUpdateFunctions() {
       );
       console.log(
         `   ✅ Single sweep result for tx ${firstTx.tx_hash}:`,
-        JSON.stringify(result, null, 2)
+        formatResult(result)
       );
     } else {
       console.log('   ℹ️  No transactions found to test single sweep');
@@ -358,7 +341,7 @@ async function testUpdateFunctions() {
       );
       console.log(
         `   ✅ Set sweep failed result for tx ${firstTx.tx_hash}:`,
-        JSON.stringify(result, null, 2)
+        formatResult(result)
       );
     } else {
       console.log('   ℹ️  No transactions found to test set sweep failed');
@@ -372,7 +355,7 @@ async function testUpdateFunctions() {
     console.log('\n💰 Testing refund');
     const refundAmount = BigInt(1000); // Small amount for testing
     const result = await refund(agent, DEVNET_CANISTER_ID, refundAmount);
-    console.log('   ✅ Refund result:', JSON.stringify(result, null, 2));
+    console.log('   ✅ Refund result:', formatResult(result));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -393,10 +376,7 @@ async function testUpdateFunctions() {
       undefined,
       oldTimestamp
     );
-    console.log(
-      '   ✅ Clear transactions result:',
-      JSON.stringify(result, null, 2)
-    );
+    console.log('   ✅ Clear transactions result:', formatResult(result));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }

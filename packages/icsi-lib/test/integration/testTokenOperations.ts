@@ -16,6 +16,7 @@ import {
   TokenType,
 } from '../../src/index';
 import { createAgent, DEVNET_CANISTER_ID, printConfig } from './config';
+import { formatResult } from './utils';
 
 interface TokenTestConfig {
   tokenType: TokenType;
@@ -72,10 +73,7 @@ async function testTokenOperations() {
         config.tokenType,
         config.canisterId
       );
-      console.log(
-        `   ✅ ${config.name} registration:`,
-        JSON.stringify(result, null, 2)
-      );
+      console.log(`   ✅ ${config.name} registration:`, formatResult(result));
     } catch (error) {
       console.log(
         `   ❌ ${config.name} registration error:`,
@@ -116,10 +114,7 @@ async function testTokenOperations() {
         config.tokenType
       );
       subaccountResults[config.name] = result;
-      console.log(
-        `   ✅ ${config.name} subaccount:`,
-        JSON.stringify(result, null, 2)
-      );
+      console.log(`   ✅ ${config.name} subaccount:`, formatResult(result));
     } catch (error) {
       console.log(
         `   ❌ ${config.name} subaccount error:`,
@@ -250,10 +245,7 @@ async function testTokenOperations() {
         DEVNET_CANISTER_ID,
         config.tokenType
       );
-      console.log(
-        `   ✅ ${config.name} sweep result:`,
-        JSON.stringify(result, null, 2)
-      );
+      console.log(`   ✅ ${config.name} sweep result:`, formatResult(result));
     } catch (error) {
       console.log(
         `   ❌ ${config.name} sweep error:`,

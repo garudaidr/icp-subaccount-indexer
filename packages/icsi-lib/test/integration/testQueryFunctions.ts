@@ -22,6 +22,7 @@ import {
   Tokens,
 } from '../../src/index';
 import { createAgent, DEVNET_CANISTER_ID, printConfig } from './config';
+import { formatResult } from './utils';
 
 async function testQueryFunctions() {
   console.log('🚀 Testing Query Functions with Devnet Canister');
@@ -103,7 +104,7 @@ async function testQueryFunctions() {
       console.log(`   Description: ${testCase.description}`);
 
       const result = await testCase.fn();
-      console.log(`   ✅ Result:`, JSON.stringify(result, null, 2));
+      console.log(`   ✅ Result:`, formatResult(result));
     } catch (error) {
       console.log(`   ❌ Error:`, (error as Error).message);
     }
@@ -120,7 +121,7 @@ async function testQueryFunctions() {
       DEVNET_CANISTER_ID,
       BigInt(10)
     );
-    console.log('   ✅ Transactions:', JSON.stringify(transactions, null, 2));
+    console.log('   ✅ Transactions:', formatResult(transactions));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -205,10 +206,7 @@ async function testQueryFunctions() {
       agent,
       DEVNET_CANISTER_ID
     );
-    console.log(
-      '   ✅ Deposit Addresses:',
-      JSON.stringify(depositAddresses, null, 2)
-    );
+    console.log('   ✅ Deposit Addresses:', formatResult(depositAddresses));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -216,7 +214,7 @@ async function testQueryFunctions() {
   try {
     console.log('\n💰 Testing getBalances');
     const balances = await getBalances(agent, DEVNET_CANISTER_ID);
-    console.log('   ✅ Balances:', JSON.stringify(balances, null, 2));
+    console.log('   ✅ Balances:', formatResult(balances));
   } catch (error) {
     console.log('   ❌ Error:', (error as Error).message);
   }
@@ -240,7 +238,7 @@ async function testQueryFunctions() {
       if (tokenTransactions.length > 0) {
         console.log(
           '   📄 Sample transaction:',
-          JSON.stringify(tokenTransactions[0], null, 2)
+          formatResult(tokenTransactions[0])
         );
       }
     } catch (error) {
