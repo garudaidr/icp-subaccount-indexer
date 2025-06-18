@@ -24,6 +24,7 @@
     "test:lib:unit": "pnpm --filter @jagad/icsi test:unit",
     "clean": "pnpm -r clean",
     "lib:generate:wallet": "pnpm --filter @jagad/icsi generate:wallet",
+    "lib:test:functions": "pnpm --filter @jagad/icsi test:functions",
     "lib:test:icp": "pnpm --filter @jagad/icsi test:icp-deposit",
     "lib:test:usdc": "pnpm --filter @jagad/icsi test:usdc-deposit",
     "lib:test:usdt": "pnpm --filter @jagad/icsi test:usdt-deposit",

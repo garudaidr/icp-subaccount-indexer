@@ -20,7 +20,12 @@
     "test:usdc-deposit": "./test/scripts/testUSDCDeposit.sh",
     "test:usdt-deposit": "./test/scripts/testUSDTDeposit.sh",
     "test:webhook": "ts-node test/scripts/testWebhook.ts",
-    "test:unit": "jest --config jest.config.unit.js"
+    "test:unit": "jest --config jest.config.unit.js",
+    "test:functions": "ts-node test/integration/runTests.ts",
+    "test:query": "ts-node test/integration/testQueryFunctions.ts",
+    "test:update": "ts-node test/integration/testUpdateFunctions.ts",
+    "test:tokens": "ts-node test/integration/testTokenOperations.ts",
+    "test:all-functions": "ts-node test/integration/testAllFunctions.ts"
   },
   "keywords": [
     "internet-computer",
