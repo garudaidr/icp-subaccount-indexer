@@ -1,13 +1,21 @@
 {
   "name": "@jagad/icsi",
-  "version": "0.1.0",
-  "description": "Internet Computer Subaccount Indexer Library - Tools for interacting with ICP user vault canisters",
+  "version": "1.0.0",
+  "description": "Internet Computer Subaccount Indexer Library - TypeScript SDK for ICP multi-token subaccount management, transaction tracking, and automated sweeping with webhook support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE.md"
   ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
@@ -25,7 +33,10 @@
     "test:query": "ts-node test/integration/testQueryFunctions.ts",
     "test:update": "ts-node test/integration/testUpdateFunctions.ts",
     "test:tokens": "ts-node test/integration/testTokenOperations.ts",
-    "test:all-functions": "ts-node test/integration/testAllFunctions.ts"
+    "test:all-functions": "ts-node test/integration/testAllFunctions.ts",
+    "prepublishOnly": "pnpm run type-check && pnpm run format:check && pnpm run test:unit && pnpm run build",
+    "version": "pnpm run build",
+    "postversion": "git push && git push --tags"
   },
   "keywords": [
     "internet-computer",
@@ -33,14 +44,33 @@
     "dfinity",
     "canister",
     "subaccount",
-    "indexer"
+    "indexer",
+    "blockchain",
+    "cryptocurrency",
+    "web3",
+    "icrc",
+    "ckusdc",
+    "ckusdt",
+    "multi-token",
+    "payment-processing",
+    "transaction-tracking",
+    "webhook",
+    "sweeping"
   ],
-  "author": "",
+  "author": {
+    "name": "Jagad",
+    "url": "https://github.com/jagad"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jagad/icp-subaccount-indexer.git"
+    "url": "git+https://github.com/jagad/icp-subaccount-indexer.git",
+    "directory": "packages/icsi-lib"
   },
+  "bugs": {
+    "url": "https://github.com/jagad/icp-subaccount-indexer/issues"
+  },
+  "homepage": "https://github.com/jagad/icp-subaccount-indexer#readme",
   "dependencies": {
     "@dfinity/agent": "^2.4.1",
     "@dfinity/candid": "^2.4.1",
