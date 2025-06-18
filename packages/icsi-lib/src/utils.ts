@@ -62,6 +62,47 @@ export const getIdentityFromSeed = (mnemonic: string, index = 0) => {
 };
 
 /**
+ * Generates a Secp256k1KeyIdentity from a private key in various formats.
+ * @param {string} privateKey - The private key as hex string or EC PEM format.
+ * @returns {Secp256k1KeyIdentity} - The generated Secp256k1KeyIdentity.
+ */
+export const getIdentityFromPrivateKey = (privateKey: string) => {
+  if (!privateKey || typeof privateKey !== 'string') {
+    throw new Error('Private key cannot be empty');
+  }
+
+  try {
+    // Check if it's a PEM format
+    if (privateKey.includes('-----BEGIN') && privateKey.includes('-----END')) {
+      // For PEM format, try to parse using the Secp256k1KeyIdentity.fromPem method
+      try {
+        return Secp256k1KeyIdentity.fromPem(privateKey);
+      } catch (pemError) {
+        throw new Error(
+          `Failed to parse PEM private key: ${(pemError as Error).message}. Make sure it's a valid EC (secp256k1) private key in PEM format.`
+        );
+      }
+    }
+
+    // Handle hex format (with or without 0x prefix)
+    const cleanPrivateKey = privateKey.replace(/^0x/, '').replace(/\s/g, '');
+
+    if (cleanPrivateKey.length !== 64) {
+      throw new Error(
+        'Private key must be 64 hex characters (32 bytes) for secp256k1'
+      );
+    }
+
+    const privateKeyBuffer = Buffer.from(cleanPrivateKey, 'hex');
+    const publicKey = publicKeyCreate(privateKeyBuffer, false);
+
+    return Secp256k1KeyIdentity.fromKeyPair(publicKey, privateKeyBuffer);
+  } catch (error) {
+    throw new Error(`Invalid private key format: ${(error as Error).message}`);
+  }
+};
+
+/**
  * Creates an HttpAgent with a Secp256k1KeyIdentity from a given seed phrase.
  * @param {string} seedPhrase - The seed phrase to generate the identity.
  * @param {string} [host="https://ic0.app"] - The host URL for the HttpAgent (default is the IC mainnet URL).
@@ -72,6 +113,26 @@ export function createHostAgentAndIdentityFromSeed(
   host: string = 'https://ic0.app'
 ): HttpAgent {
   const identity = getIdentityFromSeed(seedPhrase);
+
+  // Initialize and return the HttpAgent with the generated identity.
+  return new HttpAgent({
+    host,
+    identity,
+    fetch,
+  });
+}
+
+/**
+ * Creates an HttpAgent with a Secp256k1KeyIdentity from a private key.
+ * @param {string} privateKey - The private key in EC PEM format or as a hex string.
+ * @param {string} [host="https://ic0.app"] - The host URL for the HttpAgent (default is the IC mainnet URL).
+ * @returns {HttpAgent} - The initialized HttpAgent with the generated identity.
+ */
+export function createHostAgentAndIdentityFromPrivateKey(
+  privateKey: string,
+  host: string = 'https://ic0.app'
+): HttpAgent {
+  const identity = getIdentityFromPrivateKey(privateKey);
 
   // Initialize and return the HttpAgent with the generated identity.
   return new HttpAgent({

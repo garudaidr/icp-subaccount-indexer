@@ -8,7 +8,9 @@ export { addHttpAgentFromSeed } from './auth';
 export {
   isNotEmptyOrError,
   getIdentityFromSeed,
+  getIdentityFromPrivateKey,
   createHostAgentAndIdentityFromSeed,
+  createHostAgentAndIdentityFromPrivateKey,
 } from './utils';
 
 // Query function exports
