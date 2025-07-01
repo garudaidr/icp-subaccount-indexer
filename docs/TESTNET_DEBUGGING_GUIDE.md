@@ -29,7 +29,9 @@ This project has two main environments for testing deployed canisters:
 
 ### Identity Setup
 
-For testnet debugging:
+**CRITICAL: Different identities for different operations!**
+
+#### For Testnet Operations (read/write calls):
 
 ```bash
 # Switch to testnet custodian identity
@@ -37,11 +39,26 @@ dfx identity use testnet_custodian
 
 # Get the principal (needed for authorization)
 dfx identity get-principal
-# Example output: a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae
+# Output: a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae
 
 # Suppress DFX mainnet security warnings
 export DFX_WARNING=-mainnet_plaintext_identity
 ```
+
+#### For Testnet Canister Upgrades (CRITICAL):
+
+```bash
+# Switch to STAGING_DEPLOYER identity - ONLY identity that can upgrade testnet
+dfx identity use STAGING_DEPLOYER
+
+# Verify controller principal
+dfx identity get-principal
+# Output: pztcx-5wpjw-ko6rv-3cjff-466eb-4ywbn-a5jww-rs6yy-ypk4a-ceqfb-nqe
+
+# This principal MUST match testnet canister controllers
+```
+
+**⚠️ Common Mistake**: Using `testnet_custodian` for upgrades will fail! Only `STAGING_DEPLOYER` can upgrade the testnet canister.
 
 For devnet debugging:
 
@@ -57,23 +74,32 @@ dfx identity get-principal
 export DFX_WARNING=-mainnet_plaintext_identity
 ```
 
-### Current Reference Data (as of October 2025)
+### Current Reference Data (as of June 19, 2025)
 
 **Testnet Canister State:**
 
 - **Canister ID**: `uiz2m-baaaa-aaaal-qjbxq-cai`
-- **Identity**: `testnet_custodian`
-- **Principal**: `a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae`
-- **Current next_block**: `15,954,744`
-- **Interval**: `500` seconds (production optimal)
-- **Purpose**: Shared staging environment
+- **Version**: **UPGRADED** - Latest multi-token support (June 19, 2025)
+- **Operations Identity**: `testnet_custodian`
+- **Operations Principal**: `a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae`
+- **Controller Identity**: `STAGING_DEPLOYER` ⭐ **CRITICAL FOR UPGRADES**
+- **Controller Principal**: `pztcx-5wpjw-ko6rv-3cjff-466eb-4ywbn-a5jww-rs6yy-ypk4a-ceqfb-nqe`
+- **Current next_block**: `~25,002,500` (near current ledger tip)
+- **Interval**: `15` seconds (fast testing mode) - **RESTORE TO 500s AFTER TESTING**
+- **Multi-token Support**: ✅ ICP, ckUSDC, ckUSDT registered and indexed
+- **Transaction Count**: 32+ (monitoring for ICRC-1 growth)
+- **Purpose**: Shared staging environment with full multi-token capabilities
 
 **Devnet Reference:**
 
-- **Canister ID**: `y3hne-ryaaa-aaaag-aucea-cai` (example)
+- **Canister ID**: `y3hne-ryaaa-aaaag-aucea-cai`
+- **Version**: **UPGRADED** - Latest multi-token support (June 19, 2025)
 - **Identity**: `default`
-- **Principal**: `gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe` (example)
-- **Current next_block**: `15,954,744` (aligned with testnet)
+- **Principal**: `gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe`
+- **Current next_block**: `~25,002,500` (aligned with testnet)
+- **Interval**: `500` seconds (production - cycle efficient)
+- **Multi-token Support**: ✅ ICP, ckUSDC, ckUSDT registered and indexed
+- **Purpose**: Individual developer testing with real mainnet conditions
 
 **Ledger Reference (October 2025):**
 
