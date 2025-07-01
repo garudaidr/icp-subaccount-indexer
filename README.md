@@ -199,6 +199,39 @@ For production deployment:
 ./scripts/deploy-mainnet.sh upgrade # Upgrade existing
 ```
 
+After deployment, configure the multi-token block positions:
+
+```bash
+# Replace <CANISTER_ID> with your actual canister ID
+
+# 1. Verify tokens are registered (should show ICP, CKUSDC, CKUSDT)
+dfx canister call <CANISTER_ID> get_registered_tokens --network ic
+
+# 2. Set correct mainnet block positions for each token
+# ICP - use a recent block number
+dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { ICP }, 25288400 : nat64)' --network ic
+# CKUSDC - current block ~391,355 (as of July 2025)
+dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { CKUSDC }, 391300 : nat64)' --network ic
+# CKUSDT - current block ~524,113 (as of July 2025)
+dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { CKUSDT }, 524100 : nat64)' --network ic
+
+# 3. Set polling interval
+# For normal production use (balanced)
+dfx canister call <CANISTER_ID> set_interval '(60 : nat64)' --network ic
+# For maximum cycle conservation
+dfx canister call <CANISTER_ID> set_interval '(500 : nat64)' --network ic
+
+# 4. Verify block positions were set correctly
+dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDC })' --network ic
+dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDT })' --network ic
+```
+
+**Important Notes:**
+- Each token ledger has independent block numbering
+- CKUSDC/CKUSDT blocks are much lower than ICP blocks
+- Start blocks ~50-100 before current to catch recent transactions
+- Polling intervals: 60s for normal use, 500s for maximum cycle conservation
+
 See [Deployment Guide](./docs/canister-deployment-guideline.md) for detailed instructions.
 
 ### Testing
