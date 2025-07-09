@@ -227,6 +227,7 @@ dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDT })
 ```
 
 **Important Notes:**
+
 - Each token ledger has independent block numbering
 - CKUSDC/CKUSDT blocks are much lower than ICP blocks
 - Start blocks ~50-100 before current to catch recent transactions

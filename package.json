@@ -6,7 +6,7 @@
     "build": "pnpm run generate && pnpm run build:lib",
     "build:canister": "pnpm run generate:did:backend",
     "build:lib": "pnpm --filter @jagad/icsi build",
-    "prebuild": "dfx generate",
+    "prebuild": "./scripts/prebuild.sh",
     "start:local:env": "dfx start --clean --host 127.0.0.1:8000 --use-old-metering",
     "deploy:local": ".maintain/deploy.sh",
     "deploy:ic": "dfx deploy --network=ic",
