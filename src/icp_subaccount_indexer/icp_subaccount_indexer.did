@@ -52,7 +52,7 @@ type StoredTransactionsV2 = record {
 };
 type SweepStatus = variant { Swept; FailedToSweep; NotSwept };
 type Timestamp = record { timestamp_nanos : nat64 };
-type TokenType = variant { ICP; CKUSDC; CKUSDT };
+type TokenType = variant { ICP; CKUSDC; CKUSDT; CKBTC };
 type Transfer = record {
   to : blob;
   fee : E8s;

@@ -44,6 +44,8 @@ const CKUSDC_LEDGER_CANISTER_ID: Principal =
 // cngnf-vqaaa-aaaar-qag4q-cai
 const CKUSDT_LEDGER_CANISTER_ID: Principal =
     Principal::from_slice(&[0, 0, 0, 0, 2, 48, 1, 185, 1, 1]);
+// mxzaz-hqaaa-aaaar-qaada-cai
+const CKBTC_LEDGER_CANISTER_ID: Principal = Principal::from_slice(&[0, 0, 0, 0, 2, 48, 0, 6, 1, 1]);
 
 use types::{
     CallerGuard, CanisterApiManager, CanisterApiManagerTrait, IcCdkSpawnManager,
@@ -287,6 +289,7 @@ fn get_token_id(token_type: &TokenType) -> u8 {
         TokenType::ICP => 1,
         TokenType::CKUSDC => 2,
         TokenType::CKUSDT => 3,
+        TokenType::CKBTC => 4,
     }
 }
 
@@ -1687,7 +1690,7 @@ async fn sweep() -> Result<Vec<String>, Error> {
                     .await
                     .map(|idx| idx.to_string())
             }
-            TokenType::CKUSDC | TokenType::CKUSDT => {
+            TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
                 let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
                 ic_cdk::println!(
                     "ICRC-1 transfer_args: {:?}, token_type: {:?}",
@@ -1777,7 +1780,7 @@ async fn single_sweep(tx_hash_arg: String) -> Result<Vec<String>, Error> {
                     .await
                     .map(|idx| idx.to_string())
             }
-            TokenType::CKUSDC | TokenType::CKUSDT => {
+            TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
                 let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
                 ic_cdk::println!(
                     "ICRC-1 transfer_args: {:?}, token_type: {:?}",
@@ -1886,6 +1889,7 @@ async fn sweep_subaccount(
         TokenType::ICP => MAINNET_LEDGER_CANISTER_ID,
         TokenType::CKUSDC => CKUSDC_LEDGER_CANISTER_ID,
         TokenType::CKUSDT => CKUSDT_LEDGER_CANISTER_ID,
+        TokenType::CKBTC => CKBTC_LEDGER_CANISTER_ID,
     };
 
     match token_type {
@@ -1903,7 +1907,7 @@ async fn sweep_subaccount(
                 .await
                 .map_err(|e| Error { message: e })
         }
-        TokenType::CKUSDC | TokenType::CKUSDT => {
+        TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
             let custodian_principal_opt =
                 CUSTODIAN_PRINCIPAL.with(|stored_ref| stored_ref.borrow().get().clone());
             let custodian_principal =
@@ -2037,6 +2041,7 @@ fn get_token_ledger_canister_id(token_type: &TokenType) -> Principal {
         TokenType::ICP => MAINNET_LEDGER_CANISTER_ID,
         TokenType::CKUSDC => CKUSDC_LEDGER_CANISTER_ID,
         TokenType::CKUSDT => CKUSDT_LEDGER_CANISTER_ID,
+        TokenType::CKBTC => CKBTC_LEDGER_CANISTER_ID,
     }
 }
 
@@ -2061,6 +2066,7 @@ async fn register_token(
         TokenType::ICP => 1,
         TokenType::CKUSDC => 2,
         TokenType::CKUSDT => 3,
+        TokenType::CKBTC => 4,
     };
 
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
@@ -2129,7 +2135,7 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
                     .await
                     .map(|idx| idx.to_string())
             }
-            TokenType::CKUSDC | TokenType::CKUSDT => {
+            TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
                 let (icrc1_args, token_ledger_canister_id) = to_icrc1_sweep_args(&tx_data)?;
                 ic_cdk::println!(
                     "ICRC-1 transfer_args: {:?}, token_type: {:?}",

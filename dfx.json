@@ -22,6 +22,12 @@
       "wasm": "https://download.dfinity.systems/ic/bddbeaa1b9d22b99db8e8e5c4bfca0d2b1f53f5/canisters/ic-icrc1-ledger.wasm.gz",
       "init_arg": "(variant {Init = record {token_symbol = \"ckUSDT\"; token_name = \"Test Chain Key USDT\"; minting_account = record { owner = principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\" }; transfer_fee = 10_000; metadata = vec {}; initial_balances = vec {}; archive_options = record { num_blocks_to_archive = 1000; trigger_threshold = 2000; controller_id = principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\" }; feature_flags = opt record { icrc2 = true }}})"
     },
+    "test_ckbtc": {
+      "type": "custom",
+      "candid": "https://raw.githubusercontent.com/dfinity/ic/bddbeaa1b9d22b99db8e8e5c4bfca0d2b1f53f5/rs/rosetta-api/icrc1/ledger/ledger.did",
+      "wasm": "https://download.dfinity.systems/ic/bddbeaa1b9d22b99db8e8e5c4bfca0d2b1f53f5/canisters/ic-icrc1-ledger.wasm.gz",
+      "init_arg": "(variant {Init = record {token_symbol = \"ckBTC\"; token_name = \"Test Chain Key BTC\"; minting_account = record { owner = principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\" }; transfer_fee = 10; metadata = vec {}; initial_balances = vec {}; archive_options = record { num_blocks_to_archive = 1000; trigger_threshold = 2000; controller_id = principal \"rdmx6-jaaaa-aaaaa-aaadq-cai\" }; feature_flags = opt record { icrc2 = true }}})"
+    },
     "icp_subaccount_indexer": {
       "candid": "src/icp_subaccount_indexer/icp_subaccount_indexer.did",
       "package": "icp_subaccount_indexer",

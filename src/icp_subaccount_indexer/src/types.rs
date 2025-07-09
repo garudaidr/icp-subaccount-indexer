@@ -293,6 +293,7 @@ pub enum TokenType {
     ICP,
     CKUSDC,
     CKUSDT,
+    CKBTC,
 }
 
 impl Storable for TokenType {
