@@ -27,6 +27,7 @@
     "test:icp-deposit": "./test/scripts/testICPDeposit.sh",
     "test:usdc-deposit": "./test/scripts/testUSDCDeposit.sh",
     "test:usdt-deposit": "./test/scripts/testUSDTDeposit.sh",
+    "test:btc-deposit": "./test/scripts/testBTCDeposit.sh",
     "test:webhook": "ts-node test/scripts/testWebhook.ts",
     "test:unit": "jest --config jest.config.unit.js",
     "test:functions": "ts-node test/integration/runTests.ts",

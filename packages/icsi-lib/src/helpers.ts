@@ -19,6 +19,7 @@ export const Tokens = {
   ICP: { ICP: null } as TokenType,
   CKUSDC: { CKUSDC: null } as TokenType,
   CKUSDT: { CKUSDT: null } as TokenType,
+  CKBTC: { CKBTC: null } as TokenType,
 } as const;
 
 export function getTokenConfig(tokenType: TokenType): TokenConfig {
@@ -41,6 +42,13 @@ export function getTokenConfig(tokenType: TokenType): TokenConfig {
         process.env.CKUSDT_CANISTER_ID || 'cngnf-vqaaa-aaaar-qag4q-cai',
       symbol: 'CKUSDT',
       decimals: 6,
+    };
+  } else if ('CKBTC' in tokenType) {
+    return {
+      canisterId:
+        process.env.CKBTC_CANISTER_ID || 'mxzaz-hqaaa-aaaar-qaada-cai',
+      symbol: 'CKBTC',
+      decimals: 8,
     };
   }
   throw new Error('Unknown token type');
@@ -186,7 +194,14 @@ export async function getTransactionsByTokenType(
   tokenType: TokenType
 ): Promise<any[]> {
   // Validate token type
-  if (!('ICP' in tokenType || 'CKUSDC' in tokenType || 'CKUSDT' in tokenType)) {
+  if (
+    !(
+      'ICP' in tokenType ||
+      'CKUSDC' in tokenType ||
+      'CKUSDT' in tokenType ||
+      'CKBTC' in tokenType
+    )
+  ) {
     throw new Error('Invalid token type');
   }
 

@@ -72,7 +72,11 @@ export type SweepStatus =
 export interface Timestamp {
   timestamp_nanos: bigint;
 }
-export type TokenType = { ICP: null } | { CKUSDC: null } | { CKUSDT: null };
+export type TokenType =
+  | { ICP: null }
+  | { CKUSDC: null }
+  | { CKUSDT: null }
+  | { CKBTC: null };
 export interface Transfer {
   to: Uint8Array | number[];
   fee: E8s;
