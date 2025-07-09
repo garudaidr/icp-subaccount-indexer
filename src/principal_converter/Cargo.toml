@@ -3,6 +3,10 @@ name = "principal_converter"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "canister_id_to_bytes"
+path = "src/canister_id_to_bytes.rs"
+
 [dependencies]
 candid = "0.10"
 crc32fast = "1.3"
