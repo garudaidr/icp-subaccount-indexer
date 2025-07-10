@@ -82,6 +82,7 @@ service : (Network, nat64, nat32, text, text) -> {
   get_transactions_count : () -> (Result_6) query;
   get_webhook_url : () -> (Result_1) query;
   list_transactions : (opt nat64) -> (Result_10) query;
+  process_archived_block : (nat64) -> (Result_1);
   refund : (nat64) -> (Result);
   register_token : (TokenType, text) -> (Result_11);
   reset_token_blocks : () -> (Result);

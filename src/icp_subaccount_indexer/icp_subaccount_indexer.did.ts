@@ -111,6 +111,7 @@ export interface _SERVICE {
   get_transactions_count: ActorMethod<[], Result_6>;
   get_webhook_url: ActorMethod<[], Result_1>;
   list_transactions: ActorMethod<[[] | [bigint]], Result_10>;
+  process_archived_block: ActorMethod<[bigint], Result_1>;
   refund: ActorMethod<[bigint], Result>;
   register_token: ActorMethod<[TokenType, string], Result_11>;
   reset_token_blocks: ActorMethod<[], Result>;
