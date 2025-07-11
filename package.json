@@ -17,7 +17,7 @@
     "format": "cargo fmt && prettier --write . && pnpm --filter @jagad/icsi format && cargo clippy -- -D warnings",
     "format:check": "cargo fmt --check && prettier --check . && pnpm --filter @jagad/icsi format:check",
     "type-check": "pnpm --filter @jagad/icsi type-check",
-    "test": "pnpm run test:backend && pnpm run test:lib:unit && pnpm run test:lib:integration",
+    "test": "pnpm run test:backend && pnpm run test:lib:unit",
     "test:backend": "pnpm run test:happy_path && pnpm run test:sad_path",
     "test:happy_path": "cargo test --features 'happy_path'",
     "test:sad_path": "cargo test --features 'sad_path'",

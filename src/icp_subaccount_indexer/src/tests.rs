@@ -1298,7 +1298,12 @@ mod tests {
         #[test]
         fn test_add_subaccount_multiple_token_types() {
             // Test adding subaccounts for each token type
-            let token_types = vec![TokenType::ICP, TokenType::CKUSDC, TokenType::CKUSDT];
+            let token_types = vec![
+                TokenType::ICP,
+                TokenType::CKUSDC,
+                TokenType::CKUSDT,
+                TokenType::CKBTC,
+            ];
 
             for token_type in token_types {
                 let result = add_subaccount(Some(token_type.clone()));
@@ -1314,7 +1319,7 @@ mod tests {
                         // ICP addresses should be hex format (64 chars)
                         assert_eq!(address.len(), 64, "ICP address should be 64 hex chars");
                     }
-                    TokenType::CKUSDC | TokenType::CKUSDT => {
+                    TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
                         // ICRC-1 addresses should contain the canister principal
                         assert!(
                             address.contains(&STATIC_PRINCIPAL.lock().unwrap().to_text()),

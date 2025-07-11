@@ -935,11 +935,14 @@ async fn query_token_ledger(
             ic_cdk::println!("  Next block: {}", next_block);
 
             // IMPORTANT: For ICRC-1 tokens, this fails because they use icrc3_get_blocks
-            if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+            if token_type == TokenType::CKUSDC
+                || token_type == TokenType::CKUSDT
+                || token_type == TokenType::CKBTC
+            {
                 ic_cdk::println!(
                     "  NOTE: ICRC-1 tokens require icrc3_get_blocks method, not query_blocks!"
                 );
-                ic_cdk::println!("  This is why ckUSDC/ckUSDT block processing is stuck.");
+                ic_cdk::println!("  This is why ckUSDC/ckUSDT/ckBTC block processing is stuck.");
             }
 
             return next_block; // Return original block count if error occurs
@@ -1506,8 +1509,11 @@ fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
     // Determine the token type
     let token_type = token_type.unwrap_or(TokenType::ICP);
 
-    // For ICRC-1 tokens (ckUSDC/ckUSDT), use the ICRC-1 textual representation
-    if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+    // For ICRC-1 tokens (ckUSDC/ckUSDT/ckBTC), use the ICRC-1 textual representation
+    if token_type == TokenType::CKUSDC
+        || token_type == TokenType::CKUSDT
+        || token_type == TokenType::CKBTC
+    {
         let canister_id = CanisterApiManager::id();
         let icrc_account = IcrcAccount::from_principal_and_index(canister_id, nonce);
         return Ok(icrc_account.to_text());
@@ -1554,8 +1560,11 @@ fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<S
                 let token_type = token_type.unwrap_or(TokenType::ICP);
                 let canister_id = CanisterApiManager::id();
 
-                // For ICRC-1 tokens (ckUSDC/ckUSDT), use the ICRC-1 textual representation
-                if token_type == TokenType::CKUSDC || token_type == TokenType::CKUSDT {
+                // For ICRC-1 tokens (ckUSDC/ckUSDT/ckBTC), use the ICRC-1 textual representation
+                if token_type == TokenType::CKUSDC
+                    || token_type == TokenType::CKUSDT
+                    || token_type == TokenType::CKBTC
+                {
                     let icrc_account =
                         IcrcAccount::from_principal_and_index(canister_id, nonce_param);
                     Ok(icrc_account.to_text())
