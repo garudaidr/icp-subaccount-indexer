@@ -1078,26 +1078,75 @@ async fn query_archived_blocks_from_icp_archive(
         block_index
     );
 
-    // The archive uses the same query_blocks API
-    let req = QueryBlocksRequest {
+    // Define types for the archive canister interface
+    #[derive(CandidType, Deserialize)]
+    struct GetBlocksArgs {
+        start: u64,
+        length: u64,
+    }
+
+    #[derive(CandidType, Deserialize)]
+    struct BlockRange {
+        blocks: Vec<Block>,
+    }
+
+    #[derive(CandidType, Deserialize)]
+    enum GetBlocksError {
+        BadFirstBlockIndex {
+            requested_index: u64,
+            first_valid_index: u64,
+        },
+        Other {
+            error_code: u64,
+            error_message: String,
+        },
+    }
+
+    #[derive(CandidType, Deserialize)]
+    enum GetBlocksResult {
+        Ok(BlockRange),
+        Err(GetBlocksError),
+    }
+
+    let args = GetBlocksArgs {
         start: block_index,
         length: 1, // Query single block at specified index
     };
 
-    let call_result: CallResult<(QueryBlocksResponse,)> =
-        InterCanisterCallManager::query_blocks(archive_canister_id, req).await;
+    // Call the archive canister's get_blocks method
+    let call_result: CallResult<(GetBlocksResult,)> =
+        ic_cdk::call(archive_canister_id, "get_blocks", (args,)).await;
 
     match call_result {
-        Ok((response,)) => {
-            ic_cdk::println!(
-                "Successfully retrieved {} blocks from archive",
-                response.blocks.len()
-            );
-            Ok(response.blocks)
-        }
+        Ok((result,)) => match result {
+            GetBlocksResult::Ok(block_range) => {
+                ic_cdk::println!(
+                    "Successfully retrieved {} blocks from archive",
+                    block_range.blocks.len()
+                );
+                Ok(block_range.blocks)
+            }
+            GetBlocksResult::Err(error) => {
+                let error_msg = match error {
+                    GetBlocksError::BadFirstBlockIndex {
+                        requested_index,
+                        first_valid_index,
+                    } => format!(
+                        "Bad first block index: requested {}, first valid {}",
+                        requested_index, first_valid_index
+                    ),
+                    GetBlocksError::Other {
+                        error_code,
+                        error_message,
+                    } => format!("Archive error {}: {}", error_code, error_message),
+                };
+                ic_cdk::println!("Archive error: {}", error_msg);
+                Err(error_msg)
+            }
+        },
         Err((code, msg)) => {
             let error_msg = format!(
-                "Failed to query archive canister {}: Code: {:?}, Message: {}",
+                "Failed to call archive canister {}: Code: {:?}, Message: {}",
                 archive_canister_id, code, msg
             );
             ic_cdk::println!("{}", error_msg);
@@ -1619,10 +1668,18 @@ async fn process_archived_block(block_index: u64) -> Result<String, String> {
         2 => Principal::from_text("q4egw-viaaa-aaaaa-aaagq-cai"),
         3 => Principal::from_text("q4aey-sqaaa-aaaaa-aaahq-cai"),
         4 => Principal::from_text("q5dhs-faaaa-aaaaa-aaaia-cai"),
+        5 => Principal::from_text("qbg3d-biaaa-aaaaa-aaajq-cai"),
+        6 => Principal::from_text("q4r7g-ziaaa-aaaaa-aaakq-cai"),
+        7 => Principal::from_text("q5k4x-7qaaa-aaaaa-aaalq-cai"),
+        8 => Principal::from_text("q3ttb-faaaa-aaaaa-aaamq-cai"),
+        9 => Principal::from_text("qamdn-kaaaa-aaaaa-aaanq-cai"),
+        10 => Principal::from_text("qnzyx-raaaa-aaaaa-aaaoq-cai"),
+        11 => Principal::from_text("qg26j-3yaaa-aaaaa-aaapq-cai"),
+        12 => Principal::from_text("q3fc5-haaaa-aaaaa-aaahq-cai"),
         _ => {
             return Err(format!(
-                "Unknown archive canister for block index {}",
-                block_index
+                "Unknown archive canister for block index {} (archive index {})",
+                block_index, archive_index
             ))
         }
     };
