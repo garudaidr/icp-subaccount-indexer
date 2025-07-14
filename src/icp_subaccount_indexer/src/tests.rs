@@ -611,6 +611,25 @@ mod tests {
                     "Result should be ICRC-1 format for ckUSDT"
                 );
             }
+
+            // Test for ckBTC
+            {
+                // Get current nonce
+                let nonce = the_nonce();
+
+                // Call add_subaccount with CKBTC token type
+                let result = add_subaccount(Some(TokenType::CKBTC));
+                assert!(result.is_ok(), "add_subaccount should succeed for ckBTC");
+
+                // Verify the result is in ICRC-1 format
+                let icrc_account = IcrcAccount::from_principal_and_index(original_principal, nonce);
+                let expected_text = icrc_account.to_text();
+                assert_eq!(
+                    result.unwrap(),
+                    expected_text,
+                    "Result should be ICRC-1 format for ckBTC"
+                );
+            }
         }
 
         #[test]
@@ -667,6 +686,22 @@ mod tests {
             assert_eq!(
                 result_str, expected_text,
                 "Result should match expected ICRC account text"
+            );
+
+            // Test with CKBTC token type
+            let result = get_subaccountid(nonce, Some(TokenType::CKBTC));
+            assert!(
+                result.is_ok(),
+                "get_subaccountid should succeed for CKBTC token type"
+            );
+
+            // Get the text result
+            let result_str = result.unwrap();
+
+            // Should also match the same expected text since the principal is the same
+            assert_eq!(
+                result_str, expected_text,
+                "Result should match expected ICRC account text for CKBTC"
             );
 
             // Test with ICP token type (which should return hex)
@@ -1143,7 +1178,7 @@ mod tests {
             let blocks = result.unwrap();
             // In production, this returns all three token types with default block 1
             // The actual behavior depends on the implementation
-            assert!(blocks.len() <= 3, "Should have at most 3 token blocks");
+            assert!(blocks.len() <= 4, "Should have at most 4 token blocks");
             // All blocks should default to 1
             for (_, block) in blocks {
                 assert_eq!(block, 1, "All blocks should default to 1");
@@ -1855,7 +1890,7 @@ mod tests {
             assert!(result.is_ok(), "Should succeed with default blocks");
             let blocks = result.unwrap();
             // In test environment, might not have all tokens registered
-            assert!(blocks.len() <= 3, "Should have at most 3 token types");
+            assert!(blocks.len() <= 4, "Should have at most 4 token types");
             for (_, block) in blocks {
                 assert_eq!(block, 1, "All should have default block 1");
             }

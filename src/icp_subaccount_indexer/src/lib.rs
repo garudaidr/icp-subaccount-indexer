@@ -1304,6 +1304,7 @@ async fn init(
     set_token_next_block(&TokenType::ICP, 1);
     set_token_next_block(&TokenType::CKUSDC, 1);
     set_token_next_block(&TokenType::CKUSDT, 1);
+    set_token_next_block(&TokenType::CKBTC, 1);
 
     reconstruct_subaccounts();
 }
@@ -1364,12 +1365,13 @@ fn migrate_block_tracking() {
         // Set ICP to use the existing next_block value
         set_token_next_block(&TokenType::ICP, current_next_block);
 
-        // Initialize ckUSDC and ckUSDT to start from block 1
+        // Initialize ckUSDC, ckUSDT, and ckBTC to start from block 1
         set_token_next_block(&TokenType::CKUSDC, 1);
         set_token_next_block(&TokenType::CKUSDT, 1);
+        set_token_next_block(&TokenType::CKBTC, 1);
 
         ic_cdk::println!(
-            "Migration complete: ICP={}, ckUSDC=1, ckUSDT=1",
+            "Migration complete: ICP={}, ckUSDC=1, ckUSDT=1, ckBTC=1",
             current_next_block
         );
     } else {
@@ -2534,6 +2536,7 @@ fn get_all_token_blocks() -> Result<Vec<(TokenType, u64)>, String> {
         (TokenType::ICP, get_token_next_block(&TokenType::ICP)),
         (TokenType::CKUSDC, get_token_next_block(&TokenType::CKUSDC)),
         (TokenType::CKUSDT, get_token_next_block(&TokenType::CKUSDT)),
+        (TokenType::CKBTC, get_token_next_block(&TokenType::CKBTC)),
     ];
 
     Ok(result)
@@ -2549,6 +2552,7 @@ async fn reset_token_blocks() -> Result<String, Error> {
     set_token_next_block(&TokenType::ICP, 1);
     set_token_next_block(&TokenType::CKUSDC, 1);
     set_token_next_block(&TokenType::CKUSDT, 1);
+    set_token_next_block(&TokenType::CKBTC, 1);
 
     Ok("All token blocks reset to 1".to_string())
 }
