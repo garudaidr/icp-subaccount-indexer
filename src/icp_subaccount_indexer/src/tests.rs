@@ -4,6 +4,7 @@ mod tests {
     use crate::*;
     use icrc_ledger_types::icrc1::transfer::TransferArg;
     use once_cell::sync::Lazy;
+    use std::future::Future;
 
     impl TimerManagerTrait for TimerManager {
         fn set_timer(_interval: std::time::Duration) -> TimerId {
@@ -1894,6 +1895,247 @@ mod tests {
             for (_, block) in blocks {
                 assert_eq!(block, 1, "All should have default block 1");
             }
+        }
+
+        #[test]
+        fn test_ckbtc_address_format() {
+            // This test verifies that CKBTC returns ICRC-1 format addresses
+            // and not hex format like ICP
+
+            // First, ensure we have a non-zero nonce by adding a dummy subaccount
+            // This ensures we don't get the default subaccount (all zeros)
+            let _ = add_subaccount(Some(TokenType::ICP));
+
+            // Test CKBTC address generation
+            let ckbtc_result = add_subaccount(Some(TokenType::CKBTC));
+            assert!(
+                ckbtc_result.is_ok(),
+                "CKBTC subaccount creation should succeed"
+            );
+
+            let ckbtc_address = ckbtc_result.unwrap();
+
+            // CKBTC should return ICRC-1 format: principal-checksum.subaccount
+            assert!(
+                ckbtc_address.contains('-') && ckbtc_address.contains('.'),
+                "CKBTC address should be in ICRC-1 format with '-' and '.': {}",
+                ckbtc_address
+            );
+
+            // Verify it's NOT a hex address (64 characters of hex)
+            assert_ne!(
+                ckbtc_address.len(),
+                64,
+                "CKBTC address should NOT be 64 character hex format"
+            );
+
+            // Verify the address starts with the canister principal
+            let canister_principal = CanisterApiManager::id();
+            assert!(
+                ckbtc_address.starts_with(&canister_principal.to_text()),
+                "CKBTC address should start with canister principal"
+            );
+        }
+
+        #[test]
+        fn test_all_token_types_address_formats() {
+            // Comprehensive test for all token types to ensure correct address formats
+
+            // Test ICP - should return hex format
+            let icp_result = add_subaccount(Some(TokenType::ICP));
+            assert!(icp_result.is_ok(), "ICP subaccount creation should succeed");
+            let icp_address = icp_result.unwrap();
+            assert_eq!(
+                icp_address.len(),
+                64,
+                "ICP should return 64-char hex address"
+            );
+            assert!(
+                icp_address.chars().all(|c| c.is_ascii_hexdigit()),
+                "ICP address should be all hex characters"
+            );
+
+            // Test CKUSDC - should return ICRC-1 format
+            let ckusdc_result = add_subaccount(Some(TokenType::CKUSDC));
+            assert!(
+                ckusdc_result.is_ok(),
+                "CKUSDC subaccount creation should succeed"
+            );
+            let ckusdc_address = ckusdc_result.unwrap();
+            assert!(
+                ckusdc_address.contains('-') && ckusdc_address.contains('.'),
+                "CKUSDC should be in ICRC-1 format"
+            );
+
+            // Test CKUSDT - should return ICRC-1 format
+            let ckusdt_result = add_subaccount(Some(TokenType::CKUSDT));
+            assert!(
+                ckusdt_result.is_ok(),
+                "CKUSDT subaccount creation should succeed"
+            );
+            let ckusdt_address = ckusdt_result.unwrap();
+            assert!(
+                ckusdt_address.contains('-') && ckusdt_address.contains('.'),
+                "CKUSDT should be in ICRC-1 format"
+            );
+
+            // Test CKBTC - should return ICRC-1 format
+            let ckbtc_result = add_subaccount(Some(TokenType::CKBTC));
+            assert!(
+                ckbtc_result.is_ok(),
+                "CKBTC subaccount creation should succeed"
+            );
+            let ckbtc_address = ckbtc_result.unwrap();
+            assert!(
+                ckbtc_address.contains('-') && ckbtc_address.contains('.'),
+                "CKBTC should be in ICRC-1 format"
+            );
+
+            // Verify all ICRC-1 tokens have different subaccount suffixes
+            assert_ne!(
+                ckusdc_address, ckusdt_address,
+                "CKUSDC and CKUSDT should have different addresses"
+            );
+            assert_ne!(
+                ckusdc_address, ckbtc_address,
+                "CKUSDC and CKBTC should have different addresses"
+            );
+            assert_ne!(
+                ckusdt_address, ckbtc_address,
+                "CKUSDT and CKBTC should have different addresses"
+            );
+        }
+
+        #[test]
+        fn test_ckbtc_block_tracking_initialization() {
+            // Test that CKBTC is properly initialized in block tracking
+
+            // Clear and reinitialize block tracking
+            TOKEN_NEXT_BLOCKS.with(|blocks| blocks.borrow_mut().clear_new());
+
+            // Initialize all tokens (simulating init or post_upgrade)
+            set_token_next_block(&TokenType::ICP, 1);
+            set_token_next_block(&TokenType::CKUSDC, 1);
+            set_token_next_block(&TokenType::CKUSDT, 1);
+            set_token_next_block(&TokenType::CKBTC, 1);
+
+            // Verify all tokens are tracked
+            let all_blocks = get_all_token_blocks();
+            assert!(all_blocks.is_ok(), "Should get all token blocks");
+
+            let blocks = all_blocks.unwrap();
+            assert_eq!(blocks.len(), 4, "Should have exactly 4 tokens tracked");
+
+            // Verify CKBTC is included
+            let has_ckbtc = blocks
+                .iter()
+                .any(|(token_type, _)| matches!(token_type, TokenType::CKBTC));
+            assert!(has_ckbtc, "CKBTC should be included in token blocks");
+
+            // Verify all tokens start at block 1
+            for (token_type, block) in blocks {
+                assert_eq!(block, 1, "{:?} should start at block 1", token_type);
+            }
+        }
+
+        #[test]
+        fn test_get_subaccountid_ckbtc_format() {
+            // Test get_subaccountid returns correct format for CKBTC
+
+            // First ensure we have a non-zero nonce
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(1);
+            });
+
+            // Create a subaccount first
+            let nonce = get_nonce().unwrap();
+            let subaccount = to_subaccount(nonce);
+            let subaccountid = to_subaccount_id(subaccount);
+            let account_id_hash = subaccountid.to_u64_hash();
+
+            // Store it
+            LIST_OF_SUBACCOUNTS.with(|list_ref| {
+                list_ref.borrow_mut().insert(account_id_hash, subaccount);
+            });
+
+            // Update nonce
+            LAST_SUBACCOUNT_NONCE.with(|nonce_ref| {
+                let _ = nonce_ref.borrow_mut().set(nonce + 1);
+            });
+
+            // Test get_subaccountid for CKBTC
+            let result = get_subaccountid(nonce, Some(TokenType::CKBTC));
+            assert!(result.is_ok(), "get_subaccountid should succeed for CKBTC");
+
+            let address = result.unwrap();
+
+            // Should be ICRC-1 format
+            assert!(
+                address.contains('-') && address.contains('.'),
+                "CKBTC get_subaccountid should return ICRC-1 format: {}",
+                address
+            );
+
+            // Should NOT be hex format
+            assert_ne!(
+                address.len(),
+                64,
+                "CKBTC should not return 64-char hex format"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_reset_token_blocks_includes_ckbtc() {
+            // Test that reset_token_blocks includes CKBTC
+
+            // Set some non-default values
+            set_token_next_block(&TokenType::ICP, 100);
+            set_token_next_block(&TokenType::CKUSDC, 200);
+            set_token_next_block(&TokenType::CKUSDT, 300);
+            set_token_next_block(&TokenType::CKBTC, 400);
+
+            // Reset all blocks
+            let result = reset_token_blocks().await;
+            assert!(result.is_ok(), "reset_token_blocks should succeed");
+
+            // Verify all are reset to 1
+            assert_eq!(get_token_next_block(&TokenType::ICP), 1);
+            assert_eq!(get_token_next_block(&TokenType::CKUSDC), 1);
+            assert_eq!(get_token_next_block(&TokenType::CKUSDT), 1);
+            assert_eq!(get_token_next_block(&TokenType::CKBTC), 1);
+        }
+
+        #[test]
+        fn test_ckbtc_token_registration() {
+            // Test that CKBTC can be properly registered
+
+            // The ledger principal for CKBTC
+            let ckbtc_ledger = "mxzaz-hqaaa-aaaar-qaada-cai";
+            let principal = Principal::from_text(ckbtc_ledger).unwrap();
+
+            // Register CKBTC directly in storage
+            let token_id = match TokenType::CKBTC {
+                TokenType::ICP => 1,
+                TokenType::CKUSDC => 2,
+                TokenType::CKUSDT => 3,
+                TokenType::CKBTC => 4,
+            };
+
+            TOKEN_LEDGER_PRINCIPALS.with(|tl| {
+                let mut tl_mut = tl.borrow_mut();
+                tl_mut.insert(token_id, (TokenType::CKBTC, principal));
+            });
+
+            // Verify it's registered
+            let registered = get_registered_tokens();
+            assert!(registered.is_ok(), "Should get registered tokens");
+
+            let tokens = registered.unwrap();
+            let ckbtc_registered = tokens
+                .iter()
+                .any(|(token_type, _)| matches!(token_type, TokenType::CKBTC));
+
+            assert!(ckbtc_registered, "CKBTC should be in registered tokens");
         }
     }
 }

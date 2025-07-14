@@ -1,5 +1,4 @@
 use candid::{CandidType, Deserialize, Principal};
-use core::future::Future;
 use ic_cdk::api;
 use ic_cdk::api::{
     call::CallResult,
@@ -13,6 +12,7 @@ use ic_cdk_timers::TimerId;
 use serde::Serialize;
 use std::cell::RefCell;
 use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::future::Future;
 use std::hash::{Hash, Hasher};
 
 mod hashof;
