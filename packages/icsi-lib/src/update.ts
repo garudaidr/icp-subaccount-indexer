@@ -75,7 +75,7 @@ export async function sweep(agent: HttpAgent, userVaultCanisterId: string) {
  * Sweeps all subaccounts for a specific token type.
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
- * @param {TokenType} tokenType - The token type to sweep (ICP, CKUSDC, or CKUSDT).
+ * @param {TokenType} tokenType - The token type to sweep (ICP, CKUSDC, CKUSDT, or CKBTC).
  * @returns {Promise<string[]>} - The result of the sweep operation.
  */
 export async function sweepByTokenType(
@@ -102,13 +102,14 @@ export async function addSubaccount(
 }
 
 /**
- * Adds a new subaccount for a specific token type (ICP, CKUSDC, or CKUSDT).
+ * Adds a new subaccount for a specific token type (ICP, CKUSDC, CKUSDT, or CKBTC).
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {TokenType} tokenType - The token type to create a subaccount for.
  * @param {Object} tokenCanisterIds - The canister IDs for the different token types.
  * @param {string} [tokenCanisterIds.ckusdcCanisterId="xevnm-gaaaa-aaaar-qafnq-cai"] - The canister ID for CKUSDC token.
  * @param {string} [tokenCanisterIds.ckusdtCanisterId="vgmay-piaaa-aaaar-qafoq-cai"] - The canister ID for CKUSDT token.
+ * @param {string} [tokenCanisterIds.ckbtcCanisterId="mxzaz-hqaaa-aaaar-qaada-cai"] - The canister ID for CKBTC token.
  * @param {string} [tokenCanisterIds.icpLedgerCanisterId="ryjl3-tyaaa-aaaaa-aaaba-cai"] - The canister ID for ICP ledger.
  * @returns {Promise<AddAccountResult>} - The result of the add_subaccount operation.
  */
@@ -119,6 +120,7 @@ export async function addSubaccountForToken(
   tokenCanisterIds: {
     ckusdcCanisterId?: string;
     ckusdtCanisterId?: string;
+    ckbtcCanisterId?: string;
     icpLedgerCanisterId?: string;
   } = {}
 ): Promise<AddAccountResult> {
@@ -141,6 +143,10 @@ export async function addSubaccountForToken(
       canisterId =
         tokenCanisterIds.ckusdtCanisterId || 'vgmay-piaaa-aaaar-qafoq-cai';
       break;
+    case 'CKBTC' in tokenType:
+      canisterId =
+        tokenCanisterIds.ckbtcCanisterId || 'mxzaz-hqaaa-aaaar-qaada-cai';
+      break;
     case 'ICP' in tokenType:
       canisterId =
         tokenCanisterIds.icpLedgerCanisterId || 'ryjl3-tyaaa-aaaaa-aaaba-cai';
@@ -154,6 +160,7 @@ export async function addSubaccountForToken(
     ([regTokenType, _]) =>
       ('CKUSDC' in tokenType && 'CKUSDC' in regTokenType) ||
       ('CKUSDT' in tokenType && 'CKUSDT' in regTokenType) ||
+      ('CKBTC' in tokenType && 'CKBTC' in regTokenType) ||
       ('ICP' in tokenType && 'ICP' in regTokenType)
   );
 
@@ -214,7 +221,7 @@ export async function setWebhookUrl(
  * Registers a new token type with the user vault canister.
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
- * @param {TokenType} tokenType - The token type to register (ICP, CKUSDC, or CKUSDT).
+ * @param {TokenType} tokenType - The token type to register (ICP, CKUSDC, CKUSDT, or CKBTC).
  * @param {string} canisterId - The canister ID for the token ledger.
  * @returns {Promise<any>} - A promise that resolves with the result of the register operation.
  */
@@ -234,7 +241,7 @@ export async function registerToken(
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {string} subaccountId - The ID of the subaccount to sweep from.
  * @param {number} amount - The amount to sweep.
- * @param {TokenType} [tokenType] - The token type to sweep (ICP, CKUSDC, or CKUSDT). Defaults to ICP if not provided.
+ * @param {TokenType} [tokenType] - The token type to sweep (ICP, CKUSDC, CKUSDT, or CKBTC). Defaults to ICP if not provided.
  * @returns {Promise<any>} - A promise that resolves with the result of the sweep operation.
  * @throws {Error} - Throws an error if the User Vault Canister ID is undefined.
  */

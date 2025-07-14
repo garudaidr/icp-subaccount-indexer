@@ -165,6 +165,7 @@ export const idlFactory = ({ IDL }: { IDL: any }) => {
     ICP: IDL.Null,
     CKUSDC: IDL.Null,
     CKUSDT: IDL.Null,
+    CKBTC: IDL.Null,
   });
   const StoredTransactions = IDL.Record({
     sweep_status: SweepStatus,
