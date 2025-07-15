@@ -450,11 +450,17 @@ fn to_icrc1_sweep_args(tx: &StoredTransactions) -> Result<(Icrc1TransferArg, Pri
                 Error { message: error_msg }
             })?;
 
-            // Calculate amount (subtract fee)
-            let amount = data.amount.e8s - 10_000;
-
             // Get the ledger canister ID for the token type
             let token_ledger_canister_id = get_token_ledger_canister_id(&tx.token_type);
+
+            // Different tokens have different fees
+            let fee: u64 = match tx.token_type {
+                TokenType::CKBTC => 10, // 10 satoshis for ckBTC
+                _ => 10_000,            // 10,000 units for ckUSDC/ckUSDT
+            };
+
+            // Calculate amount (subtract fee)
+            let amount = data.amount.e8s - fee;
 
             // Create ICRC-1 transfer arguments
             let transfer_arg = Icrc1TransferArg {
@@ -462,7 +468,7 @@ fn to_icrc1_sweep_args(tx: &StoredTransactions) -> Result<(Icrc1TransferArg, Pri
                     owner: custodian_principal,
                     subaccount: None,
                 },
-                fee: Some(candid::Nat::from(10_000u64)),
+                fee: Some(candid::Nat::from(fee)),
                 memo: None,
                 from_subaccount: Some(sweep_source_subaccount.0),
                 created_at_time: None,
@@ -2185,12 +2191,18 @@ async fn sweep_subaccount(
                         message: "Failed to get custodian principal".to_string(),
                     })?;
 
+            // Different tokens have different fees
+            let fee = match token_type {
+                TokenType::CKBTC => 10u64, // 10 satoshis for ckBTC
+                _ => 10_000u64,            // 10,000 units for ckUSDC/ckUSDT
+            };
+
             let icrc1_args = Icrc1TransferArg {
                 to: icrc_ledger_types::icrc1::account::Account {
                     owner: custodian_principal,
                     subaccount: None,
                 },
-                fee: Some(candid::Nat::from(10_000u64)),
+                fee: Some(candid::Nat::from(fee)),
                 memo: None,
                 from_subaccount: Some(subaccount.0),
                 created_at_time: None,
