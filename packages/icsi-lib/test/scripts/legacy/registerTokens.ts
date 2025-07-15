@@ -13,11 +13,13 @@ async function registerTokens() {
     const ICP_LEDGER_CANISTER_ID = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
     const CKUSDC_LEDGER_CANISTER_ID = 'xevnm-gaaaa-aaaar-qafnq-cai';
     const CKUSDT_LEDGER_CANISTER_ID = 'cngnf-vqaaa-aaaar-qag4q-cai';
+    const CKBTC_LEDGER_CANISTER_ID = 'mxzaz-hqaaa-aaaar-qaada-cai';
 
     // Define token types - ensuring they're properly converted for candid
     const ICP = Object.freeze({ ICP: null });
     const CKUSDC = Object.freeze({ CKUSDC: null });
     const CKUSDT = Object.freeze({ CKUSDT: null });
+    const CKBTC = Object.freeze({ CKBTC: null });
 
     // Register ICP token
     console.log(
@@ -84,6 +86,29 @@ async function registerTokens() {
       }
     } catch (error: any) {
       console.error(`Error registering CKUSDT token: ${error.message}`);
+    }
+
+    // Register CKBTC token
+    console.log(
+      `\nRegistering CKBTC with ledger canister ID: ${CKBTC_LEDGER_CANISTER_ID}`
+    );
+    try {
+      const ckbtcResult = await registerToken(
+        agent,
+        USER_VAULT_CANISTER_ID,
+        CKBTC,
+        CKBTC_LEDGER_CANISTER_ID
+      );
+
+      if ('Ok' in ckbtcResult) {
+        console.log('✅ CKBTC token registered successfully');
+      } else {
+        console.log(
+          `❌ Error registering CKBTC token: ${ckbtcResult.Err.message}`
+        );
+      }
+    } catch (error: any) {
+      console.error(`Error registering CKBTC token: ${error.message}`);
     }
 
     console.log(

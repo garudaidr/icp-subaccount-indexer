@@ -531,9 +531,10 @@ impl InterCanisterCallManagerTrait for InterCanisterCallManager {
         ledger_principal: Principal,
         req: QueryBlocksRequest,
     ) -> CallResult<(QueryBlocksResponse,)> {
-        // Check if this is an ICRC-1 token (ckUSDC or ckUSDT)
+        // Check if this is an ICRC-1 token (ckUSDC, ckUSDT, or ckBTC)
         if ledger_principal == CKUSDC_LEDGER_CANISTER_ID
             || ledger_principal == CKUSDT_LEDGER_CANISTER_ID
+            || ledger_principal == CKBTC_LEDGER_CANISTER_ID
         {
             // ICRC-1 tokens use icrc3_get_blocks with a different structure
             // Create GetBlocksRequest for ICRC-3
@@ -1321,13 +1322,15 @@ fn reconstruct_subaccounts() {
         let account_id_hash = subaccountid.to_u64_hash();
 
         // Check if this is for an ICRC-1 token and get the text representation
-        let display_account_id =
-            if account == CKUSDC_LEDGER_CANISTER_ID || account == CKUSDT_LEDGER_CANISTER_ID {
-                let icrc_account = IcrcAccount::from_principal_and_index(account, i);
-                icrc_account.to_text()
-            } else {
-                subaccountid.to_hex()
-            };
+        let display_account_id = if account == CKUSDC_LEDGER_CANISTER_ID
+            || account == CKUSDT_LEDGER_CANISTER_ID
+            || account == CKBTC_LEDGER_CANISTER_ID
+        {
+            let icrc_account = IcrcAccount::from_principal_and_index(account, i);
+            icrc_account.to_text()
+        } else {
+            subaccountid.to_hex()
+        };
 
         LIST_OF_SUBACCOUNTS.with(|list_ref| {
             // print hash + AccountIdentifier_hex or ICRC-1 textual representation
