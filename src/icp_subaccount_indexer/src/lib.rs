@@ -162,7 +162,6 @@ async fn set_next_block(block: u64) -> Result<u64, Error> {
 
 #[query]
 fn get_next_block() -> Result<u64, String> {
-    authenticate()?;
     Ok(NEXT_BLOCK.with(|next_block_ref| *next_block_ref.borrow().get()))
 }
 
@@ -211,7 +210,6 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
 
 #[query]
 fn get_webhook_url() -> Result<String, String> {
-    authenticate()?;
     Ok(WEBHOOK_URL.with(|webhook_url_ref| webhook_url_ref.borrow().get().to_string()))
 }
 
@@ -1424,7 +1422,6 @@ async fn post_upgrade() {
 
 #[query]
 fn get_interval() -> Result<u64, String> {
-    authenticate()?;
     Ok(INTERVAL_IN_SECONDS.with(|interval_ref| *interval_ref.borrow().get()))
 }
 
@@ -1459,13 +1456,11 @@ fn nonce() -> u32 {
 
 #[query]
 fn get_nonce() -> Result<u32, String> {
-    authenticate()?;
     Ok(nonce())
 }
 
 #[query]
 fn get_canister_principal() -> Result<String, String> {
-    authenticate()?;
     Ok(CanisterApiManager::id().to_string())
 }
 
@@ -1536,11 +1531,6 @@ fn add_subaccount(token_type: Option<TokenType>) -> Result<String, Error> {
 
 #[query]
 fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<String, Error> {
-    authenticate().map_err(|e| {
-        ic_cdk::println!("Authentication error: {}", e);
-        Error { message: e }
-    })?;
-
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
         let error_msg = "Index out of bounds";
@@ -1595,11 +1585,6 @@ fn get_subaccountid(nonce_param: u32, token_type: Option<TokenType>) -> Result<S
 
 #[query]
 fn get_icrc_account(nonce_param: u32) -> Result<String, Error> {
-    authenticate().map_err(|e| {
-        ic_cdk::println!("Authentication error: {}", e);
-        Error { message: e }
-    })?;
-
     let current_nonce = nonce();
     if nonce_param >= current_nonce {
         let error_msg = "Index out of bounds";
@@ -1620,19 +1605,16 @@ fn get_icrc_account(nonce_param: u32) -> Result<String, Error> {
 
 #[query]
 fn get_subaccount_count() -> Result<u32, String> {
-    authenticate()?;
     Ok(LIST_OF_SUBACCOUNTS.with(|subaccounts| subaccounts.borrow().len() as u32))
 }
 
 #[query]
 fn get_transactions_count() -> Result<u32, String> {
-    authenticate()?;
     Ok(TRANSACTIONS.with(|transactions_ref| transactions_ref.borrow().len() as u32))
 }
 
 #[query]
 fn get_oldest_block() -> Result<Option<u64>, String> {
-    authenticate()?;
     Ok(TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
         transactions_borrow.iter().next().map(|(key, _value)| key)
@@ -1641,8 +1623,6 @@ fn get_oldest_block() -> Result<Option<u64>, String> {
 
 #[query]
 fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>, String> {
-    authenticate()?;
-
     // process argument
     let up_to_count = up_to_count.unwrap_or(100);
 
@@ -2269,13 +2249,11 @@ fn get_custodian_id() -> Result<AccountIdentifier, String> {
 
 #[query]
 fn canister_status() -> Result<String, String> {
-    authenticate()?;
     Ok("{{\"message\": \"Canister is operational\"}}".to_string())
 }
 
 #[query]
 fn get_transaction_token_type(tx_hash: String) -> Result<TokenType, String> {
-    authenticate()?;
     TRANSACTIONS.with(|transactions_ref| {
         let transactions_borrow = transactions_ref.borrow();
         for (_, tx) in transactions_borrow.iter() {
@@ -2289,7 +2267,6 @@ fn get_transaction_token_type(tx_hash: String) -> Result<TokenType, String> {
 
 #[query]
 fn get_registered_tokens() -> Result<Vec<(TokenType, String)>, String> {
-    authenticate()?;
     TOKEN_LEDGER_PRINCIPALS.with(|tl| {
         let tl_borrow = tl.borrow();
         let mut result = Vec::new();
@@ -2469,11 +2446,6 @@ async fn sweep_by_token_type(token_type: TokenType) -> Result<Vec<String>, Error
 
 #[query]
 fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
-    authenticate().map_err(|e| {
-        ic_cdk::println!("Authentication error: {}", e);
-        Error { message: e }
-    })?;
-
     // Decode the account hex
     let account_bytes = match hex::decode(&account_hex) {
         Ok(bytes) => bytes,
@@ -2515,11 +2487,6 @@ fn convert_to_icrc_account(account_hex: String) -> Result<String, Error> {
 
 #[query]
 fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
-    authenticate().map_err(|e| {
-        ic_cdk::println!("Authentication error: {}", e);
-        Error { message: e }
-    })?;
-
     match IcrcAccount::from_text(&icrc_account_text) {
         Ok(_) => Ok(true),
         Err(e) => Err(Error { message: e }),
@@ -2529,7 +2496,6 @@ fn validate_icrc_account(icrc_account_text: String) -> Result<bool, Error> {
 // Query/Update methods for per-token block management
 #[query]
 fn get_token_next_block_query(token_type: TokenType) -> Result<u64, String> {
-    authenticate()?;
     Ok(get_token_next_block(&token_type))
 }
 
@@ -2545,8 +2511,6 @@ async fn set_token_next_block_update(token_type: TokenType, block: u64) -> Resul
 
 #[query]
 fn get_all_token_blocks() -> Result<Vec<(TokenType, u64)>, String> {
-    authenticate()?;
-
     let result = vec![
         (TokenType::ICP, get_token_next_block(&TokenType::ICP)),
         (TokenType::CKUSDC, get_token_next_block(&TokenType::CKUSDC)),
