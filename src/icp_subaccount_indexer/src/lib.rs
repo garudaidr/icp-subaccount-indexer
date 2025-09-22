@@ -939,17 +939,6 @@ async fn query_token_ledger(
             ic_cdk::println!("  Token principal: {}", token_principal.to_string());
             ic_cdk::println!("  Next block: {}", next_block);
 
-            // IMPORTANT: For ICRC-1 tokens, this fails because they use icrc3_get_blocks
-            if token_type == TokenType::CKUSDC
-                || token_type == TokenType::CKUSDT
-                || token_type == TokenType::CKBTC
-            {
-                ic_cdk::println!(
-                    "  NOTE: ICRC-1 tokens require icrc3_get_blocks method, not query_blocks!"
-                );
-                ic_cdk::println!("  This is why ckUSDC/ckUSDT/ckBTC block processing is stuck.");
-            }
-
             return next_block; // Return original block count if error occurs
         }
     };
