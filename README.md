@@ -14,8 +14,8 @@ The ICSI canister provides methods that allow organizations to primarily carry o
 
 - Generate sub-account-ids supporting both formats:
   - **ICP**: Traditional hex_string AccountIdentifier format
-  - **ckUSDC/ckUSDT**: ICRC-1 textual format (e.g., `canister-id-checksum.index`)
-- Track incoming token transfers (ICP, ckUSDC, ckUSDT) into created sub-account-ids
+  - **ckUSDC/ckUSDT/ckBTC**: ICRC-1 textual format (e.g., `canister-id-checksum.index`)
+- Track incoming token transfers (ICP, ckUSDC, ckUSDT, ckBTC) into created sub-account-ids
 - Manage multi-token balances across all sub-accounts
 - Send webhook notifications for incoming deposits (transaction hash as query parameter)
 - Sweep tokens from sub-accounts to main principal
@@ -44,13 +44,45 @@ ICSI is built to scale. With efficient indexing and transaction handling, the sy
 
 ### 4. Sequence Flow
 
-[![](https://mermaid.ink/img/pako:eNqVk91q4zAQhV9FmL1oIX4BUwKhXZYUug2b_bkxhLE0TkXtkXc0CoTSd1_JWodunELXNzLSmaNPR5qXQjuDRVV4_B2QNN5Z2DP0Nan4DcBitR2ARP3wyAp8Hq8OFtR9-Qu6DuV6Ln4MvHsAS7uVMYzep8J72INRaVZt2FJSdvPKbWh2K61dIPG79e3mVFneOhJ2cUOTGW4aXiZ5Oclrynbjarlczigq9S2d0ou6w8F5K2rCax2PZdlgRp_MzsEq9QUJGQTP3bLJ7CDle0gSmC57zEGSRwKtYobuYM07m58iyNo1WbGJ9DsDedBiHeX8rnS8QtWAfkYyarVZ5yyM9U1gjz1G-uszz3kS21T8KR1S3EfTuGj0ls96pR21lvt44wforPm_YD_3gxwz9U8InfxjHjnHl3iCzN5fXQyJ7f5JlGsveL6xGOmmB9kcc5zD9LAXSgOpBlUPBPuoGJd7x6iwbTE6HLA71lQsih65B2tiD74kiLqQp5h7XVTx1wA_10VNr1EHQdz2SLqohAMuijCYeKV_-3WaRGPF8UPu6bG1X_8AfuRXQg?type=png)](https://mermaid.live/edit#pako:eNqVk91q4zAQhV9FmL1oIX4BUwKhXZYUug2b_bkxhLE0TkXtkXc0CoTSd1_JWodunELXNzLSmaNPR5qXQjuDRVV4_B2QNN5Z2DP0Nan4DcBitR2ARP3wyAp8Hq8OFtR9-Qu6DuV6Ln4MvHsAS7uVMYzep8J72INRaVZt2FJSdvPKbWh2K61dIPG79e3mVFneOhJ2cUOTGW4aXiZ5Oclrynbjarlczigq9S2d0ou6w8F5K2rCax2PZdlgRp_MzsEq9QUJGQTP3bLJ7CDle0gSmC57zEGSRwKtYobuYM07m58iyNo1WbGJ9DsDedBiHeX8rnS8QtWAfkYyarVZ5yyM9U1gjz1G-uszz3kS21T8KR1S3EfTuGj0ls96pR21lvt44wforPm_YD_3gxwz9U8InfxjHjnHl3iCzN5fXQyJ7f5JlGsveL6xGOmmB9kcc5zD9LAXSgOpBlUPBPuoGJd7x6iwbTE6HLA71lQsih65B2tiD74kiLqQp5h7XVTx1wA_10VNr1EHQdz2SLqohAMuijCYeKV_-3WaRGPF8UPu6bG1X_8AfuRXQg)
+```mermaid
+sequenceDiagram
+    participant User as User (via J-Wallet)
+    participant ICSI as ICSI Canister
+    participant Sub_Account as User Sub-Account
+    participant Ledger as Token Ledger<br/>(ICP/ckUSDC/ckUSDT/ckBTC)
+    participant Webhook as Webhook Server
+    participant Admin as Admin
+
+    User ->> ICSI: Request deposit address for token type
+    ICSI ->> ICSI: Generate subaccount ID<br/>(hex for ICP, ICRC-1 for others)
+    ICSI -->> User: Return deposit address
+
+    User ->> Sub_Account: Send tokens to deposit address
+    Sub_Account ->> Ledger: Transaction recorded on ledger
+
+    Note over ICSI: Timer-based polling (configurable interval)
+
+    loop Every polling interval
+        ICSI ->> Ledger: query_blocks() for new transactions
+        Ledger -->> ICSI: Return new blocks since last check
+        ICSI ->> ICSI: Index transactions<br/>Update next_block position
+    end
+
+    ICSI ->> Webhook: POST /webhook?tx_hash=<hash>
+    Webhook -->> ICSI: 200 OK
+
+    Admin ->> ICSI: Trigger sweep operation
+    ICSI ->> Sub_Account: Transfer tokens to main principal
+    ICSI ->> ICSI: Mark transaction as swept
+
+    Note right of ICSI: Multi-token support with<br/>unified APIs for all operations
+```
 
 ## How It Works
 
 ### 1. Subaccount Derivation
 
-ICSI uses a [sophisticated mechanism to derive sub-accounts](https://jagad.slab.com/posts/subaccount-derivation-mechanism-ebwjd334) from a single principal ID. Each sub-account is generated using a combination of the principal ID and a subaccount number, ensuring privacy and uniqueness. This allows for an infinite number of sub-accounts under one principal.
+ICSI uses a [sophisticated mechanism to derive sub-accounts](./docs/SUBACCOUNT_DERIVATION_MECHANISM.md) from a single principal ID. Each sub-account is generated using a combination of the principal ID and a subaccount number, ensuring privacy and uniqueness. This allows for an infinite number of sub-accounts under one principal.
 
 ### 2. Transaction Management
 
@@ -58,7 +90,7 @@ Transactions are tracked and managed efficiently. ICSI can list, clear, and refu
 
 ### 3. Sweeping Mechanism
 
-ICSI incorporates a [sweeping mechanism](https://jagad.slab.com/posts/sweeping-subaccounts-to-user-vaults-main-principal-m2pjvc1t) to centralize funds from sub-accounts to a main principal account. This process involves validating transactions and ensuring that only legitimate deposits are swept to the main account.
+ICSI incorporates a [sweeping mechanism](./docs/SWEEPING_SUBACCOUNTS_TO_USERVAULT_MAIN_PRINCIPAL.md) to centralize funds from sub-accounts to a main principal account. This process involves validating transactions and ensuring that only legitimate deposits are swept to the main account.
 
 ## Technical Specifications
 
@@ -100,18 +132,20 @@ get_transaction : (text) -> (opt Transaction);
 - **ICP**: `bd54f8b5e0fe4c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b` (hex)
 - **ckUSDC**: `y3hne-ryaaa-aaaag-aucea-cai-dzfvpaa.5` (ICRC-1 textual)
 - **ckUSDT**: `y3hne-ryaaa-aaaag-aucea-cai-2jmuz5q.10` (ICRC-1 textual)
+- **ckBTC**: `y3hne-ryaaa-aaaag-aucea-cai-3xur6ta.15` (ICRC-1 textual)
 
 ### Supported Token Types
 
 ```candid
-type TokenType = variant { ICP; CKUSDC; CKUSDT };
+type TokenType = variant { ICP; CKUSDC; CKUSDT; CKBTC };
 ```
 
-The canister automatically registers all three token types during initialization:
+The canister automatically registers all four token types during initialization:
 
 - **ICP**: `ryjl3-tyaaa-aaaaa-aaaba-cai` (Native ICP ledger)
 - **ckUSDC**: `xevnm-gaaaa-aaaar-qafnq-cai` (Chain-key USDC)
 - **ckUSDT**: `cngnf-vqaaa-aaaar-qag4q-cai` (Chain-key USDT)
+- **ckBTC**: `mxzaz-hqaaa-aaaar-qaada-cai` (Chain-key Bitcoin)
 
 ### Webhook Configuration
 
@@ -244,7 +278,7 @@ After deployment, configure the multi-token block positions:
 ```bash
 # Replace <CANISTER_ID> with your actual canister ID
 
-# 1. Verify tokens are registered (should show ICP, CKUSDC, CKUSDT)
+# 1. Verify tokens are registered (should show ICP, CKUSDC, CKUSDT, CKBTC)
 dfx canister call <CANISTER_ID> get_registered_tokens --network ic
 
 # 2. Set correct mainnet block positions for each token
@@ -254,6 +288,8 @@ dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { ICP }, 2
 dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { CKUSDC }, 391300 : nat64)' --network ic
 # CKUSDT - current block ~524,113 (as of July 2025)
 dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { CKUSDT }, 524100 : nat64)' --network ic
+# CKBTC - current block ~150,000 (as of July 2025)
+dfx canister call <CANISTER_ID> set_token_next_block_update '(variant { CKBTC }, 150000 : nat64)' --network ic
 
 # 3. Set polling interval
 # For normal production use (balanced)
@@ -264,13 +300,14 @@ dfx canister call <CANISTER_ID> set_interval '(500 : nat64)' --network ic
 # 4. Verify block positions were set correctly
 dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDC })' --network ic
 dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDT })' --network ic
+dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKBTC })' --network ic
 ```
 
 **Important Notes:**
 
 - Large WASM files (1.9MB) need ~500B cycles for deployment
 - Each token ledger has independent block numbering
-- CKUSDC/CKUSDT blocks are much lower than ICP blocks
+- CKUSDC/CKUSDT/CKBTC blocks are much lower than ICP blocks
 - Start blocks ~50-100 before current to catch recent transactions
 - Polling intervals: 60s for normal use, 500s for maximum cycle conservation
 
@@ -299,7 +336,7 @@ pnpm run lib:test:usdt   # Test ckUSDT deposits (0.1 ckUSDT)
 
 **Key Testing Features:**
 
-- **Multi-token support**: Test ICP, ckUSDC, and ckUSDT deposits
+- **Multi-token support**: Test ICP, ckUSDC, ckUSDT, and ckBTC deposits
 - **Automated webhook testing**: ngrok integration for local webhook testing
 - **ICRC-1 compliance**: Proper handling of ICRC-1 textual addresses
 - **Production-ready**: Follows actual mainnet testing procedures
@@ -364,6 +401,7 @@ dfx canister call $CANISTER_ID list_transactions '(opt 10)' --network ic
 dfx canister call $CANISTER_ID get_balance '(variant { ICP })' --network ic
 dfx canister call $CANISTER_ID get_balance '(variant { CKUSDC })' --network ic
 dfx canister call $CANISTER_ID get_balance '(variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKBTC })' --network ic
 ```
 
 ### Subaccount Management
@@ -375,6 +413,7 @@ dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDC })' --netwo
 # Generate specific format addresses
 dfx canister call $CANISTER_ID generate_icp_deposit_address '(123456789 : nat32)' --network ic
 dfx canister call $CANISTER_ID generate_icrc1_deposit_address '(variant { CKUSDC }, 5 : nat32)' --network ic
+dfx canister call $CANISTER_ID generate_icrc1_deposit_address '(variant { CKBTC }, 10 : nat32)' --network ic
 ```
 
 ### Configuration Management
@@ -389,6 +428,7 @@ dfx canister call $CANISTER_ID set_webhook_url '("https://your-api.com/webhook")
 
 # Update token block positions
 dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDC }, 391300 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKBTC }, 150000 : nat64)' --network ic
 ```
 
 ### Troubleshooting Commands
@@ -416,9 +456,8 @@ ICSI represents a significant advancement in the management of ICP sub-accounts,
 
 The following are some of the research documents during specification design:
 
-[Subaccount Derivation Mechanism](https://jagad.slab.com/posts/subaccount-derivation-mechanism-ebwjd334)
-
-[Sweeping Mechanism](https://jagad.slab.com/posts/sweeping-subaccounts-to-user-vaults-main-principal-m2pjvc1t)
+- [Subaccount Derivation Mechanism](./docs/SUBACCOUNT_DERIVATION_MECHANISM.md)
+- [Sweeping Mechanism](./docs/SWEEPING_SUBACCOUNTS_TO_USERVAULT_MAIN_PRINCIPAL.md)
 
 ## License
 
