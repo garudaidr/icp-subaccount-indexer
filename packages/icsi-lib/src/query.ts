@@ -6,14 +6,15 @@ import {
   TokenType,
   Result_2,
   Result_3,
-  Result_5,
-  Result_7,
-  Result_6,
   Result_4,
+  Result_5,
+  Result_6,
+  Result_7,
   Result_8,
+  Result_9,
+  Result_10,
   Result_1,
   Result,
-  Result_9,
 } from './userVault.did';
 
 /**
@@ -42,13 +43,13 @@ function createUserVaultActor(
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
  * @param {bigint} [upToIndex] - The number of blocks for the transactions to fetch.
- * @returns {Promise<Result_9>} - The list of transactions wrapped in a Result.
+ * @returns {Promise<Result_10>} - The list of transactions wrapped in a Result.
  */
 export async function getUserVaultTransactions(
   agent: HttpAgent,
   userVaultCanisterId: string,
   upToIndex?: bigint
-): Promise<Result_9> {
+): Promise<Result_10> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   return await actor.list_transactions(upToIndex ? [upToIndex] : []);
 }
@@ -298,12 +299,12 @@ export async function getOldestBlock(
  * Gets the token types registered with the user vault.
  * @param {HttpAgent} agent - The HTTP agent used for the call.
  * @param {string} userVaultCanisterId - The canister ID of the user vault.
- * @returns {Promise<Result_7>} - The registered tokens wrapped in a Result.
+ * @returns {Promise<Result_8>} - The registered tokens wrapped in a Result.
  */
 export async function getRegisteredTokens(
   agent: HttpAgent,
   userVaultCanisterId: string
-): Promise<Result_7> {
+): Promise<Result_8> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   return await actor.get_registered_tokens();
 }
@@ -323,6 +324,50 @@ export async function getTransactionTokenType(
 ): Promise<TokenType> {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   const result = await actor.get_transaction_token_type(txHash);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
+}
+
+/**
+ * Gets all token blocks for all registered token types.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @returns {Promise<Array<[TokenType, bigint]>>} - A promise that resolves to array of token type and block pairs.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function getAllTokenBlocks(
+  agent: HttpAgent,
+  userVaultCanisterId: string
+): Promise<Array<[TokenType, bigint]>> {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.get_all_token_blocks();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
+}
+
+/**
+ * Gets the next block to be processed for a specific token type.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @param {TokenType} tokenType - The token type to query.
+ * @returns {Promise<bigint>} - A promise that resolves to the next block number.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function getTokenNextBlockQuery(
+  agent: HttpAgent,
+  userVaultCanisterId: string,
+  tokenType: TokenType
+): Promise<bigint> {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.get_token_next_block_query(tokenType);
 
   if ('Ok' in result) {
     return result.Ok;

@@ -29,6 +29,8 @@ export {
   getOldestBlock,
   getRegisteredTokens,
   getTransactionTokenType,
+  getAllTokenBlocks,
+  getTokenNextBlockQuery,
 } from './query';
 
 // Update function exports
@@ -47,6 +49,10 @@ export {
   validateIcrcAccount,
   singleSweep,
   setSweepFailed,
+  processArchivedBlock,
+  resetTokenBlocks,
+  setCustodianPrincipal,
+  setTokenNextBlockUpdate,
 } from './update';
 
 // Helper function exports

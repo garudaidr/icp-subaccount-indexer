@@ -253,11 +253,9 @@ export async function sweepSubaccountId(
   tokenType?: TokenType
 ) {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
-  // Ensure amount is explicitly a float by using parseFloat
-  const floatAmount = parseFloat(amount.toString());
   return await actor.sweep_subaccount(
     subaccountId,
-    floatAmount,
+    amount,
     tokenType ? [tokenType] : []
   );
 }
@@ -330,4 +328,99 @@ export async function setSweepFailed(
 ) {
   const actor = createUserVaultActor(agent, userVaultCanisterId);
   return await actor.set_sweep_failed(txHash);
+}
+
+/**
+ * Processes an archived block.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @param {bigint} blockIndex - The block index to process.
+ * @returns {Promise<string>} - A promise that resolves with the result of the operation.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function processArchivedBlock(
+  agent: HttpAgent,
+  userVaultCanisterId: string,
+  blockIndex: bigint
+) {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.process_archived_block(blockIndex);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err);
+  }
+}
+
+/**
+ * Resets all token blocks.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @returns {Promise<string>} - A promise that resolves with the result of the operation.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function resetTokenBlocks(
+  agent: HttpAgent,
+  userVaultCanisterId: string
+) {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.reset_token_blocks();
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err.message);
+  }
+}
+
+/**
+ * Sets the custodian principal for the canister.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @param {string} principal - The principal to set as custodian.
+ * @returns {Promise<string>} - A promise that resolves with the result of the operation.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function setCustodianPrincipal(
+  agent: HttpAgent,
+  userVaultCanisterId: string,
+  principal: string
+) {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.set_custodian_principal(principal);
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err.message);
+  }
+}
+
+/**
+ * Sets the next block for a specific token type.
+ * @param {HttpAgent} agent - The HTTP agent used for the call.
+ * @param {string} userVaultCanisterId - The canister ID of the user vault.
+ * @param {TokenType} tokenType - The token type to update.
+ * @param {bigint} blockNumber - The block number to set.
+ * @returns {Promise<bigint>} - A promise that resolves with the result of the operation.
+ * @throws {Error} - Throws if the call returns an error.
+ */
+export async function setTokenNextBlockUpdate(
+  agent: HttpAgent,
+  userVaultCanisterId: string,
+  tokenType: TokenType,
+  blockNumber: bigint
+) {
+  const actor = createUserVaultActor(agent, userVaultCanisterId);
+  const result = await actor.set_token_next_block_update(
+    tokenType,
+    blockNumber
+  );
+
+  if ('Ok' in result) {
+    return result.Ok;
+  } else {
+    throw new Error(result.Err.message);
+  }
 }
