@@ -1,660 +1,1133 @@
 # ICSI Testing Guide
 
-This guide will walk you through testing the ICP Subaccount Indexer (ICSI) canister with multi-token deposits (ICP, ckUSDC, ckUSDT) and webhook functionality. This guide has been thoroughly tested and refined through 10+ testing attempts documented in `docs/logs/`.
+**Based on Real Testing Attempts 2-13 (June-September 2025)**
 
-## Prerequisites
+This guide consolidates lessons learned from extensive testing of the ICP Subaccount Indexer (ICSI) canister, including multi-token support, ICRC-3 integration, canister upgrades, and production deployment challenges. The procedures and error resolutions documented here are derived from 13 real testing attempts archived in `docs/logs/`.
 
-1. **dfx** - Internet Computer SDK (version 0.15.0 or later)
-2. **pnpm** - Package manager (version 8.0.0 or later)
-3. **Node.js** - Version 16 or later
-4. **ICP wallet** with some ICP for fees and cycle conversion
-5. **Test tokens** for deposits:
-   - ICP for native token testing (at least 0.1 ICP for cycles + testing)
-   - ckUSDC tokens for USDC testing (at least 0.11 ckUSDC)
-   - ckUSDT tokens for USDT testing (at least 0.11 ckUSDT)
+## Table of Contents
 
-## Important Notes for Beginners
+1. [Executive Summary](#executive-summary)
+2. [Prerequisites and Environment Setup](#prerequisites-and-environment-setup)
+3. [Deployment Procedures](#deployment-procedures)
+4. [Multi-Token Testing](#multi-token-testing)
+5. [Webhook Integration Testing](#webhook-integration-testing)
+6. [Canister Upgrade Procedures](#canister-upgrade-procedures)
+7. [Error Analysis](#error-analysis)
+8. [Production Deployment Guide](#production-deployment-guide)
+9. [Advanced Testing Procedures](#advanced-testing-procedures)
+10. [Reference Commands](#reference-commands)
 
-- **Always use test wallets**: Never use your personal wallet for testing
-- **Mainnet costs real money**: Each deployment and test uses real ICP
-- **Cycles are required**: You need to convert ICP to cycles for canister operations
-- **Be patient**: Transaction indexing takes 30-45 seconds
-- **Keep terminals open**: Some commands require persistent connections
+## Executive Summary
 
-## Quick Start
+This guide addresses the complete testing lifecycle for the ICSI canister, from initial deployment through multi-token functionality validation. It incorporates critical lessons learned from 13 documented testing attempts, including cycles management, identity authentication, webhook integration, ICRC-3 connectivity, and production deployment strategies.
 
-### From Root Directory (Recommended)
+**Key Success Factors:**
 
-The project uses pnpm workspaces, so you can run all tests from the root:
+- Large WASM files (1.9MB) require ~800B cycles for deployment
+- Multi-token indexing requires separate ICRC-3 ledger monitoring
+- ICRC-3 inter-canister calls can fail with network connectivity issues
+- Canister upgrades require careful identity management and cycle planning
+- Webhook format sends transaction hash as query parameter, not JSON body
+- Different token types use different address formats and fee structures
 
-```bash
-# Install all dependencies
-pnpm install
+## Prerequisites and Environment Setup
 
-# Generate test wallet
-pnpm run lib:generate:wallet
+### 1. Required Tools and Funding
 
-# Run tests
-pnpm run lib:test:icp     # Test ICP deposits
-pnpm run lib:test:usdc    # Test ckUSDC deposits
-pnpm run lib:test:usdt    # Test ckUSDT deposits
-pnpm run lib:test:webhook  # Test webhook server
-```
+| Component       | Requirement     | Purpose                                 |
+| --------------- | --------------- | --------------------------------------- |
+| **DFX CLI**     | Version 0.15.0+ | IC SDK for deployment and interaction   |
+| **ICP Balance** | 1.0+ ICP        | Cycle conversion + deployment + testing |
+| **ckUSDC**      | 0.1+ ckUSDC     | Multi-token deposit testing             |
+| **ckUSDT**      | 0.1+ ckUSDT     | Multi-token deposit testing             |
+| **ckBTC**       | 0.001+ ckBTC    | Bitcoin multi-token testing             |
+| **pnpm**        | Version 8.0.0+  | Package manager for workspace           |
+| **Node.js**     | Version 16+     | For TypeScript test scripts             |
+| **ngrok**       | Latest          | Webhook testing tunnel                  |
 
-### From Package Directory
+### 2. Token Ledger Information
 
-```bash
-cd packages/icsi-lib
-pnpm run test:icp-deposit
-pnpm run test:usdc-deposit
-pnpm run test:usdt-deposit
-pnpm run test:webhook
-```
+| Token Type | Ledger Canister ID            | Standard | Fee          | Decimals | Address Format        |
+| ---------- | ----------------------------- | -------- | ------------ | -------- | --------------------- |
+| **ICP**    | `ryjl3-tyaaa-aaaaa-aaaba-cai` | Native   | 10,000 e8s   | 8        | Hex AccountIdentifier |
+| **ckUSDC** | `xevnm-gaaaa-aaaar-qafnq-cai` | ICRC-1   | 10,000 micro | 6        | ICRC-1 textual        |
+| **ckUSDT** | `cngnf-vqaaa-aaaar-qag4q-cai` | ICRC-1   | 10,000 micro | 6        | ICRC-1 textual        |
+| **ckBTC**  | `mxzaz-hqaaa-aaaar-qaada-cai` | ICRC-1   | 10 sat       | 8        | ICRC-1 textual        |
 
-## Step 1: Generate Test Wallet
-
-First, generate a new test wallet for isolated testing:
-
-```bash
-# From root directory
-pnpm run lib:generate:wallet
-
-# Or from package directory
-cd packages/icsi-lib
-pnpm run generate:wallet
-```
-
-This will:
-
-- Generate a new 12-word mnemonic seed phrase
-- Create `.env.test` with the test wallet credentials
-- Display the principal ID and account ID for funding
-
-**Example output:**
-
-```
-🔑 ICP Test Wallet Generator
-============================
-
-📝 Generated Mnemonic (12 words):
-   word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12
-
-🆔 Principal ID:
-   xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx
-
-💳 Account Identifier:
-   xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx-xxx
-
-💾 Test wallet saved to: .env.test
-```
-
-## Step 2: Fund Test Wallet
-
-Send funds to your test wallet:
-
-1. **For ICP**: Send to the Account Identifier displayed
-2. **For ckUSDC/ckUSDT**: Send to the Principal ID displayed
-
-Minimum funding requirements:
-
-- **ICP**: At least 0.002 ICP (for fees and test transfers)
-- **ckUSDC**: At least 0.11 ckUSDC (0.1 for transfer + 0.01 fee)
-- **ckUSDT**: At least 0.11 ckUSDT (0.1 for transfer + 0.01 fee)
-
-**Token Ledger Canister IDs (Mainnet):**
-
-- ICP: `ryjl3-tyaaa-aaaaa-aaaba-cai`
-- ckUSDC: `xevnm-gaaaa-aaaar-qafnq-cai`
-- ckUSDT: `cngnf-vqaaa-aaaar-qag4q-cai`
-
-## Step 3: Deploy ICSI Canister
-
-### Option A: Using Deployment Script (Recommended)
-
-Deploy a new ICSI canister or upgrade an existing one:
+### 3. Environment Configuration
 
 ```bash
-# From project root
-./scripts/deploy-mainnet.sh deploy    # Initial deployment
-./scripts/deploy-mainnet.sh upgrade   # Upgrade existing canister
-```
+# Set up environment for testing
+export DFX_WARNING=-mainnet_plaintext_identity
 
-### Option B: Manual DFX Deployment (Advanced)
-
-If the deployment script is unavailable or you need more control:
-
-#### Step 3.1: Prepare for Deployment
-
-```bash
-# Check your identity and network
+# Verify identity configuration
+dfx identity list
 dfx identity whoami
 dfx identity get-principal
 
-# Suppress mainnet plaintext identity warnings
-export DFX_WARNING=-mainnet_plaintext_identity
+# Record your principal for deployment arguments
+DEPLOYER_PRINCIPAL=$(dfx identity get-principal)
+echo "Deployer Principal: $DEPLOYER_PRINCIPAL"
+
+# Check cycles balance (need substantial amount for large WASM)
+dfx cycles balance --network ic
+# Minimum required: 1.0 TC (trillion cycles)
 ```
 
-#### Step 3.2: Convert ICP to Cycles
+## Deployment Procedures
+
+### Basic Deployment
+
+#### Step 1: Cycles Preparation
+
+**Critical Discovery**: Large WASM files (1.9MB) require significantly more cycles than typical canisters.
 
 ```bash
-# Check your ICP balance
+# Check current ICP balance
 dfx ledger --network ic balance
 
-# Convert ICP to cycles (1.9MB canister needs ~500B cycles)
-dfx ledger --network ic top-up --amount 0.05 $(dfx identity get-wallet --network ic)
+# Convert substantial ICP to cycles
+dfx cycles convert --amount=0.5 --network ic
+
+# Verify cycles balance
+dfx cycles balance --network ic
+# Expected: ~1.8+ TC (trillion cycles)
 ```
 
-#### Step 3.3: Create and Deploy Canister
+#### Step 2: Canister Creation and Deployment
+
+**Critical Lesson**: Never use command substitution in Candid arguments - use hardcoded principals.
 
 ```bash
-# Create canister with sufficient cycles (500B cycles minimum)
+# Create canister with sufficient cycles
 dfx canister create icp_subaccount_indexer --network ic --with-cycles 500000000000
 
-# Save the canister ID from output!
-# Example: y3hne-ryaaa-aaaag-aucea-cai
+# Get your principal and use it as hardcoded string (DO NOT use command substitution)
+echo "Use this principal in deployment: $(dfx identity get-principal)"
 
-# Build the canister
-pnpm run build:canister
-
-# Deploy with initialization arguments
+# Deploy with hardcoded principal (REPLACE WITH YOUR ACTUAL PRINCIPAL)
 dfx deploy icp_subaccount_indexer --network ic --argument '(
   variant { Mainnet },
-  5: nat64,  # Initial nonce
-  0: nat32,  # Reserved (must be 0)
-  "ryjl3-tyaaa-aaaaa-aaaba-cai",  # ICP ledger canister
-  "YOUR-PRINCIPAL-HERE"  # Your principal ID (custodian)
+  500: nat64,                           # Production interval
+  0: nat32,                            # Initial nonce
+  "ryjl3-tyaaa-aaaaa-aaaba-cai",      # ICP ledger
+  "YOUR-PRINCIPAL-HERE"               # Hardcoded custodian
 )'
 ```
 
-**Important**: Replace `YOUR-PRINCIPAL-HERE` with your actual principal from `dfx identity get-principal`
+### Advanced Deployment for Large WASM
 
-#### Step 3.4: Verify Deployment
+For production deployments with the full 1.9MB WASM:
+
+```bash
+# Step 1: Create canister with substantial cycles
+dfx canister create icp_subaccount_indexer --network ic --with-cycles 800000000000
+
+# Step 2: Build latest code
+pnpm run build:canister
+
+# Step 3: Deploy with production settings
+dfx deploy icp_subaccount_indexer --network ic --argument '(
+  variant { Mainnet },
+  500: nat64,                           # Production interval
+  0: nat32,                            # Initial nonce
+  "ryjl3-tyaaa-aaaaa-aaaba-cai",      # ICP ledger
+  "your-custodian-principal-here"      # Hardcoded custodian
+)'
+```
+
+#### Cycle Requirements Breakdown
+
+- **Initial canister creation**: 500B cycles
+- **WASM installation**: ~460B cycles
+- **Total required**: ~960B cycles minimum
+- **Recommended**: 800B+ cycles for safety
+
+### Post-Deployment Verification
 
 ```bash
 # Check canister status
 dfx canister status icp_subaccount_indexer --network ic
 
 # Verify token registration
-dfx canister --network ic call icp_subaccount_indexer get_registered_tokens
+dfx canister call icp_subaccount_indexer get_registered_tokens --network ic
+
+# Test basic authorization
+dfx canister call icp_subaccount_indexer get_nonce --network ic
+# Expected: (variant { Ok = 0 : nat32 })
 ```
 
-**Note**: The canister automatically registers all three token types (ICP, ckUSDC, ckUSDT) during initialization.
+## Multi-Token Testing
 
-## Step 4: Configure Environment
+### Multi-Token Architecture Understanding
 
-The `.env.test` file is automatically created when you generate a wallet. Add your canister ID:
+Each token type maintains independent processing state:
+
+- **Separate Block Tracking**: Each token has its own `next_block` counter
+- **Independent Timers**: All tokens processed in single timer but with separate logic
+- **Token-Specific APIs**: ICP uses `query_blocks`, ICRC tokens use `icrc3_get_blocks`
+- **Format Differences**: ICP uses hex addresses, ICRC tokens use textual format
+
+### ICP Testing Workflow
+
+#### Step 1: Configure Testing Environment
 
 ```bash
-cd packages/icsi-lib
+# Set fast polling for testing (REMEMBER TO RESET LATER)
+dfx canister call icp_subaccount_indexer set_interval '(30 : nat64)' --network ic
 
-# Edit .env.test and add your canister ID:
-echo 'USER_VAULT_CANISTER_ID="your-canister-id-here"' >> .env.test
+# Generate test subaccount
+dfx canister call icp_subaccount_indexer add_subaccount '(opt variant { ICP })' --network ic
+# Returns hex AccountIdentifier format
 ```
 
-**Example `.env.test` file:**
-
-```
-MNEMONIC="your twelve word seed phrase goes here"
-USER_VAULT_CANISTER_ID="y3hne-ryaaa-aaaag-aucea-cai"
-```
-
-## Step 5: Configure Canister for Testing
-
-Before testing, optimize the canister for faster transaction detection:
+#### Step 2: Execute Test Transaction
 
 ```bash
-# Set faster polling interval for testing (30 seconds instead of 500)
-dfx canister --network ic call YOUR-CANISTER-ID set_interval '(30 : nat64)'
+# Transfer ICP to test subaccount (use address from previous step)
+dfx ledger --network ic transfer --amount 0.001 --memo 123456789 SUBACCOUNT_ADDRESS
 
-# Verify the change
-dfx canister --network ic call YOUR-CANISTER-ID get_interval
+# Note the block height from transfer result
 ```
 
-**Remember to restore production settings after testing:**
+#### Step 3: Verify Transaction Detection
 
 ```bash
-# Restore production polling interval (500 seconds)
-dfx canister --network ic call YOUR-CANISTER-ID set_interval '(500 : nat64)'
+# Wait 45 seconds for processing
+sleep 45
+
+# Check transaction detection
+dfx canister call icp_subaccount_indexer get_transactions_count --network ic
+dfx canister call icp_subaccount_indexer list_transactions '(opt 10)' --network ic
 ```
 
-## Step 6: Test Webhook Functionality
+### ckUSDC Testing Workflow
 
-Start the webhook test server in one terminal:
+Based on successful testing procedures:
+
+#### Step 1: Generate ICRC-1 Subaccount
 
 ```bash
-# From root directory
-pnpm run lib:test:webhook
+dfx canister call icp_subaccount_indexer add_subaccount '(opt variant { CKUSDC })' --network ic
+# Expected result: y3hne-ryaaa-aaaag-aucea-cai-2tg4b3i.5
+```
 
-# Or from package directory
+#### Step 2: Execute ckUSDC Transfer
+
+```bash
+# Transfer with correct fee (10,000 micro-units = 0.01 ckUSDC)
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(record {
+  to = record {
+    owner = principal "your-canister-id";
+    subaccount = opt vec { 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 5 }
+  };
+  amount = 100000 : nat;     # 0.1 ckUSDC
+  fee = opt (10000 : nat);   # 0.01 ckUSDC (CRITICAL: Not 10!)
+  memo = null;
+  from_subaccount = null;
+  created_at_time = null
+})' --network ic
+```
+
+#### Step 3: Configure Block Processing
+
+```bash
+# Set ckUSDC processing to start just before transaction block
+dfx canister call icp_subaccount_indexer set_token_next_block_update '(variant { CKUSDC }, 366986 : nat64)' --network ic
+```
+
+### ckBTC Testing Workflow
+
+#### Step 1: Generate ckBTC Subaccount
+
+```bash
+dfx canister call icp_subaccount_indexer add_subaccount '(opt variant { CKBTC })' --network ic
+# Expected result: y3hne-ryaaa-aaaag-aucea-cai-o2vldhy.26
+```
+
+#### Step 2: Execute ckBTC Transfer
+
+```bash
+# ckBTC uses different fee structure (10 satoshis vs 10,000 micro-units)
+dfx canister call mxzaz-hqaaa-aaaar-qaada-cai icrc1_transfer '(record {
+  to = record {
+    owner = principal "your-canister-id";
+    subaccount = opt vec { /* 32-byte array with index 26 */ }
+  };
+  amount = 100 : nat;        # 100 satoshis
+  fee = opt (10 : nat);      # 10 satoshis fee
+  memo = null;
+  from_subaccount = null;
+  created_at_time = null
+})' --network ic
+```
+
+### Subaccount Format Differences
+
+**ICP Subaccounts:**
+
+- Format: 64-character hex string
+- Example: `39ef9f41bd7cb7de22a29e9c3a47346fe6115e8918a6fb248895a17005d82baa`
+- Generated via: `AccountIdentifier::to_hex()`
+
+**ICRC-1 Subaccounts:**
+
+- Format: `{canister_principal}-{crc32_checksum}.{subaccount_index}`
+- Example: `y3hne-ryaaa-aaaag-aucea-cai-2tg4b3i.5`
+- Generated via: `IcrcAccount::to_text()`
+
+### Restore Production Settings
+
+```bash
+# CRITICAL: Reset interval for cycle efficiency
+dfx canister call icp_subaccount_indexer set_interval '(500 : nat64)' --network ic
+```
+
+## Webhook Integration Testing
+
+### Understanding Webhook Format
+
+**Critical Discovery**: The canister sends only `tx_hash` as a query parameter, NOT a full JSON payload.
+
+**Expected webhook call:**
+
+```
+POST https://your-webhook-url.com/webhook?tx_hash=TRANSACTION_HASH
+```
+
+### Webhook Testing Setup
+
+#### Step 1: Start Webhook Server
+
+```bash
+# Start webhook test server (in separate terminal)
 cd packages/icsi-lib
 pnpm run test:webhook
+
+# This starts ngrok tunnel and Express server
+# Note the ngrok URL for configuration
 ```
 
-This will:
-
-- Start a local Express server on port 3000
-- Create an ngrok tunnel for public access
-- Automatically configure the webhook URL in your ICSI canister
-- Display the public webhook URL
-
-**Keep this terminal running during deposit tests!**
-
-**Note**: The webhook receives transaction hashes as query parameters (e.g., `POST /webhook?tx_hash=...`)
-
-## Step 7: Test Token Deposits
-
-In a new terminal, run deposit tests for different tokens:
-
-### ICP Deposit Test
+#### Step 2: Configure Webhook URL
 
 ```bash
-pnpm run lib:test:icp
+# Set webhook URL in canister
+dfx canister call icp_subaccount_indexer set_webhook_url '("https://your-ngrok-url.ngrok-free.app/webhook")' --network ic
+
+# Verify configuration
+dfx canister call icp_subaccount_indexer get_webhook_url --network ic
 ```
 
-- Sends 0.001 ICP to a generated subaccount
-- Uses standard AccountIdentifier format
-- Fee: 0.0001 ICP
+#### Step 3: Test Webhook Delivery
 
-### ckUSDC Deposit Test
+1. Execute any token deposit test (as described above)
+2. Monitor webhook server output for received notifications
+3. Verify transaction hash is delivered correctly
 
-```bash
-pnpm run lib:test:usdc
-```
-
-- Sends 0.1 ckUSDC to a generated subaccount
-- Uses ICRC-1 textual format (e.g., `canister-id-checksum.index`)
-- Fee: 0.01 ckUSDC
-
-### ckUSDT Deposit Test
-
-```bash
-pnpm run lib:test:usdt
-```
-
-- Sends 0.1 ckUSDT to a generated subaccount
-- Uses ICRC-1 textual format
-- Fee: 0.01 ckUSDT
-
-**Each test will:**
-
-1. Generate a new subaccount
-2. Send tokens to the subaccount
-3. Wait for transaction indexing (~30-45 seconds)
-4. Display the transaction details
-
-## Step 8: Verify Webhook Notification
-
-Check the webhook terminal to see the deposit notification:
+**Expected webhook server output:**
 
 ```
 🔔 WEBHOOK RECEIVED!
 ==================
-🔗 Transaction Hash: 4bce1468a62a3aec861686d071a683397dc164b97b997f44e9a1bf8a5ef700ad
+🔗 Transaction Hash: 72c4d983a2c865d008df5767a771e8b786501ea7760720d727c067b450611eb8
 
 📋 Request Details:
-Query Parameters: { tx_hash: '4bce1468a62a3aec861686d071a683397dc164b97b997f44e9a1bf8a5ef700ad' }
+Query Parameters: { tx_hash: '72c4d983a2c865d008df5767a771e8b786501ea7760720d727c067b450611eb8' }
 Method: POST
-URL: /webhook?tx_hash=4bce1468a62a3aec861686d071a683397dc164b97b997f44e9a1bf8a5ef700ad
+URL: /webhook?tx_hash=72c4d983a2c865d008df5767a771e8b786501ea7760720d727c067b450611eb8
 ==================
 ```
 
-## Testing Workflow Summary
+## Canister Upgrade Procedures
 
-1. **Generate wallet**: `pnpm run lib:generate:wallet`
-2. **Fund wallet** with ICP and test tokens (ckUSDC/ckUSDT)
-3. **Deploy canister**: `./scripts/deploy-mainnet.sh deploy`
-4. **Configure** `.env.test` with canister ID
-5. **Start webhook**: `pnpm run lib:test:webhook` (keep running)
-6. **Test deposits**:
-   - `pnpm run lib:test:icp` (ICP)
-   - `pnpm run lib:test:usdc` (ckUSDC)
-   - `pnpm run lib:test:usdt` (ckUSDT)
-7. **Verify** webhook notifications for each deposit
+### Pre-Upgrade Preparation
 
-## Alternative: Manual DFX Token Transfers
-
-If the TypeScript test scripts aren't working, you can manually test with dfx commands:
-
-### Manual ICP Transfer
+#### Step 1: Identity Verification
 
 ```bash
-# Generate a subaccount
-dfx canister --network ic call YOUR-CANISTER-ID generate_icp_deposit_address '(123456789 : nat32)'
-# Returns something like: "bd54f8b5e0fe4c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b"
-
-# Transfer ICP to the subaccount
-dfx ledger --network ic transfer --amount 0.001 --memo 123456789 bd54f8b5e0fe4c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b8c6b
-```
-
-### Manual ckUSDC Transfer
-
-```bash
-# Generate ICRC-1 format subaccount
-dfx canister --network ic call YOUR-CANISTER-ID generate_icrc1_deposit_address '(variant { CKUSDC }, 5 : nat32)'
-# Returns something like: "y3hne-ryaaa-aaaag-aucea-cai-dzfvpaa.5"
-
-# Transfer ckUSDC using ICRC-1 standard
-dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(
-  record {
-    to = record {
-      owner = principal "YOUR-CANISTER-ID";
-      subaccount = opt vec {
-        0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0;
-        0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 5
-      }
-    };
-    amount = 100000;  # 0.1 ckUSDC (6 decimals)
-    fee = opt 10000;  # 0.01 ckUSDC fee
-    memo = null;
-    from_subaccount = null;
-    created_at_time = null
-  }
-)'
-```
-
-**Note**: The subaccount vector must be exactly 32 bytes with the nonce as the last byte.
-
-## Troubleshooting
-
-### Common Errors and Solutions
-
-#### "Insufficient balance" errors
-
-- **ICP**: Ensure you have at least 0.002 ICP (0.001 for transfer + 0.0001 fee + buffer)
-- **ckUSDC/ckUSDT**: Ensure you have at least 0.11 tokens (0.1 for transfer + 0.01 fee)
-- Check the principal ID matches your funded wallet
-- For ckUSDC: Fee is 10,000 micro-units (0.01 ckUSDC), not 10!
-
-#### "Insufficient cycles" during deployment
-
-- Large WASM files (1.9MB) need ~460B cycles for deployment
-- Add more cycles: `dfx canister deposit-cycles 200000000000 icp_subaccount_indexer --network ic`
-- Convert more ICP to cycles: `dfx ledger --network ic top-up --amount 0.1 $(dfx identity get-wallet --network ic)`
-
-#### "Unauthorized" errors from library
-
-- The canister's custodian must match your principal
-- Check custodian: `dfx canister --network ic call YOUR-CANISTER-ID get_custodian`
-- If mismatched, upgrade canister with correct principal in arguments
-
-#### "Principal format error" during deployment
-
-- Don't use command substitution `$(dfx identity get-principal)` in Candid arguments
-- Use the hardcoded principal string instead
-- Get your principal: `dfx identity get-principal`, then copy-paste it
-
-### "Canister not found"
-
-- Verify the USER_VAULT_CANISTER_ID in .env.test is correct
-- Ensure the canister is deployed on mainnet
-- Check you're using the correct network (`--network ic`)
-
-### "Webhook not received"
-
-- Check the webhook server is still running (port 3000)
-- Verify ngrok tunnel is active
-- Wait at least 30-45 seconds for transaction indexing
-- Check canister polling interval (should be ~30s for testing)
-
-### "Transaction not detected"
-
-- Wait at least 30-45 seconds for indexing
-- Verify the token's next block is set correctly
-- Check transaction count: `dfx canister --network ic call YOUR-CANISTER-ID get_transactions_count`
-- List transactions: `dfx canister --network ic call YOUR-CANISTER-ID list_transactions '(opt 10)'`
-- For ckUSDC/ckUSDT, ensure multi-token support is deployed (requires canister upgrade)
-- Check token-specific block processing:
-  ```bash
-  # Set next block for ckUSDC if needed
-  dfx canister --network ic call YOUR-CANISTER-ID set_token_next_block_update '(variant { CKUSDC }, 366986 : nat64)'
-  ```
-
-### Build errors
-
-- Run `pnpm install` from project root
-- Run `pnpm run build` to compile everything
-- Ensure you have Node.js 16+ and pnpm 8+
-
-## Security Notes
-
-- **Never use test wallets for real funds**
-- Test mnemonics are stored in plain text in `.env.test`
-- Always use separate wallets for testing
-- Keep your production seed phrases secure
-- The `.env.test` file is gitignored by default
-
-## Advanced Testing
-
-### Complete DFX Command Reference
-
-#### Identity and Network Management
-
-```bash
-# Check current identity
-dfx identity whoami
-dfx identity get-principal
-
-# List all identities
+# Map available identities to their principals
 dfx identity list
+# Example output: STAGING_DEPLOYER, custodian, default, testnet_custodian
 
-# Switch identity
-dfx identity use <identity-name>
-
-# Suppress warnings
-export DFX_WARNING=-mainnet_plaintext_identity
+# Check each identity's principal
+for identity in $(dfx identity list | grep -v "^anonymous$"); do
+  echo "$identity: $(dfx identity use $identity && dfx identity get-principal)"
+done
 ```
 
-#### Canister Lifecycle Management
+#### Step 2: Controller Verification
 
 ```bash
-# Create canister with cycles
-dfx canister create icp_subaccount_indexer --network ic --with-cycles 500000000000
+# Check canister controllers
+dfx canister info <canister-id> --network ic
 
-# Build canister
-dfx build icp_subaccount_indexer
-
-# Deploy with arguments
-dfx deploy icp_subaccount_indexer --network ic --argument '(variant { Mainnet }, 5: nat64, 0: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "your-principal-here")'
-
-# Upgrade existing canister
-dfx canister install icp_subaccount_indexer --network ic --mode upgrade
-
-# Check status
-dfx canister status icp_subaccount_indexer --network ic
-
-# Add cycles to canister
-dfx canister deposit-cycles 200000000000 icp_subaccount_indexer --network ic
-
-# Delete canister (be careful!)
-dfx canister delete icp_subaccount_indexer --network ic
+# Ensure your identity matches one of the controllers
+dfx identity get-principal
 ```
 
-#### Configuration Commands
+#### Step 3: Cycle Management
 
 ```bash
-# Set webhook URL
-dfx canister --network ic call YOUR-CANISTER-ID set_webhook_url '("https://your-webhook-url.com/webhook")'
+# Check current cycles
+dfx canister status <canister-id> --network ic
 
-# Set polling interval (seconds)
-dfx canister --network ic call YOUR-CANISTER-ID set_interval '(30 : nat64)'  # Testing
-dfx canister --network ic call YOUR-CANISTER-ID set_interval '(500 : nat64)' # Production
-
-# Set next block for token processing
-dfx canister --network ic call YOUR-CANISTER-ID set_token_next_block_update '(variant { ICP }, 123456 : nat64)'
-dfx canister --network ic call YOUR-CANISTER-ID set_token_next_block_update '(variant { CKUSDC }, 366986 : nat64)'
-dfx canister --network ic call YOUR-CANISTER-ID set_token_next_block_update '(variant { CKUSDT }, 234567 : nat64)'
+# Add cycles if needed (200B minimum for upgrade)
+dfx canister deposit-cycles 200000000000 <canister-id> --network ic
 ```
 
-### Monitoring and Debugging Commands
+### Upgrade Execution
 
 ```bash
-# Get canister information
-dfx canister --network ic call YOUR-CANISTER-ID get_custodian
-dfx canister --network ic call YOUR-CANISTER-ID get_registered_tokens
-dfx canister --network ic call YOUR-CANISTER-ID get_interval
-dfx canister --network ic call YOUR-CANISTER-ID get_nonce
+# Use correct controller identity
+dfx identity use STAGING_DEPLOYER
 
-# Transaction monitoring
-dfx canister --network ic call YOUR-CANISTER-ID get_transactions_count
-dfx canister --network ic call YOUR-CANISTER-ID list_transactions '(opt 10)'
-dfx canister --network ic call YOUR-CANISTER-ID get_transaction '("transaction-hash-here")'
+# Build latest code
+pnpm run build:canister
 
-# Balance checking
-dfx canister --network ic call YOUR-CANISTER-ID get_balance '(variant { ICP })'
-dfx canister --network ic call YOUR-CANISTER-ID get_balance '(variant { CKUSDC })'
-dfx canister --network ic call YOUR-CANISTER-ID get_balance '(variant { CKUSDT })'
-
-# Subaccount management
-dfx canister --network ic call YOUR-CANISTER-ID list_deposit_addresses '(opt 10)'
-dfx canister --network ic call YOUR-CANISTER-ID get_subaccount_by_id '("subaccount-id-here")'
-
-# Token operations
-dfx canister --network ic call YOUR-CANISTER-ID sweep_all '(variant { ICP })'
-dfx canister --network ic call YOUR-CANISTER-ID sweep_all '(variant { CKUSDC })'
+# Execute upgrade with proper arguments
+dfx canister install <canister-id> --network ic \
+  --wasm target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm \
+  --argument '(variant { Mainnet }, 500: nat64, 25002500: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "controller-principal")' \
+  --mode upgrade
 ```
 
-### Working with Token Ledgers Directly
+### Post-Upgrade Verification
 
 ```bash
-# Check ICP balance
-dfx ledger --network ic balance
+# Switch to operations identity
+dfx identity use testnet_custodian
 
-# Check ckUSDC balance
-dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_balance_of '(
-  record {
-    owner = principal "your-principal-here";
-    subaccount = null
+# Verify upgrade success
+dfx canister call <canister-id> get_registered_tokens --network ic
+dfx canister call <canister-id> get_transactions_count --network ic
+dfx canister call <canister-id> get_all_token_blocks --network ic
+```
+
+## Error Analysis
+
+This section provides detailed analysis of all major errors encountered during testing attempts 2-13, with step-by-step resolution procedures.
+
+### Error 1: Principal Format Parsing Failure ([Testing Attempt 2](logs/TESTING_ATTEMPT_2.md))
+
+**Original Error:**
+
+```
+Error from Canister y3hne-ryaaa-aaaag-aucea-cai: Canister called `ic0.trap` with message: 'Panicked at 'Invalid custodian principal: InvalidBase32', src/icp_subaccount_indexer/src/lib.rs:808:51'
+```
+
+**Failed Command:**
+
+```bash
+dfx deploy icp_subaccount_indexer --network ic --argument '(variant { Mainnet }, 5: nat64, 0: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "$(dfx identity get-principal)")'
+```
+
+**Root Cause Analysis:**
+
+1. **Command Substitution Issue**: The `$(dfx identity get-principal)` was not being processed correctly within Candid argument parsing
+2. **Canister Initialization**: The init function was rejecting the principal due to invalid Base32 format
+3. **DFX Behavior**: dfx doesn't properly handle shell command substitution within Candid syntax
+
+**Resolution:**
+
+```bash
+# Use hardcoded principal string instead of command substitution
+dfx deploy icp_subaccount_indexer --network ic --argument '(variant { Mainnet }, 5: nat64, 0: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe")'
+```
+
+**Lesson Learned:** Always use hardcoded strings for principals in Candid arguments - never rely on command substitution.
+
+---
+
+### Error 2: Identity Mismatch Authorization Failure ([Testing Attempts 2-3](logs/TESTING_ATTEMPT_2.md))
+
+**Original Error:**
+
+```
+Error: Failed to get registered tokens: Unauthorized
+```
+
+**Root Cause Analysis:**
+
+1. **Identity Mismatch**: The canister was deployed with dfx identity as custodian
+2. **Library Identity**: Test scripts used different seed phrase generating different principal
+3. **Authentication Flow**: Canister's `authenticate()` function checks caller against stored custodian principal
+
+**Investigation Steps:**
+
+```bash
+# Check dfx identity
+dfx identity get-principal
+# Result: gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe
+
+# Check library identity (from .env seed phrase)
+# Generated principal: a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae
+
+# Verified mismatch between deployer and library identities
+```
+
+**Resolution:**
+
+```bash
+# Modified post_upgrade function to set custodian automatically
+# Upgraded with explicit arguments to trigger post_upgrade properly
+dfx canister install icp_subaccount_indexer --network ic --mode upgrade \
+  --argument '(variant { Mainnet }, 15 : nat64, 10 : nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "gf3g2-eaeha-ii22q-ij5tb-bep3w-xxwgx-h4roh-6c2sm-cx2sw-tppv4-qqe")'
+```
+
+**Lesson Learned:**
+
+- Identity consistency between deployment and testing is critical
+- post_upgrade function is essential for proper custodian configuration
+
+---
+
+### Error 3: Webhook Script Payload Parsing Errors ([Testing Attempts 5-6](logs/TESTING_ATTEMPT_5.md))
+
+**Original Error:**
+
+```
+WEBHOOK RECEIVED!
+==================
+💰 Token: undefined
+💰 Amount: undefined undefined
+📦 Block: undefined
+RangeError: Invalid time value
+    at Date.toISOString (<anonymous>)
+```
+
+**Root Cause Analysis:**
+
+1. **Payload Format Mismatch**: Webhook script expected complete JSON payload
+2. **Canister Implementation**: Canister only sends `tx_hash` as query parameter
+3. **Script Assumptions**: Script assumed structured data in request body
+
+**Investigation Steps:**
+
+```bash
+# Analyzed canister webhook implementation (lib.rs:501-557)
+# Found: send_webhook() appends only tx_hash as query parameter
+# Body: None (empty)
+# Method: POST
+```
+
+**Resolution:**
+
+```typescript
+app.post("/webhook", (req: express.Request, res: express.Response) => {
+  // Extract tx_hash from query parameters instead of body
+  const txHash = req.query.tx_hash as string;
+  const payload = req.body; // Will be empty {}
+
+  console.log("\n🔔 WEBHOOK RECEIVED!");
+  console.log("==================");
+
+  if (txHash) {
+    console.log(`🔗 Transaction Hash: ${txHash}`);
   }
+
+  // Log raw request details for debugging
+  console.log("\n📋 Request Details:");
+  console.log("Query Parameters:", req.query);
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+  console.log("==================");
+});
+```
+
+**Lesson Learned:**
+
+- Always verify actual webhook payload format from canister implementation
+- Canister sends minimal data - enhance if full payload needed
+
+---
+
+### Error 4: Multi-Token Transfer Success but Detection Failure ([Testing Attempts 8-9](logs/TESTING_ATTEMPT_8.md))
+
+**Original Error Pattern:**
+
+```
+Transfer successful: ✅ ckUSDC sent to subaccount
+Balance verification: ✅ Balances updated correctly
+Transaction indexing: ❌ Transaction not detected by canister
+Webhook delivery: ❌ No notification received
+```
+
+**Root Cause Analysis:**
+
+1. **Implementation Gap**: Early multi-token versions could receive transfers but couldn't index them
+2. **ICRC-3 Missing**: Canister lacked `icrc3_get_blocks` implementation
+3. **Block Processing Logic**: Only ICP ledger was being monitored
+
+**Investigation Steps:**
+
+```bash
+# Verify transfer occurred on ledger
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai icrc1_balance_of '(record {
+  owner = principal "canister-id";
+  subaccount = opt vec { /* subaccount bytes */ }
+})' --network ic
+# Result: 100,000 (transfer successful)
+
+# Check canister detection
+dfx canister call <canister-id> get_transactions_count --network ic
+# Result: No increase (detection failed)
+```
+
+**Resolution:**
+
+```bash
+# 1. Upgrade canister to version with ICRC-3 support
+dfx canister install <canister-id> --network ic --mode upgrade \
+  --argument '(variant { Mainnet }, 500: nat64, 10: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "principal")'
+
+# 2. Configure token block processing
+dfx canister call <canister-id> set_token_next_block_update '(variant { CKUSDC }, 366986 : nat64)' --network ic
+
+# 3. Set fast polling for testing
+dfx canister call <canister-id> set_interval '(30 : nat64)' --network ic
+
+# 4. Wait 45 seconds and verify
+dfx canister call <canister-id> get_transactions_count --network ic
+# Expected: Count increases
+```
+
+**Lesson Learned:** Multi-token support requires both code implementation AND proper version deployment.
+
+---
+
+### Error 5: Large WASM Deployment Cycle Exhaustion ([Testing Attempt 2](logs/TESTING_ATTEMPT_2.md))
+
+**Original Error:**
+
+```
+Error: Canister is out of cycles: requested 3_799_393_530 cycles but the available balance is 99_998_684_000 cycles and at least 230_000_000_000 cycles are required to keep the canister running
+```
+
+**Root Cause Analysis:**
+
+1. **Large WASM Size**: 1.9MB file vs typical 200-500KB canisters
+2. **Exponential Costs**: IC cycle costs scale non-linearly with WASM size
+3. **Complex Initialization**: Heavy init function with network setup and timer initialization
+
+**Mathematical Analysis:**
+
+- Started with: 500B cycles (creation)
+- Added: 229B cycles (deposits)
+- Total Available: 729B cycles
+- Still Needed: 90B cycles
+- **Final Requirement**: ~819B cycles for 1.9MB WASM
+
+**Resolution:**
+
+```bash
+# Ensure sufficient ICP balance first
+dfx ledger balance --network ic
+# Minimum: 0.3 ICP needed
+
+# Convert more ICP to cycles
+dfx cycles convert --amount=0.3 --network ic
+
+# Create canister with maximum cycles
+dfx canister create icp_subaccount_indexer --network ic --with-cycles 800000000000
+
+# Deploy immediately
+dfx deploy icp_subaccount_indexer --network ic --argument '(
+  variant { Mainnet },
+  500: nat64,
+  0: nat32,
+  "ryjl3-tyaaa-aaaaa-aaaba-cai",
+  "hardcoded-principal-here"
 )'
-
-# Get token metadata
-dfx canister --network ic call xevnm-gaaaa-aaaar-qafnq-cai icrc1_metadata
 ```
 
-## Test Logs and Learning Resources
+**Lesson Learned:** Large WASM files require significantly more cycles - budget 800B+ for 1.9MB deployments.
 
-Detailed test execution logs are maintained in `docs/logs/` for reference:
+---
 
-- `TESTING_ATTEMPT_1.md` - Initial deployment and cycles management
-- `TESTING_ATTEMPT_2.md` - Principal format fixes
-- `TESTING_ATTEMPT_3.md` - Authorization troubleshooting
-- `TESTING_ATTEMPT_4.md` - Post-upgrade custodian fixes
-- `TESTING_ATTEMPT_5.md` - ICP transaction indexing
-- `TESTING_ATTEMPT_6.md` - Webhook script fixes and validation
-- `TESTING_ATTEMPT_7.md` - ckUSDC integration attempts
-- `TESTING_ATTEMPT_8.md` - Token balance checking
-- `TESTING_ATTEMPT_9.md` - ckUSDC fee corrections
-- `TESTING_ATTEMPT_10.md` - Successful ckUSDC multi-token testing
+### Error 6: ICRC-3 Inter-Canister Call Failures ([Testing Attempt 13](logs/TESTING_ATTEMPT_13.md))
 
-**Important**: These logs contain test seed phrases and transaction details. Never reuse seed phrases from logs for personal or production use.
+**Original Error:**
 
-## Key Lessons from Testing
+```
+[954849. 2025-09-22T01:17:44.124393783Z]: ICRC-3 call failed: (SysTransient, "Couldn't send message")
+[954850. 2025-09-22T01:17:44.124393783Z]: ERROR in query_token_ledger for CKUSDT:
+[954851. 2025-09-22T01:17:44.124393783Z]:   Rejection code: SysTransient
+[954852. 2025-09-22T01:17:44.124393783Z]:   Error message: Couldn't send message
+```
 
-1. **Cycles Management**: Large WASM files need significantly more cycles than expected
-2. **Principal Format**: Always use hardcoded principals in deployment arguments
-3. **Token Fees**: ckUSDC/ckUSDT use 10,000 micro-units (0.01), not 10
-4. **Multi-token Support**: Requires canister upgrade with proper implementation
-5. **Block Processing**: Each token type maintains independent block state
-6. **Webhook Format**: Sends transaction hash as query parameter, not JSON body
-7. **Address Formats**: ICP uses hex AccountIdentifier, ICRC-1 uses textual format with CRC32
+**Root Cause Analysis:**
 
-## Test Script Architecture
+1. **Network Connectivity**: Inter-canister calls failing with "Couldn't send message"
+2. **Resource Constraints**: Despite having 227B cycles, calls were failing
+3. **Subnet Communication**: Possible temporary network issues between subnets
 
-### Modern Test Scripts (`packages/icsi-lib/test/scripts/`)
-
-- **Shell Scripts**: `testICPDeposit.sh`, `testUSDCDeposit.sh`, `testUSDTDeposit.sh`
-
-  - Execute complete deposit workflows
-  - Handle wallet generation, transfers, and verification
-  - Production-ready testing approach
-
-- **TypeScript Scripts**: `testWebhook.ts`
-  - Express server for webhook testing
-  - ngrok integration for public URLs
-  - Transaction hash logging and summary
-
-### Legacy Scripts (`packages/icsi-lib/test/scripts/legacy/`)
-
-Legacy scripts are available but not recommended for standard testing:
-
-- `registerTokens.ts` - Manual token registration
-- `getDepositAddresses.ts` - List all deposit addresses
-- `getBalances.ts` - Check token balances
-- `sweepAll.ts` - Sweep tokens from subaccounts
-- `clearTransactions.ts` - Clear transaction history
-
-**Note**: The canister now auto-registers tokens during initialization, making manual registration unnecessary.
-
-## Local CI Testing with GitHub Actions
-
-This project includes a simplified system for testing GitHub Actions locally using `act`.
-
-### Quick Local CI Commands
+**Resolution:**
 
 ```bash
-# Run quick tests (format + unit tests)
-./test-local.sh quick
+# Top up cycles significantly (even though it seemed sufficient)
+dfx canister deposit-cycles 400000000000 <canister-id> --network ic
+# New balance: 625B cycles
 
-# Run individual jobs
-./test-local.sh format-ts      # TypeScript formatting
-./test-local.sh format-rust    # Rust formatting
-./test-local.sh clippy         # Rust linting
-./test-local.sh test-ts-unit   # TypeScript unit tests
-./test-local.sh test-rust-unit # Rust unit tests
-./test-local.sh build-basic    # Build canister WASM
-
-# Show all available options
-./test-local.sh
+# Automatic recovery - no manual intervention needed!
+# Pollers started working immediately after cycle top-up
 ```
 
-### Available Local CI Jobs
+**Lesson Learned:** ICRC-3 inter-canister calls may require higher cycle thresholds than calculated - maintain 600B+ cycles for reliability.
 
-| Job              | Description                 | Speed     |
-| ---------------- | --------------------------- | --------- |
-| `format-ts`      | TypeScript formatting check | Fast ⚡   |
-| `format-rust`    | Rust formatting check       | Medium 🚀 |
-| `clippy`         | Rust linting                | Medium 🚀 |
-| `test-ts-unit`   | TypeScript unit tests       | Fast ⚡   |
-| `test-rust-unit` | Rust unit tests             | Medium 🚀 |
-| `build-basic`    | Build canister WASM         | Slow 🐌   |
-| `type-check`     | TypeScript type checking    | Fast ⚡   |
+---
 
-### Local CI Development Workflow
+### Error 7: Token Block Processing Stuck at Archived Positions ([Testing Attempt 12](logs/TESTING_ATTEMPT_12.md))
+
+**Original Error Pattern:**
+
+```
+Token     | Next Block | Status
+----------|------------|--------
+ICP       | 25,158,675 | Stuck ❌
+CKUSDC    | 600,000    | Stuck ❌ (archived)
+CKUSDT    | 300,000    | Stuck ❌ (archived)
+```
+
+**Root Cause Analysis:**
+
+1. **Archived Blocks**: Old block positions were beyond ledger's accessible range
+2. **Silent Failures**: Canister couldn't query archived blocks, failed silently
+3. **Incorrect Current Blocks**: ICRC token blocks were much lower than set positions
+
+**Resolution:**
 
 ```bash
-# 1. Quick validation before committing
-./test-local.sh quick
+# Set to correct current block positions
+dfx canister call <canister-id> set_token_next_block_update '(variant { CKUSDC }, 391300 : nat64)' --network ic
+dfx canister call <canister-id> set_token_next_block_update '(variant { CKUSDT }, 524100 : nat64)' --network ic
 
-# 2. Test specific changes
-./test-local.sh format-rust    # After Rust changes
-./test-local.sh test-ts-unit   # After TypeScript changes
-
-# 3. Full canister build when needed
-./test-local.sh build-basic
-
-# 4. Before major changes
-./test-local.sh all-local
+# For ICP, use sweep function to find current block
+dfx canister call <canister-id> sweep --network ic
+# Shows recent blocks, use for ICP position update
+dfx canister call <canister-id> set_token_next_block_update '(variant { ICP }, 25288400 : nat64)' --network ic
 ```
 
-### Manual act Commands
+**Lesson Learned:** Always verify actual ledger current blocks before setting token positions - archived blocks cause silent failures.
 
-If you prefer using `act` directly:
+---
+
+### Error 8: Identity Management and Controller Confusion ([Testing Attempt 11](logs/TESTING_ATTEMPT_11.md))
+
+**Original Error:**
+
+```
+Error: Only the controllers of the canister can control it.
+Controller identity required for canister operations.
+```
+
+**Root Cause Analysis:**
+
+1. **Identity Confusion**: Using operator identity for controller operations
+2. **Multiple Identity Types**: Different identities serve different purposes
+3. **Corrupted Configuration**: identity.json file was corrupted
+
+**Resolution:**
 
 ```bash
-# Run individual jobs from simplified workflow
-act --container-architecture linux/amd64 -j format-ts -W .github/workflows/local-ci.yml -P ubuntu-latest=catthehacker/ubuntu:runner-latest
+# Use correct controller identity for upgrades
+dfx identity use STAGING_DEPLOYER
 
-# Run individual jobs from main workflow
-act --container-architecture linux/amd64 -j test-unit -W .github/workflows/ci.yml -P ubuntu-latest=catthehacker/ubuntu:runner-latest
+# Execute successful upgrade
+dfx canister install uiz2m-baaaa-aaaal-qjbxq-cai --network ic \
+  --wasm target/wasm32-unknown-unknown/release/icp_subaccount_indexer.wasm \
+  --argument '(variant { Mainnet }, 15: nat64, 25002500: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "pztcx-5wpjw-ko6rv-3cjff-466eb-4ywbn-a5jww-rs6yy-ypk4a-ceqfb-nqe")' \
+  --mode upgrade
 
-# List all available jobs
-act --list
+# Switch back to operations identity
+dfx identity use testnet_custodian
 ```
 
-### Local CI Troubleshooting
+**Lesson Learned:**
 
-- **Permission errors**: Check that `test-local.sh` is executable (`chmod +x test-local.sh`)
-- **act not installed**: Install with `brew install act` (macOS) or see [act documentation](https://github.com/nektos/act)
-- **Job failures**: Make sure dependencies are installed (`pnpm install`)
-- Use `runner-latest` image for better compatibility
-- Run quick tests first before slower builds
+- **STAGING_DEPLOYER**: For canister upgrades (controller)
+- **testnet_custodian**: For canister operations (custodian)
+- Always verify principal mappings before operations
+
+---
+
+### Error 9: Fee Amount Confusion for Different Token Types ([Testing Attempts 8-9](logs/TESTING_ATTEMPT_8.md))
+
+**Original Error:**
+
+```
+(variant { Err = variant { BadFee = record { expected_fee = 10_000 : nat } } })
+```
+
+**Root Cause Analysis:**
+
+1. **Token-Specific Fees**: Each token type has different fee structures
+2. **Documentation Confusion**: Fees expressed in different units
+3. **Decimal Differences**: Tokens have different decimal places
+
+**Fee Structure Breakdown:**
+
+| Token      | Fee Amount   | Fee in Base Units | Fee Description     |
+| ---------- | ------------ | ----------------- | ------------------- |
+| **ICP**    | 10,000 e8s   | 0.0001 ICP        | Standard ledger fee |
+| **ckUSDC** | 10,000 micro | 0.01 ckUSDC       | 1% of transfer      |
+| **ckUSDT** | 10,000 micro | 0.01 ckUSDT       | 1% of transfer      |
+| **ckBTC**  | 10 sat       | 0.0000001 ckBTC   | Bitcoin network fee |
+
+**Resolution Examples:**
+
+```bash
+# ckUSDC transfer (correct fee)
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai icrc1_transfer '(record {
+  amount = 100000 : nat;     # 0.1 ckUSDC
+  fee = opt (10000 : nat);   # ✅ CORRECT: 0.01 ckUSDC
+  ...
+})' --network ic
+
+# ckBTC transfer (different fee structure)
+dfx canister call mxzaz-hqaaa-aaaar-qaada-cai icrc1_transfer '(record {
+  amount = 100 : nat;        # 100 satoshis
+  fee = opt (10 : nat);      # ✅ CORRECT: 10 satoshis
+  ...
+})' --network ic
+```
+
+**Lesson Learned:** Always verify fee requirements per token type - ckBTC uses different fee structure than ckUSDC/ckUSDT.
+
+---
+
+### Error 10: DFX Upgrade System Failures ([Testing Attempt 3](logs/TESTING_ATTEMPT_3.md))
+
+**Original Error Pattern:**
+
+```bash
+cargo build --target wasm32-unknown-unknown --release -p icp_subaccount_indexer
+# Result: ✅ Finished `release` profile [optimized] target(s) in 4.26s
+
+dfx canister install icp_subaccount_indexer --network ic --mode upgrade
+# Result: Module hash 76698fc22904bd82da7c85d5c5315a50b37e8ef101021ce471340a5ee5edfc5c is already installed.
+
+# New methods added to code were not available
+dfx canister call icp_subaccount_indexer set_custodian_principal '("principal")'
+# Result: Error: Canister has no update method 'set_custodian_principal'
+```
+
+**Root Cause Analysis:**
+
+1. **Build vs Deploy Disconnect**: Cargo build succeeded but dfx didn't pick up new WASM
+2. **Module Hash Unchanged**: Same hash indicated no actual code update occurred
+3. **Caching Issue**: DFX potentially cached old WASM despite successful compilation
+
+**Resolution:**
+
+```bash
+# Use explicit upgrade with arguments to force proper upgrade
+dfx canister install icp_subaccount_indexer --network ic --mode upgrade \
+  --argument '(variant { Mainnet }, 15 : nat64, 10 : nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "YOUR-PRINCIPAL")'
+```
+
+**Lesson Learned:**
+
+- DFX upgrade system can fail silently despite success messages
+- Always verify module hash changes after upgrades
+- Use explicit arguments in upgrade mode to force proper upgrade
+
+---
+
+### Error 11: Insufficient Token Balance for Multi-Token Testing ([Testing Attempt 7](logs/TESTING_ATTEMPT_7.md))
+
+**Original Error:**
+
+```
+🚀 Testing USDC Deposit with ICSI Canister
+==========================================
+✅ Identity created from seed phrase
+📍 Principal: crmc4-uypeq-seqvf-sowpb-x456x-xggrd-dk2u6-dxegr-7rfwm-eyhru-lqe
+
+💰 CKUSDC Token Config:
+   Canister ID: xevnm-gaaaa-aaaar-qafnq-cai
+   Symbol: CKUSDC
+   Decimals: 6
+
+📬 Getting deposit addresses...
+Error: Failed to get registered tokens: Unauthorized
+```
+
+**Root Cause Analysis:**
+
+1. **Insufficient Funding**: Test wallet had 0 ckUSDC balance
+2. **Authorization Issue**: Test script used different identity than canister custodian
+3. **Multi-Token Requirements**: Each token type requires separate funding
+
+**Resolution Requirements:**
+
+1. **Fund Test Wallet**: Send at least 0.1 ckUSDC to test principal
+2. **Fix Authorization**: Ensure test script uses correct identity
+3. **Verify Format**: Confirm ICRC-1 vs ICP address format differences
+
+**Lesson Learned:**
+
+- Multi-token testing requires actual token funding for each token type
+- Different tokens use different address formats (hex vs ICRC-1 textual)
+- Always verify balance before attempting transfers
+
+## Production Deployment Guide
+
+### Pre-Deployment Checklist
+
+- [ ] **ICP Funding**: Minimum 0.5 ICP in deployer wallet
+- [ ] **Identity Setup**: Correct controller identity active
+- [ ] **Code Build**: Latest multi-token version built
+- [ ] **Network Access**: IC mainnet accessible
+- [ ] **Webhook Setup**: Production webhook URL ready
+
+### Deployment Process
+
+#### Step 1: Environment Preparation
+
+```bash
+# Set environment
+export DFX_WARNING=-mainnet_plaintext_identity
+dfx identity use <controller-identity>
+
+# Verify funding
+dfx ledger balance --network ic
+# Minimum: 0.5 ICP
+
+# Convert to cycles
+dfx cycles convert --amount=0.5 --network ic
+```
+
+#### Step 2: Canister Creation
+
+```bash
+# Create with substantial cycles
+dfx canister create icp_subaccount_indexer --network ic --with-cycles 800000000000
+
+# Record canister ID
+CANISTER_ID=$(dfx canister id icp_subaccount_indexer --network ic)
+echo "Canister ID: $CANISTER_ID"
+```
+
+#### Step 3: Deployment
+
+```bash
+# Build latest code
+pnpm run build:canister
+
+# Deploy with production settings
+dfx deploy icp_subaccount_indexer --network ic --argument '(
+  variant { Mainnet },
+  500: nat64,                           # Production interval
+  0: nat32,                            # Initial nonce
+  "ryjl3-tyaaa-aaaaa-aaaba-cai",      # ICP ledger
+  "your-custodian-principal-here"      # Hardcoded custodian
+)'
+```
+
+#### Step 4: Post-Deployment Configuration
+
+```bash
+# Verify token registration
+dfx canister call $CANISTER_ID get_registered_tokens --network ic
+
+# Set production webhook URL
+dfx canister call $CANISTER_ID set_webhook_url '("https://your-production-webhook.com/callback")' --network ic
+
+# Verify configuration
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+dfx canister call $CANISTER_ID get_interval --network ic
+```
+
+### Production Monitoring Setup
+
+```bash
+# Check canister health regularly
+dfx canister status $CANISTER_ID --network ic
+
+# Monitor all token advancement
+dfx canister call $CANISTER_ID get_all_token_blocks --network ic
+
+# Check transaction processing
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+```
+
+## Advanced Testing Procedures
+
+### ICRC-3 Connectivity Debugging
+
+When ICRC tokens stop being indexed:
+
+#### Step 1: Check Canister Logs
+
+```bash
+dfx canister logs <canister-id> --network ic
+# Look for: "ICRC-3 call failed" messages
+# Look for: "SysTransient" or "Couldn't send message" errors
+```
+
+#### Step 2: Test Direct Ledger Access
+
+```bash
+# Test ckUSDC ledger directly
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai icrc3_get_blocks '(vec {record { start = 448800 : nat; length = 5 : nat }})' --network ic
+
+# Test ckBTC ledger directly
+dfx canister call mxzaz-hqaaa-aaaar-qaada-cai icrc3_get_blocks '(vec {record { start = 3111616 : nat; length = 5 : nat }})' --network ic
+```
+
+#### Step 3: Monitor Token Position Advancement
+
+```bash
+# Check if positions are advancing
+dfx canister call <canister-id> get_all_token_blocks --network ic
+# Wait 60 seconds
+dfx canister call <canister-id> get_all_token_blocks --network ic
+# Compare results - stuck positions indicate connectivity issues
+```
+
+#### Step 4: Resolution Actions
+
+```bash
+# 1. Top up cycles significantly
+dfx canister deposit-cycles 400000000000 <canister-id> --network ic
+
+# 2. Temporarily increase polling frequency
+dfx canister call <canister-id> set_interval '(30 : nat64)' --network ic
+
+# 3. Monitor for automatic recovery
+# Connectivity usually resumes within 2-3 polling cycles
+
+# 4. Restore production settings
+dfx canister call <canister-id> set_interval '(500 : nat64)' --network ic
+```
+
+### Network Health Monitoring
+
+```bash
+# Create monitoring script
+#!/bin/bash
+while true; do
+  echo "=== $(date) ==="
+  dfx canister call <canister-id> get_all_token_blocks --network ic
+  echo ""
+  sleep 60
+done
+```
+
+## Reference Commands
+
+### Multi-Token Operations
+
+```bash
+# Generate subaccounts for all token types
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { ICP })' --network ic
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKBTC })' --network ic
+
+# Check individual token block positions
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKBTC })' --network ic
+
+# Update token block positions
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDC }, 448000 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDT }, 663000 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKBTC }, 3111000 : nat64)' --network ic
+```
+
+### Diagnostic Commands
+
+```bash
+# Health check
+dfx canister status $CANISTER_ID --network ic
+dfx canister logs $CANISTER_ID --network ic
+dfx canister call $CANISTER_ID get_all_token_blocks --network ic
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+dfx canister call $CANISTER_ID get_interval --network ic
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+
+# Test direct ledger access
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai icrc3_get_blocks '(vec {record { start = 448800 : nat; length = 5 : nat }})' --network ic
+dfx canister call cngnf-vqaaa-aaaar-qag4q-cai icrc3_get_blocks '(vec {record { start = 663000 : nat; length = 5 : nat }})' --network ic
+dfx canister call mxzaz-hqaaa-aaaar-qaada-cai icrc3_get_blocks '(vec {record { start = 3111000 : nat; length = 5 : nat }})' --network ic
+
+# Cycle management
+dfx cycles balance --network ic
+dfx canister deposit-cycles 400000000000 $CANISTER_ID --network ic
+```
+
+### Production Operations
+
+```bash
+# Execute sweeping operations
+dfx canister call $CANISTER_ID sweep --network ic
+
+# Monitor recent transactions
+dfx canister call $CANISTER_ID list_transactions '(opt 20)' --network ic
+
+# Emergency interval adjustment
+dfx canister call $CANISTER_ID set_interval '(30 : nat64)' --network ic  # Fast testing
+dfx canister call $CANISTER_ID set_interval '(500 : nat64)' --network ic # Production
+```
+
+### Quick Testing Workflow
+
+```bash
+# 1. Generate test wallet
+pnpm run lib:generate:wallet
+
+# 2. Fund wallet with test tokens
+
+# 3. Deploy canister
+./scripts/deploy-mainnet.sh deploy
+
+# 4. Configure environment
+echo 'USER_VAULT_CANISTER_ID="your-canister-id"' >> packages/icsi-lib/.env.test
+
+# 5. Start webhook server
+pnpm run lib:test:webhook
+
+# 6. Test deposits
+pnpm run lib:test:icp
+pnpm run lib:test:usdc
+pnpm run lib:test:usdt
+
+# 7. Restore production settings
+dfx canister call CANISTER_ID set_interval '(500 : nat64)' --network ic
+```
+
+## Best Practices and Key Lessons
+
+### Advanced Success Factors
+
+1. **Adequate cycle budgeting** for large WASM deployments (800B+ cycles)
+2. **Identity management** understanding for upgrades vs operations
+3. **ICRC-3 connectivity** monitoring and debugging capabilities
+4. **Token-specific configuration** for each supported token type
+5. **Production-ready monitoring** and health check procedures
+
+### Security Considerations
+
+- **Never use test wallets for production funds**
+- **Rotate webhook URLs periodically**
+- **Monitor unauthorized access attempts**
+- **Store seed phrases securely**
+
+### Performance Optimization
+
+- **Production intervals**: 300-500 seconds
+- **Testing intervals**: 30 seconds (restore immediately after)
+- **Block position**: Keep within 1000 blocks of ledger tip
+- **Cycle buffer**: Maintain 600B+ cycles for ICRC-3 reliability
+
+### Remember
+
+Always maintain sufficient cycles (600B+) for reliable ICRC-3 inter-canister calls and restore production settings (500-second intervals) after testing.
+
+---
+
+**Testing Guide Status: ✅ COMPREHENSIVE - Based on Testing Attempts 1-13**  
+**Source Documentation**: All procedures derived from real testing attempts archived in `docs/logs/`  
+**Last Updated**: September 23, 2025  
+**Canister Version**: ICSI v2.0.0 with full multi-token ICRC-3 support
