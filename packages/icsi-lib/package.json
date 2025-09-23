@@ -1,6 +1,6 @@
 {
   "name": "@jagad/icsi",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Internet Computer Subaccount Indexer Library - TypeScript SDK for ICP multi-token subaccount management, transaction tracking, and automated sweeping with webhook support",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,6 +30,7 @@
     "test:btc-deposit": "./test/scripts/testBTCDeposit.sh",
     "test:webhook": "ts-node test/scripts/testWebhook.ts",
     "test:unit": "jest --config jest.config.unit.js",
+    "test:ci": "pnpm run test:unit",
     "test:functions": "ts-node test/integration/runTests.ts",
     "test:query": "ts-node test/integration/testQueryFunctions.ts",
     "test:update": "ts-node test/integration/testUpdateFunctions.ts",

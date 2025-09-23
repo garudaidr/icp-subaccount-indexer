@@ -45,6 +45,8 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9.15.2 # matches packageManager in package.json
+          standalone: true # ensures the exact pnpm is used
           run_install: false
 
       - name: Get pnpm store directory
