@@ -312,7 +312,7 @@ pnpm run lib:test:usdt   # Test ckUSDT deposits (0.1 ckUSDT)
 3. **Transaction indexing takes time** - Wait 30-45 seconds for detection
 4. **Use test wallets only** - Never use personal wallets for testing
 
-See [Testing Guide](./TESTING_GUIDE.md) for complete documentation including:
+See [Testing Guide](./docs/TESTING_GUIDE.md) for complete documentation including:
 
 - Manual DFX commands for advanced testing
 - Troubleshooting common errors
@@ -332,7 +332,7 @@ See [Testing Guide](./TESTING_GUIDE.md) for complete documentation including:
 - Manual token operations (deprecated)
 - Use modern test suite instead
 
-See [Testing Guide](./TESTING_GUIDE.md#test-script-architecture) for details.
+See [Testing Guide](./docs/TESTING_GUIDE.md#test-script-architecture) for details.
 
 ## Essential Canister Management Commands
 
@@ -406,8 +406,7 @@ dfx canister call $CANISTER_ID get_custodian --network ic
 
 For comprehensive debugging procedures, see:
 
-- [Testnet Debugging Guide](./docs/TESTNET_DEBUGGING_GUIDE.md)
-- [Devnet Debugging Guide](./docs/DEVNET_DEBUGGING_GUIDE.md)
+- [Canister Debugging Guide](./docs/CANISTER_DEBUGGING_GUIDE.md) (covers both testnet and devnet)
 
 ## Conclusion
 

@@ -13,7 +13,6 @@ This project uses pnpm workspaces to manage multiple packages in a monorepo stru
 ├── canister_ids.json        # Mainnet canister IDs
 ├── tsconfig.json            # TypeScript configuration
 ├── CLAUDE.md                # AI assistant instructions
-├── TESTING_GUIDE.md         # Comprehensive testing documentation
 ├── README.md                # Project overview
 ├── WORKSPACE.md             # This file
 ├── src/
@@ -46,11 +45,12 @@ This project uses pnpm workspaces to manage multiple packages in a monorepo stru
 │   ├── deploy.sh          # Local deployment script
 │   └── legacy/            # Legacy maintenance scripts
 └── docs/
-    ├── logs/              # Detailed testing logs
-    │   ├── TESTING_ATTEMPT_1.md   # Initial deployment
-    │   ├── TESTING_ATTEMPT_2.md   # Principal fixes
-    │   └── ...                    # Through TESTING_ATTEMPT_10.md
-    └── canister-deployment-guideline.md
+    ├── TESTING_GUIDE.md         # Comprehensive testing documentation
+    ├── CANISTER_DEBUGGING_GUIDE.md  # Debugging deployed canisters
+    └── logs/              # Detailed testing logs
+        ├── TESTING_ATTEMPT_1.md   # Initial deployment
+        ├── TESTING_ATTEMPT_2.md   # Principal fixes
+        └── ...                    # Through TESTING_ATTEMPT_10.md
 ```
 
 ## Installation
@@ -104,7 +104,7 @@ pnpm run clean                # Clean all build artifacts
 ./scripts/deploy-mainnet.sh deploy    # Initial deployment
 ./scripts/deploy-mainnet.sh upgrade   # Upgrade existing canister
 
-# Or use DFX directly (see TESTING_GUIDE.md for details)
+# Or use DFX directly (see docs/TESTING_GUIDE.md for details)
 dfx deploy --network ic
 ```
 
@@ -251,7 +251,7 @@ pnpm run build
 
 **"Insufficient cycles"**
 
-- See TESTING_GUIDE.md for cycle management
+- See docs/TESTING_GUIDE.md for cycle management
 - Large canisters need ~500B cycles
 
 ## Best Practices

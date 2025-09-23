@@ -28,10 +28,9 @@ This is a **pnpm workspace monorepo** with the following key components:
 
 **BEFORE conducting ANY testing or debugging with deployed canisters, Claude MUST:**
 
-1. **Read the debugging guides first:**
+1. **Read the debugging guide first:**
 
-   - **Testnet**: `docs/TESTNET_DEBUGGING_GUIDE.md`
-   - **Devnet**: `docs/DEVNET_DEBUGGING_GUIDE.md`
+   - **Comprehensive guide**: `docs/CANISTER_DEBUGGING_GUIDE.md` (covers both testnet and devnet)
 
 2. **Understand the current state:**
 
@@ -84,9 +83,9 @@ pnpm run generate
 
 ### Testing
 
-You can see the testing guide in `TESTING_GUIDE.md`. The modern test suite is in `packages/icsi-lib/test/scripts/` (except for the legacy tests in `packages/icsi-lib/test/scripts/legacy/`).
+You can see the testing guide in `docs/TESTING_GUIDE.md`. The modern test suite is in `packages/icsi-lib/test/scripts/` (except for the legacy tests in `packages/icsi-lib/test/scripts/legacy/`).
 
-**For GitHub Actions testing locally**, see `TESTING_LOCAL.md` and use the simplified test script:
+**For GitHub Actions testing locally**, see the "Local CI Testing" section in `docs/TESTING_GUIDE.md` and use the simplified test script:
 
 ```bash
 # Quick tests (format + unit tests)
@@ -241,7 +240,7 @@ Each token type has unified APIs for deposits, balances, and sweeping operations
 4. Configure `.env.test` with canister ID
 5. Run test scripts to verify functionality
 
-See `TESTING_GUIDE.md` for detailed testing procedures.
+See `docs/TESTING_GUIDE.md` for detailed testing procedures.
 
 ## Testnet/Mainnet Debugging and Testing
 
@@ -252,9 +251,9 @@ When working with deployed canisters that appear stuck or unresponsive, you may 
 - **Missing webhook notifications**: Incorrect or outdated webhook URLs
 - **Cycle management**: Balancing fast polling with cost efficiency
 
-**For complete debugging procedures, troubleshooting steps, and production best practices, see: `docs/TESTNET_DEBUGGING_GUIDE.md`**
+**For complete debugging procedures, troubleshooting steps, and production best practices, see: `docs/CANISTER_DEBUGGING_GUIDE.md`**
 
-This guide contains real-world debugging scenarios, step-by-step fixes, and critical safety procedures to prevent cycle waste during testing.
+This comprehensive guide covers both testnet and devnet environments with real-world debugging scenarios, step-by-step fixes, and critical safety procedures to prevent cycle waste during testing.
 
 ## Lessons Learned from Testing (Critical for Future Claude)
 
