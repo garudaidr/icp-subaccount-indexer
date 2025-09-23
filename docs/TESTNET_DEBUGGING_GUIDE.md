@@ -394,13 +394,146 @@ If the canister runs out of cycles due to excessive polling, you'll need to add 
 
 **Note**: This guide is based on debugging session with testnet canister `uiz2m-baaaa-aaaal-qjbxq-cai` using identity `testnet_custodian` on June 10, 2025. The same principles apply to devnet canisters using `dfx identity default`. Adapt the commands and values for your specific setup.
 
+## Comprehensive Command Reference
+
+### Environment Setup Commands
+
+```bash
+# Testnet setup
+export DFX_WARNING=-mainnet_plaintext_identity
+dfx identity use testnet_custodian
+CANISTER_ID=$(cat test_canister_ids.json | jq -r '.icp_subaccount_indexer.ic')
+
+# Devnet setup
+dfx identity use default
+CANISTER_ID=$(cat canister_ids.json | jq -r '.icp_subaccount_indexer.ic')
+```
+
+### Query Functions (Read-Only)
+
+```bash
+# Token and block information
+dfx canister call $CANISTER_ID get_registered_tokens --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKBTC })' --network ic
+dfx canister call $CANISTER_ID get_all_token_blocks --network ic
+
+# Transaction information
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+dfx canister call $CANISTER_ID list_transactions '(opt 10)' --network ic
+dfx canister call $CANISTER_ID get_transaction '("transaction-hash-here")' --network ic
+dfx canister call $CANISTER_ID get_transaction_token_type '("tx-hash")' --network ic
+
+# Subaccount information
+dfx canister call $CANISTER_ID get_nonce --network ic
+dfx canister call $CANISTER_ID get_subaccount_count --network ic
+dfx canister call $CANISTER_ID get_subaccountid '(0 : nat32, opt variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_icrc_account '(0 : nat32)' --network ic
+
+# Configuration information
+dfx canister call $CANISTER_ID get_interval --network ic
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+dfx canister call $CANISTER_ID get_network --network ic
+dfx canister call $CANISTER_ID get_canister_principal --network ic
+dfx canister call $CANISTER_ID get_custodian --network ic
+```
+
+### Update Functions (State-Changing)
+
+```bash
+# Subaccount management
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { ICP })' --network ic
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDC })' --network ic
+
+# Token management
+dfx canister call $CANISTER_ID register_token '(variant { CKBTC }, "mxzaz-hqaaa-aaaar-qaada-cai")' --network ic
+dfx canister call $CANISTER_ID reset_token_blocks --network ic
+
+# Block position management
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { ICP }, 25841200 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDC }, 407027 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDT }, 580392 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKBTC }, 2811077 : nat64)' --network ic
+
+# Configuration management
+dfx canister call $CANISTER_ID set_interval '(30 : nat64)' --network ic   # Testing
+dfx canister call $CANISTER_ID set_interval '(500 : nat64)' --network ic  # Production
+dfx canister call $CANISTER_ID set_webhook_url '("https://your-api.com/webhook")' --network ic
+dfx canister call $CANISTER_ID set_custodian_principal '("your-principal-id")' --network ic
+
+# Transaction management
+dfx canister call $CANISTER_ID clear_transactions '(opt 100, null)' --network ic
+dfx canister call $CANISTER_ID refund '(12345 : nat64)' --network ic
+
+# Sweeping operations
+dfx canister call $CANISTER_ID sweep_by_token_type '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID sweep_by_token_type '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID single_sweep '("transaction-hash")' --network ic
+dfx canister call $CANISTER_ID sweep_subaccount '("subaccount-id", 0.001 : float64, opt variant { ICP })' --network ic
+dfx canister call $CANISTER_ID set_sweep_failed '("transaction-hash")' --network ic
+```
+
+### Canister Infrastructure Management
+
+```bash
+# Check cycles and health
+dfx canister status $CANISTER_ID --network ic
+
+# Add cycles if needed (200B minimum buffer recommended)
+dfx canister deposit-cycles 200000000000 $CANISTER_ID --network ic
+
+# Canister upgrade (for STAGING_DEPLOYER identity only)
+dfx identity use STAGING_DEPLOYER
+dfx deploy $CANISTER_ID --network ic --mode upgrade
+dfx identity use testnet_custodian  # Switch back for operations
+```
+
+### External Ledger Queries
+
+```bash
+# Get current ledger block heights
+dfx canister call ryjl3-tyaaa-aaaaa-aaaba-cai query_blocks '(record { start = 0; length = 1 })' --network ic  # ICP
+dfx canister call xevnm-gaaaa-aaaar-qafnq-cai get_blocks '(record { start = 0; length = 1 })' --network ic      # ckUSDC
+dfx canister call cngnf-vqaaa-aaaar-qag4q-cai get_blocks '(record { start = 0; length = 1 })' --network ic      # ckUSDT
+dfx canister call mxzaz-hqaaa-aaaar-qaada-cai get_blocks '(record { start = 0; length = 1 })' --network ic      # ckBTC
+```
+
+### Complete Diagnostic Sequence
+
+```bash
+# Run full health check
+echo "=== Canister Status ==="
+dfx canister status $CANISTER_ID --network ic
+
+echo "=== Configuration ==="
+dfx canister call $CANISTER_ID get_interval --network ic
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+
+echo "=== Token Registration ==="
+dfx canister call $CANISTER_ID get_registered_tokens --network ic
+
+echo "=== Block Positions ==="
+for token in ICP CKUSDC CKUSDT CKBTC; do
+  echo "Checking $token:"
+  dfx canister call $CANISTER_ID get_token_next_block_query "(variant { $token })" --network ic
+done
+
+echo "=== Transaction Activity ==="
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+dfx canister call $CANISTER_ID list_transactions '(opt 5)' --network ic
+```
+
 ## Environment-Specific Notes
 
 ### Testnet (test_canister_ids.json)
 
-- Use `dfx identity testnet_custodian`
+- Use `dfx identity testnet_custodian` for operations
+- Use `dfx identity STAGING_DEPLOYER` for upgrades only
 - Shared staging environment - coordinate with team
-- Principal: `a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae` (example from debugging session)
+- Principal: `a6nt4-w4isk-ugybk-trfuq-42piz-fnsxq-jenv4-hnruq-j2xaz-jdipw-uae` (operations)
+- Controller: `pztcx-5wpjw-ko6rv-3cjff-466eb-4ywbn-a5jww-rs6yy-ypk4a-ceqfb-nqe` (upgrades)
 
 ### Devnet (canister_ids.json)
 

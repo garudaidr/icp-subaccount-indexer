@@ -378,24 +378,126 @@ dfx canister deposit-cycles 500000000000 $CANISTER_ID --network ic
 
 ## Quick Reference Commands
 
+### Environment Setup
+
 ```bash
-# Environment setup
 export DFX_WARNING=-mainnet_plaintext_identity
 dfx identity use default
 CANISTER_ID=$(cat canister_ids.json | jq -r '.icp_subaccount_indexer.ic')
+```
 
-# Health check
+### Health Check & Status
+
+```bash
+# Check canister cycles and status
 dfx canister status $CANISTER_ID --network ic
+
+# Check current configuration
 dfx canister call $CANISTER_ID get_interval --network ic
 dfx canister call $CANISTER_ID get_next_block --network ic
+dfx canister call $CANISTER_ID get_registered_tokens --network ic
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+dfx canister call $CANISTER_ID get_custodian --network ic
+```
 
-# Align with testnet
+### Multi-Token Block Management
+
+```bash
+# Check all token block positions
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID get_token_next_block_query '(variant { CKBTC })' --network ic
+
+# Update token block positions
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { ICP }, 25841200 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDC }, 407027 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDT }, 580392 : nat64)' --network ic
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKBTC }, 2811077 : nat64)' --network ic
+```
+
+### Transaction Monitoring
+
+```bash
+# Check transaction activity
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+dfx canister call $CANISTER_ID list_transactions '(opt 10)' --network ic
+dfx canister call $CANISTER_ID get_transaction '("transaction-hash-here")' --network ic
+
+# Check token balances
+dfx canister call $CANISTER_ID get_balance '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKUSDT })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKBTC })' --network ic
+```
+
+### Configuration Management
+
+```bash
+# Set polling intervals
+dfx canister call $CANISTER_ID set_interval '(30 : nat64)' --network ic   # Testing
+dfx canister call $CANISTER_ID set_interval '(500 : nat64)' --network ic  # Production
+
+# Webhook configuration
+dfx canister call $CANISTER_ID set_webhook_url '("https://your-api.com/webhook")' --network ic
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+
+# Set custodian principal
+dfx canister call $CANISTER_ID set_custodian_principal '("your-principal-id")' --network ic
+```
+
+### Subaccount Operations
+
+```bash
+# Generate subaccounts
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { ICP })' --network ic
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDC })' --network ic
+
+# Get subaccount information
+dfx canister call $CANISTER_ID get_nonce --network ic
+dfx canister call $CANISTER_ID get_subaccount_count --network ic
+dfx canister call $CANISTER_ID get_subaccountid '(0 : nat32, opt variant { CKUSDC })' --network ic
+
+# Generate specific deposit addresses
+dfx canister call $CANISTER_ID generate_icp_deposit_address '(123456789 : nat32)' --network ic
+dfx canister call $CANISTER_ID generate_icrc1_deposit_address '(variant { CKUSDC }, 5 : nat32)' --network ic
+```
+
+### Sweeping Operations
+
+```bash
+# Sweep tokens by type
+dfx canister call $CANISTER_ID sweep_by_token_type '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID sweep_by_token_type '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID sweep_by_token_type '(variant { CKUSDT })' --network ic
+
+# Single transaction sweep
+dfx canister call $CANISTER_ID single_sweep '("transaction-hash")' --network ic
+
+# Sweep specific subaccount
+dfx canister call $CANISTER_ID sweep_subaccount '("subaccount-id", 0.001 : float64, opt variant { ICP })' --network ic
+```
+
+### Cycle Management
+
+```bash
+# Add cycles if running low
+dfx canister deposit-cycles 200000000000 $CANISTER_ID --network ic
+
+# Check cycle consumption
+dfx canister status $CANISTER_ID --network ic
+```
+
+### Align with Testnet
+
+```bash
+# Get testnet configuration for consistency
 dfx identity use testnet_custodian
 TESTNET_NEXT=$(dfx canister call $(cat test_canister_ids.json | jq -r '.icp_subaccount_indexer.ic') get_next_block --network ic | grep -o '[0-9]*')
 dfx identity use default
-dfx canister call $CANISTER_ID set_next_block '('$TESTNET_NEXT' : nat64)' --network ic
 
-# Production settings
+# Set devnet to match testnet
+dfx canister call $CANISTER_ID set_next_block '('$TESTNET_NEXT' : nat64)' --network ic
 dfx canister call $CANISTER_ID set_interval '(500 : nat64)' --network ic
 ```
 

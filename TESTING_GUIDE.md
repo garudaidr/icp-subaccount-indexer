@@ -584,3 +584,77 @@ Legacy scripts are available but not recommended for standard testing:
 - `clearTransactions.ts` - Clear transaction history
 
 **Note**: The canister now auto-registers tokens during initialization, making manual registration unnecessary.
+
+## Local CI Testing with GitHub Actions
+
+This project includes a simplified system for testing GitHub Actions locally using `act`.
+
+### Quick Local CI Commands
+
+```bash
+# Run quick tests (format + unit tests)
+./test-local.sh quick
+
+# Run individual jobs
+./test-local.sh format-ts      # TypeScript formatting
+./test-local.sh format-rust    # Rust formatting
+./test-local.sh clippy         # Rust linting
+./test-local.sh test-ts-unit   # TypeScript unit tests
+./test-local.sh test-rust-unit # Rust unit tests
+./test-local.sh build-basic    # Build canister WASM
+
+# Show all available options
+./test-local.sh
+```
+
+### Available Local CI Jobs
+
+| Job              | Description                 | Speed     |
+| ---------------- | --------------------------- | --------- |
+| `format-ts`      | TypeScript formatting check | Fast ⚡   |
+| `format-rust`    | Rust formatting check       | Medium 🚀 |
+| `clippy`         | Rust linting                | Medium 🚀 |
+| `test-ts-unit`   | TypeScript unit tests       | Fast ⚡   |
+| `test-rust-unit` | Rust unit tests             | Medium 🚀 |
+| `build-basic`    | Build canister WASM         | Slow 🐌   |
+| `type-check`     | TypeScript type checking    | Fast ⚡   |
+
+### Local CI Development Workflow
+
+```bash
+# 1. Quick validation before committing
+./test-local.sh quick
+
+# 2. Test specific changes
+./test-local.sh format-rust    # After Rust changes
+./test-local.sh test-ts-unit   # After TypeScript changes
+
+# 3. Full canister build when needed
+./test-local.sh build-basic
+
+# 4. Before major changes
+./test-local.sh all-local
+```
+
+### Manual act Commands
+
+If you prefer using `act` directly:
+
+```bash
+# Run individual jobs from simplified workflow
+act --container-architecture linux/amd64 -j format-ts -W .github/workflows/local-ci.yml -P ubuntu-latest=catthehacker/ubuntu:runner-latest
+
+# Run individual jobs from main workflow
+act --container-architecture linux/amd64 -j test-unit -W .github/workflows/ci.yml -P ubuntu-latest=catthehacker/ubuntu:runner-latest
+
+# List all available jobs
+act --list
+```
+
+### Local CI Troubleshooting
+
+- **Permission errors**: Check that `test-local.sh` is executable (`chmod +x test-local.sh`)
+- **act not installed**: Install with `brew install act` (macOS) or see [act documentation](https://github.com/nektos/act)
+- **Job failures**: Make sure dependencies are installed (`pnpm install`)
+- Use `runner-latest` image for better compatibility
+- Run quick tests first before slower builds

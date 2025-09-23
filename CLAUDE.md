@@ -15,6 +15,8 @@ This is a **pnpm workspace monorepo** with the following key components:
 - **`packages/icsi-lib/`**: TypeScript SDK for canister interaction
 - **`.maintain/legacy/`**: Deprecated scripts (avoid unless necessary)
 
+**For detailed monorepo structure, workspace configuration, and development workflows, see [WORKSPACE.md](./WORKSPACE.md).**
+
 ### Core Technologies
 
 - **Rust**: IC-CDK, stable structures, ICRC/ledger integration

@@ -192,12 +192,52 @@ For local development with ICP ledger:
 
 #### Mainnet Deployment
 
-For production deployment:
+**Option A: Using Deployment Script (Recommended)**
 
 ```bash
 ./scripts/deploy-mainnet.sh deploy  # Initial deployment
 ./scripts/deploy-mainnet.sh upgrade # Upgrade existing
 ```
+
+**Option B: Manual Deployment**
+
+1. **Create Internet Identity & Fund Wallet**
+
+   - Get Internet Identity at [identity.ic0.app](https://identity.ic0.app/)
+   - Login to [NNS Dapp](https://nns.ic0.app/) and add ~2.0 ICP tokens
+
+2. **Setup Local Identity**
+
+   ```bash
+   # Create new identity
+   dfx identity new custodian_name
+   dfx identity use custodian_name
+
+   # Get and save your principal
+   export CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
+   echo "Principal: $CUSTODIAN_PRINCIPAL"
+   ```
+
+3. **Create Canister via NNS Dashboard**
+
+   - Create new canister in NNS with sufficient cycles
+   - Add your principal as controller
+   - Save the canister ID
+
+4. **Deploy Canister**
+
+   ```bash
+   # Add canister ID to canister_ids.json
+   echo '{"icp_subaccount_indexer": {"ic": "your-canister-id"}}' > canister_ids.json
+
+   # Convert ICP to cycles
+   dfx cycles convert 0.3 --network ic
+
+   # Deploy with your principal (replace with actual value)
+   dfx deploy icp_subaccount_indexer --network ic --argument '(variant { Mainnet }, 5: nat64, 0: nat32, "ryjl3-tyaaa-aaaaa-aaaba-cai", "YOUR-PRINCIPAL-HERE")'
+   ```
+
+#### Post-Deployment Configuration
 
 After deployment, configure the multi-token block positions:
 
@@ -228,12 +268,11 @@ dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKUSDT })
 
 **Important Notes:**
 
+- Large WASM files (1.9MB) need ~500B cycles for deployment
 - Each token ledger has independent block numbering
 - CKUSDC/CKUSDT blocks are much lower than ICP blocks
 - Start blocks ~50-100 before current to catch recent transactions
 - Polling intervals: 60s for normal use, 500s for maximum cycle conservation
-
-See [Deployment Guide](./docs/canister-deployment-guideline.md) for detailed instructions.
 
 ### Testing
 
@@ -294,6 +333,81 @@ See [Testing Guide](./TESTING_GUIDE.md) for complete documentation including:
 - Use modern test suite instead
 
 See [Testing Guide](./TESTING_GUIDE.md#test-script-architecture) for details.
+
+## Essential Canister Management Commands
+
+### Quick Health Check
+
+```bash
+# Set canister ID for easier usage
+CANISTER_ID="your-canister-id-here"
+
+# Check canister status and cycles
+dfx canister status $CANISTER_ID --network ic
+
+# Check current settings
+dfx canister call $CANISTER_ID get_interval --network ic
+dfx canister call $CANISTER_ID get_registered_tokens --network ic
+dfx canister call $CANISTER_ID get_next_block --network ic
+```
+
+### Transaction Monitoring
+
+```bash
+# Get transaction count
+dfx canister call $CANISTER_ID get_transactions_count --network ic
+
+# List recent transactions
+dfx canister call $CANISTER_ID list_transactions '(opt 10)' --network ic
+
+# Check token balances
+dfx canister call $CANISTER_ID get_balance '(variant { ICP })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKUSDC })' --network ic
+dfx canister call $CANISTER_ID get_balance '(variant { CKUSDT })' --network ic
+```
+
+### Subaccount Management
+
+```bash
+# Generate new subaccount
+dfx canister call $CANISTER_ID add_subaccount '(opt variant { CKUSDC })' --network ic
+
+# Generate specific format addresses
+dfx canister call $CANISTER_ID generate_icp_deposit_address '(123456789 : nat32)' --network ic
+dfx canister call $CANISTER_ID generate_icrc1_deposit_address '(variant { CKUSDC }, 5 : nat32)' --network ic
+```
+
+### Configuration Management
+
+```bash
+# Set polling interval (seconds)
+dfx canister call $CANISTER_ID set_interval '(500 : nat64)' --network ic  # Production
+dfx canister call $CANISTER_ID set_interval '(30 : nat64)' --network ic   # Testing
+
+# Set webhook URL
+dfx canister call $CANISTER_ID set_webhook_url '("https://your-api.com/webhook")' --network ic
+
+# Update token block positions
+dfx canister call $CANISTER_ID set_token_next_block_update '(variant { CKUSDC }, 391300 : nat64)' --network ic
+```
+
+### Troubleshooting Commands
+
+```bash
+# Add cycles if running low
+dfx canister deposit-cycles 200000000000 $CANISTER_ID --network ic
+
+# Check webhook configuration
+dfx canister call $CANISTER_ID get_webhook_url --network ic
+
+# Verify custodian access
+dfx canister call $CANISTER_ID get_custodian --network ic
+```
+
+For comprehensive debugging procedures, see:
+
+- [Testnet Debugging Guide](./docs/TESTNET_DEBUGGING_GUIDE.md)
+- [Devnet Debugging Guide](./docs/DEVNET_DEBUGGING_GUIDE.md)
 
 ## Conclusion
 
