@@ -1644,10 +1644,7 @@ fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>
     Ok(result)
 }
 
-#[update]
 async fn process_archived_block(block_index: u64) -> Result<String, String> {
-    authenticate()?;
-
     // Determine which archive canister to query based on block index
     // Each archive handles 2M blocks
     let archive_index = block_index / 2_000_000;
@@ -1797,6 +1794,372 @@ async fn process_archived_block(block_index: u64) -> Result<String, String> {
             "Invalid archive canister principal for block index {}",
             block_index
         )),
+    }
+}
+
+#[derive(CandidType, Deserialize, Clone)]
+struct Icrc3GetBlocksRequest {
+    start: candid::Nat,
+    length: candid::Nat,
+}
+
+#[derive(CandidType, Deserialize)]
+struct Icrc3BlockWithId {
+    id: candid::Nat,
+    block: Icrc3Value,
+}
+
+#[derive(CandidType, Deserialize)]
+struct Icrc3GetBlocksResult {
+    log_length: candid::Nat,
+    blocks: Vec<Icrc3BlockWithId>,
+    // We won't use the callbacks here; we resolve archives via icrc3_get_archives.
+    archived_blocks: Vec<Icrc3ArchivedBlocksStub>,
+}
+
+// Minimal stub just to deserialize; we won't call the callback from here.
+#[derive(CandidType, Deserialize)]
+struct Icrc3ArchivedBlocksStub {
+    // different ledgers may expose single or vec args; keep flexible
+    #[serde(default)]
+    args: Vec<Icrc3GetBlocksRequest>,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+enum Icrc3Value {
+    Int(candid::Int),
+    Map(Vec<(String, Icrc3Value)>),
+    Nat(candid::Nat),
+    Blob(Vec<u8>),
+    Text(String),
+    Array(Vec<Icrc3Value>),
+}
+
+#[derive(CandidType, Deserialize)]
+struct Icrc3GetArchivesArgs {
+    from: Option<Principal>,
+}
+
+#[derive(CandidType, Deserialize)]
+struct Icrc3ArchiveInfo {
+    canister_id: Principal,
+    block_range_start: candid::Nat,
+    block_range_end: candid::Nat,
+}
+
+#[derive(CandidType, Deserialize)]
+struct Icrc3GetArchivesResult {
+    archives: Vec<Icrc3ArchiveInfo>,
+}
+
+fn icrc3_block_to_block(icrc3: &Icrc3BlockWithId) -> Option<Block> {
+    let mut tx_map: Option<Icrc3Value> = None;
+    let mut ts_nanos: u64 = 0;
+    let mut phash: Option<Vec<u8>> = None;
+
+    if let Icrc3Value::Map(fields) = &icrc3.block {
+        for (k, v) in fields {
+            match k.as_str() {
+                "tx" => tx_map = Some(v.clone()),
+                "ts" => {
+                    if let Icrc3Value::Nat(n) = v {
+                        ts_nanos = n.0.to_u64().unwrap_or(0)
+                    }
+                }
+                "phash" => {
+                    if let Icrc3Value::Blob(b) = v {
+                        phash = Some(b.clone())
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let Icrc3Value::Map(tx_fields) = tx_map? else {
+        return None;
+    };
+
+    let mut op_txt = String::new();
+    let mut from_bytes: Vec<u8> = vec![];
+    let mut to_bytes: Vec<u8> = vec![];
+    let mut amount = 0u64;
+    let mut fee = 0u64;
+    let mut memo = 0u64;
+
+    for (k, v) in tx_fields {
+        match k.as_str() {
+            "op" => {
+                if let Icrc3Value::Text(s) = v {
+                    op_txt = s
+                }
+            }
+            "from" => {
+                // ICRC account: [owner_principal, opt subaccount] -> synthesize ICP AccountIdentifier bytes (32)
+                if let Icrc3Value::Array(arr) = v {
+                    if let Some(Icrc3Value::Blob(owner)) = arr.first() {
+                        let p = Principal::from_slice(owner);
+                        let sub = DEFAULT_SUBACCOUNT; // 'from' rarely includes subaccount in transfers
+                        from_bytes = AccountIdentifier::new(&p, &sub).as_ref().to_vec();
+                    }
+                }
+            }
+            "to" => {
+                if let Icrc3Value::Array(arr) = v {
+                    // expect [owner, subaccount?]
+                    let owner = arr.first().and_then(|v| {
+                        if let Icrc3Value::Blob(b) = v {
+                            Some(b)
+                        } else {
+                            None
+                        }
+                    });
+                    let subacc = arr.get(1).and_then(|v| {
+                        if let Icrc3Value::Blob(b) = v {
+                            Some(b)
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(owner_bytes) = owner {
+                        let p = Principal::from_slice(owner_bytes);
+                        let sub = if let Some(sa) = subacc {
+                            let mut a = [0u8; 32];
+                            if sa.len() == 32 {
+                                a.copy_from_slice(sa);
+                                Subaccount(a)
+                            } else {
+                                DEFAULT_SUBACCOUNT
+                            }
+                        } else {
+                            DEFAULT_SUBACCOUNT
+                        };
+                        to_bytes = AccountIdentifier::new(&p, &sub).as_ref().to_vec();
+                    }
+                }
+            }
+            "amt" => {
+                if let Icrc3Value::Nat(n) = v {
+                    amount = n.0.to_u64().unwrap_or(0)
+                }
+            }
+            "fee" => {
+                if let Icrc3Value::Nat(n) = v {
+                    fee = n.0.to_u64().unwrap_or(0)
+                }
+            }
+            "memo" => {
+                if let Icrc3Value::Nat(n) = v {
+                    memo = n.0.to_u64().unwrap_or(0)
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Only map transfers for now.
+    if op_txt != "xfer" {
+        return None;
+    }
+
+    Some(Block {
+        transaction: Transaction {
+            memo,
+            icrc1_memo: None,
+            operation: Some(Operation::Transfer(Transfer {
+                from: from_bytes,
+                to: to_bytes,
+                amount: E8s { e8s: amount },
+                fee: E8s { e8s: fee },
+                spender: None,
+            })),
+            created_at_time: Timestamp {
+                timestamp_nanos: ts_nanos,
+            },
+        },
+        timestamp: Timestamp {
+            timestamp_nanos: ts_nanos,
+        },
+        parent_hash: phash,
+    })
+}
+
+async fn query_single_icrc3_block_from_archives(
+    ledger_principal: Principal,
+    block_index: u64,
+) -> Result<Vec<Block>, String> {
+    // 1) Try the ledger directly
+    let req = vec![Icrc3GetBlocksRequest {
+        start: candid::Nat::from(block_index),
+        length: candid::Nat::from(1u32),
+    }];
+    if let Ok((res,)) = ic_cdk::call::<_, (Icrc3GetBlocksResult,)>(
+        ledger_principal,
+        "icrc3_get_blocks",
+        (req.clone(),),
+    )
+    .await
+    {
+        if !res.blocks.is_empty() {
+            let mut out = Vec::new();
+            for b in res.blocks {
+                if let Some(block) = icrc3_block_to_block(&b) {
+                    out.push(block);
+                }
+            }
+            return Ok(out);
+        }
+    }
+
+    // 2) Locate the archive that owns this block
+    let (archives_res,): (Icrc3GetArchivesResult,) = ic_cdk::call(
+        ledger_principal,
+        "icrc3_get_archives",
+        (Icrc3GetArchivesArgs { from: None },),
+    )
+    .await
+    .map_err(|(_, m)| format!("icrc3_get_archives failed: {}", m))?;
+
+    let mut target_archive: Option<Principal> = None;
+    for a in archives_res.archives {
+        let start = a.block_range_start.0.to_u64().unwrap_or(u64::MAX);
+        let end = a.block_range_end.0.to_u64().unwrap_or(0);
+        // Most ledgers treat end as inclusive; handle both safely.
+        if block_index >= start && block_index <= end {
+            target_archive = Some(a.canister_id);
+            break;
+        }
+        // If the ledger uses [start, end) semantics, also catch end-exclusive:
+        if block_index >= start && block_index < end {
+            target_archive = Some(a.canister_id);
+            break;
+        }
+    }
+
+    let archive = target_archive
+        .ok_or_else(|| "No archive canister covers the requested block".to_string())?;
+
+    // 3) Fetch the single block from the archive
+    let (res2,): (Icrc3GetBlocksResult,) = ic_cdk::call(archive, "icrc3_get_blocks", (req,))
+        .await
+        .map_err(|(_, m)| format!("archive icrc3_get_blocks failed: {}", m))?;
+
+    let mut out = Vec::new();
+    for b in res2.blocks {
+        if let Some(block) = icrc3_block_to_block(&b) {
+            out.push(block);
+        }
+    }
+    Ok(out)
+}
+
+#[update]
+async fn process_token_archived_block(
+    token_type: TokenType,
+    block_index: u64,
+) -> Result<String, String> {
+    authenticate()?;
+
+    match token_type {
+        TokenType::ICP => {
+            // Reuse your ICP logic (2M-block index map) as-is:
+            process_archived_block(block_index).await
+        }
+        TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
+            let ledger_principal = get_token_ledger_canister_id(&token_type);
+            let blocks =
+                query_single_icrc3_block_from_archives(ledger_principal, block_index).await?;
+
+            let mut processed_count = 0usize;
+            let mut found_hashes: Vec<String> = vec![];
+
+            for block in blocks {
+                if let Some(operation) = block.transaction.operation.as_ref() {
+                    let subaccount_exist = match operation {
+                        Operation::Approve(data) => {
+                            let from = data.from.clone();
+                            if includes_hash(&from) {
+                                true
+                            } else {
+                                let spender = data.spender.clone();
+                                includes_hash(&spender)
+                            }
+                        }
+                        Operation::Burn(data) => {
+                            let from = data.from.clone();
+                            if includes_hash(&from) {
+                                true
+                            } else {
+                                match &data.spender {
+                                    Some(spender) => includes_hash(spender),
+                                    None => false,
+                                }
+                            }
+                        }
+                        Operation::Mint(data) => {
+                            let to = data.to.clone();
+                            includes_hash(&to)
+                        }
+                        Operation::Transfer(data) => {
+                            let to = data.to.clone();
+                            if includes_hash(&to) {
+                                true
+                            } else {
+                                match &data.spender {
+                                    Some(spender) => includes_hash(spender),
+                                    None => false,
+                                }
+                            }
+                        }
+                    };
+
+                    if subaccount_exist {
+                        TRANSACTIONS.with(|transactions_ref| {
+                            let mut transactions = transactions_ref.borrow_mut();
+
+                            let hash = match hash_transaction(&block.transaction) {
+                                Ok(h) => h,
+                                Err(err) => {
+                                    ic_cdk::println!("ERROR hashing ICRC-3 archived tx: {}", err);
+                                    "HASH-IS-NOT-AVAILABLE".to_string()
+                                }
+                            };
+
+                            let tx = StoredTransactions::new(
+                                block_index,               // use the requested index
+                                block.transaction.clone(), // your Transaction type
+                                hash.clone(),
+                                token_type.clone(),
+                                ledger_principal,
+                            );
+
+                            if !transactions.contains_key(&block_index) {
+                                let _ = transactions.insert(block_index, tx);
+                                found_hashes.push(hash);
+                                processed_count += 1;
+                            } else {
+                                ic_cdk::println!(
+                                    "Transaction already exists at index {}",
+                                    block_index
+                                );
+                            }
+                        });
+                    }
+                }
+            }
+
+            if processed_count > 0 {
+                Ok(format!(
+                    "Processed {} archived block(s) for {:?} at index {}. Found tx hashes: {:?}",
+                    processed_count, token_type, block_index, found_hashes
+                ))
+            } else {
+                Ok(format!(
+                    "Processed archived block {} for {:?} but found no transactions for canister subaccounts",
+                    block_index, token_type
+                ))
+            }
+        }
     }
 }
 
