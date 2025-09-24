@@ -24,13 +24,16 @@ mod types;
 use ledger::*;
 
 use ic_ledger_types::{
-    AccountIdentifier, BlockIndex, Memo, Subaccount, Tokens, TransferArgs, DEFAULT_SUBACCOUNT,
-    MAINNET_LEDGER_CANISTER_ID,
+    query_archived_blocks as ic_query_archived_blocks, query_blocks as ic_query_blocks,
+    AccountIdentifier, BlockIndex, GetBlocksArgs, Memo, Subaccount, Tokens, TransferArgs,
+    DEFAULT_SUBACCOUNT, MAINNET_LEDGER_CANISTER_ID,
 };
 use icrc_ledger_types::icrc1::transfer::TransferArg as Icrc1TransferArg;
 use num_traits::ToPrimitive;
 
-use types::{Block, E8s, Operation, Timestamp, TokenType, Transaction, Transfer};
+use types::{
+    Approve, Block, Burn, E8s, Mint, Operation, Timestamp, TokenType, Transaction, Transfer,
+};
 
 use memory::{
     CONNECTED_NETWORK, CUSTODIAN_PRINCIPAL, INTERVAL_IN_SECONDS, LAST_SUBACCOUNT_NONCE, NEXT_BLOCK,
@@ -1065,93 +1068,6 @@ async fn query_token_ledger(
     block_count
 }
 
-async fn query_archived_blocks_from_icp_archive(
-    archive_canister_id: Principal,
-    block_index: u64,
-) -> Result<Vec<Block>, String> {
-    ic_cdk::println!(
-        "Querying archived blocks from archive canister {} for block index {}",
-        archive_canister_id,
-        block_index
-    );
-
-    // Define types for the archive canister interface
-    #[derive(CandidType, Deserialize)]
-    struct GetBlocksArgs {
-        start: u64,
-        length: u64,
-    }
-
-    #[derive(CandidType, Deserialize)]
-    struct BlockRange {
-        blocks: Vec<Block>,
-    }
-
-    #[derive(CandidType, Deserialize)]
-    enum GetBlocksError {
-        BadFirstBlockIndex {
-            requested_index: u64,
-            first_valid_index: u64,
-        },
-        Other {
-            error_code: u64,
-            error_message: String,
-        },
-    }
-
-    #[derive(CandidType, Deserialize)]
-    enum GetBlocksResult {
-        Ok(BlockRange),
-        Err(GetBlocksError),
-    }
-
-    let args = GetBlocksArgs {
-        start: block_index,
-        length: 1, // Query single block at specified index
-    };
-
-    // Call the archive canister's get_blocks method
-    let call_result: CallResult<(GetBlocksResult,)> =
-        ic_cdk::call(archive_canister_id, "get_blocks", (args,)).await;
-
-    match call_result {
-        Ok((result,)) => match result {
-            GetBlocksResult::Ok(block_range) => {
-                ic_cdk::println!(
-                    "Successfully retrieved {} blocks from archive",
-                    block_range.blocks.len()
-                );
-                Ok(block_range.blocks)
-            }
-            GetBlocksResult::Err(error) => {
-                let error_msg = match error {
-                    GetBlocksError::BadFirstBlockIndex {
-                        requested_index,
-                        first_valid_index,
-                    } => format!(
-                        "Bad first block index: requested {}, first valid {}",
-                        requested_index, first_valid_index
-                    ),
-                    GetBlocksError::Other {
-                        error_code,
-                        error_message,
-                    } => format!("Archive error {}: {}", error_code, error_message),
-                };
-                ic_cdk::println!("Archive error: {}", error_msg);
-                Err(error_msg)
-            }
-        },
-        Err((code, msg)) => {
-            let error_msg = format!(
-                "Failed to call archive canister {}: Code: {:?}, Message: {}",
-                archive_canister_id, code, msg
-            );
-            ic_cdk::println!("{}", error_msg);
-            Err(error_msg)
-        }
-    }
-}
-
 async fn call_query_blocks() {
     ic_cdk::println!("Starting periodic block checking");
 
@@ -1645,155 +1561,198 @@ fn list_transactions(up_to_count: Option<u64>) -> Result<Vec<StoredTransactions>
 }
 
 async fn process_archived_block(block_index: u64) -> Result<String, String> {
-    // Determine which archive canister to query based on block index
-    // Each archive handles 2M blocks
-    let archive_index = block_index / 2_000_000;
-    let archive_canister = match archive_index {
-        0 => Principal::from_text("qjdve-lqaaa-aaaaa-aaaeq-cai"),
-        1 => Principal::from_text("qsgjb-riaaa-aaaaa-aaaga-cai"),
-        2 => Principal::from_text("q4egw-viaaa-aaaaa-aaagq-cai"),
-        3 => Principal::from_text("q4aey-sqaaa-aaaaa-aaahq-cai"),
-        4 => Principal::from_text("q5dhs-faaaa-aaaaa-aaaia-cai"),
-        5 => Principal::from_text("qbg3d-biaaa-aaaaa-aaajq-cai"),
-        6 => Principal::from_text("q4r7g-ziaaa-aaaaa-aaakq-cai"),
-        7 => Principal::from_text("q5k4x-7qaaa-aaaaa-aaalq-cai"),
-        8 => Principal::from_text("q3ttb-faaaa-aaaaa-aaamq-cai"),
-        9 => Principal::from_text("qamdn-kaaaa-aaaaa-aaanq-cai"),
-        10 => Principal::from_text("qnzyx-raaaa-aaaaa-aaaoq-cai"),
-        11 => Principal::from_text("qg26j-3yaaa-aaaaa-aaapq-cai"),
-        12 => Principal::from_text("q3fc5-haaaa-aaaaa-aaahq-cai"),
-        _ => {
-            return Err(format!(
-                "Unknown archive canister for block index {} (archive index {})",
-                block_index, archive_index
+    use ic_ledger_types as iclt;
+
+    // Figure out which ICP ledger canister to talk to (stored or mainnet default)
+    let icp_ledger = PRINCIPAL
+        .with(|stored_ref| stored_ref.borrow().get().get_principal())
+        .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
+
+    // Ask the ledger for the single block at `block_index`.
+    let args = GetBlocksArgs {
+        start: block_index,
+        length: 1,
+    };
+
+    let resp = match ic_query_blocks(icp_ledger, args.clone()).await {
+        Ok(r) => r,
+        Err((code, msg)) => return Err(format!("query_blocks failed: {:?}: {}", code, msg)),
+    };
+
+    // Pull the block from the ledger result or from the archive callback.
+    let ic_block_opt = if let Some(b) = resp.blocks.into_iter().next() {
+        Some(b)
+    } else {
+        // Find the archive range that covers our block and call its callback.
+        if let Some(range) = resp
+            .archived_blocks
+            .into_iter()
+            .find(|r| r.start <= block_index && (block_index - r.start) < r.length)
+        {
+            match ic_query_archived_blocks(&range.callback, args).await {
+                Ok(Ok(range)) => range.blocks.into_iter().next(),
+                Ok(Err(e)) => return Err(format!("archive get_blocks error: {:?}", e)),
+                Err((code, msg)) => {
+                    return Err(format!("archive call failed: {:?}: {}", code, msg))
+                }
+            }
+        } else {
+            None
+        }
+    };
+
+    let ic_block = match ic_block_opt {
+        Some(b) => b,
+        None => {
+            return Ok(format!(
+                "Block {} not found (ledger/archives).",
+                block_index
             ))
         }
     };
 
-    match archive_canister {
-        Ok(canister_id) => {
-            match query_archived_blocks_from_icp_archive(canister_id, block_index).await {
-                Ok(blocks) => {
-                    let mut processed_count = 0;
-                    let mut found_transactions = Vec::new();
+    fn ai_bytes(ai: iclt::AccountIdentifier) -> Vec<u8> {
+        ai.as_ref().to_vec()
+    }
+    fn e8s(t: iclt::Tokens) -> u64 {
+        t.e8s()
+    }
 
-                    // Process each block to check if it contains transactions for our subaccounts
-                    for block in blocks {
-                        if let Some(operation) = block.transaction.operation.as_ref() {
-                            ic_cdk::println!(
-                                "Processing archived block {} with operation: {:?}",
-                                block_index,
-                                operation
-                            );
-
-                            let subaccount_exist = match operation {
-                                Operation::Approve(data) => {
-                                    let from = data.from.clone();
-                                    if includes_hash(&from) {
-                                        true
-                                    } else {
-                                        let spender = data.spender.clone();
-                                        includes_hash(&spender)
-                                    }
-                                }
-                                Operation::Burn(data) => {
-                                    let from = data.from.clone();
-                                    if includes_hash(&from) {
-                                        true
-                                    } else {
-                                        match &data.spender {
-                                            Some(spender) => includes_hash(spender),
-                                            None => false,
-                                        }
-                                    }
-                                }
-                                Operation::Mint(data) => {
-                                    let to = data.to.clone();
-                                    includes_hash(&to)
-                                }
-                                Operation::Transfer(data) => {
-                                    let to = data.to.clone();
-                                    if includes_hash(&to) {
-                                        true
-                                    } else {
-                                        match &data.spender {
-                                            Some(spender) => includes_hash(spender),
-                                            None => false,
-                                        }
-                                    }
-                                }
-                            };
-
-                            if subaccount_exist {
-                                ic_cdk::println!("Found transaction for canister subaccount in archived block {}", block_index);
-
-                                TRANSACTIONS.with(|transactions_ref| {
-                                    let mut transactions = transactions_ref.borrow_mut();
-
-                                    let hash = match hash_transaction(&block.transaction) {
-                                        Ok(content) => content,
-                                        Err(err) => {
-                                            ic_cdk::println!(
-                                                "ERROR hashing archived transaction: {}",
-                                                err
-                                            );
-                                            "HASH-IS-NOT-AVAILABLE".to_string()
-                                        }
-                                    };
-
-                                    // Get the ICP ledger principal
-                                    let icp_principal = PRINCIPAL
-                                        .with(|stored_ref| {
-                                            stored_ref.borrow().get().get_principal()
-                                        })
-                                        .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
-
-                                    let transaction = StoredTransactions::new(
-                                        block_index,
-                                        block.transaction.clone(),
-                                        hash.clone(),
-                                        TokenType::ICP,
-                                        icp_principal,
-                                    );
-
-                                    if !transactions.contains_key(&block_index) {
-                                        ic_cdk::println!(
-                                            "Inserting archived transaction at index {}",
-                                            block_index
-                                        );
-                                        let _ = transactions.insert(block_index, transaction);
-                                        found_transactions.push(hash);
-                                        processed_count += 1;
-                                    } else {
-                                        ic_cdk::println!(
-                                            "Transaction already exists at index {}",
-                                            block_index
-                                        );
-                                    }
-                                });
-                            }
-                        }
-                    }
-
-                    if processed_count > 0 {
-                        Ok(format!(
-                            "Successfully processed archived block {}. Found {} transaction(s) for canister subaccounts: {:?}",
-                            block_index, processed_count, found_transactions
-                        ))
-                    } else {
-                        Ok(format!(
-                            "Processed archived block {} but found no transactions for canister subaccounts",
-                            block_index
-                        ))
-                    }
-                }
-                Err(e) => Err(e),
-            }
+    let local_operation = match ic_block.transaction.operation.clone() {
+        Some(iclt::Operation::Transfer {
+            from,
+            to,
+            amount,
+            fee,
+        }) => Some(Operation::Transfer(Transfer {
+            from: ai_bytes(from),
+            to: ai_bytes(to),
+            amount: E8s { e8s: e8s(amount) },
+            fee: E8s { e8s: e8s(fee) },
+            spender: None,
+        })),
+        Some(iclt::Operation::TransferFrom {
+            from,
+            to,
+            spender,
+            amount,
+            fee,
+        }) => Some(Operation::Transfer(Transfer {
+            from: ai_bytes(from),
+            to: ai_bytes(to),
+            amount: E8s { e8s: e8s(amount) },
+            fee: E8s { e8s: e8s(fee) },
+            spender: Some(ai_bytes(spender)),
+        })),
+        Some(iclt::Operation::Mint { to, amount }) => Some(Operation::Mint(Mint {
+            to: ai_bytes(to),
+            amount: E8s { e8s: e8s(amount) },
+        })),
+        Some(iclt::Operation::Burn { from, amount }) => Some(Operation::Burn(Burn {
+            from: ai_bytes(from),
+            amount: E8s { e8s: e8s(amount) },
+            spender: None,
+        })),
+        Some(iclt::Operation::Approve {
+            from, spender, fee, ..
+        }) => {
+            Some(Operation::Approve(Approve {
+                from: ai_bytes(from),
+                spender: ai_bytes(spender),
+                fee: E8s { e8s: e8s(fee) },
+                allowance: E8s { e8s: 0 }, // Default to 0 for unknown allowance
+                allowance_e8s: 0,          // Default to 0 for unknown allowance
+                expected_allowance: None,
+                expires_at: None,
+            }))
         }
-        Err(_) => Err(format!(
-            "Invalid archive canister principal for block index {}",
+        None => None,
+    };
+
+    let local_block = Block {
+        transaction: Transaction {
+            memo: ic_block.transaction.memo.0, // same u64 you already use
+            icrc1_memo: None,
+            operation: local_operation,
+            created_at_time: Timestamp {
+                timestamp_nanos: ic_block.transaction.created_at_time.timestamp_nanos,
+            },
+        },
+        timestamp: Timestamp {
+            timestamp_nanos: ic_block.timestamp.timestamp_nanos,
+        },
+        parent_hash: ic_block.parent_hash.map(|h| h.to_vec()),
+    };
+
+    // ---- Your existing filtering + storage (unchanged) ----
+    let mut processed = false;
+    let mut tx_hashes: Vec<String> = vec![];
+
+    if let Some(op) = local_block.transaction.operation.as_ref() {
+        let subaccount_exist = match op {
+            Operation::Approve(d) => includes_hash(&d.from) || includes_hash(&d.spender),
+            Operation::Burn(d) => {
+                includes_hash(&d.from)
+                    || d.spender
+                        .as_ref()
+                        .map(|s| includes_hash(s))
+                        .unwrap_or(false)
+            }
+            Operation::Mint(d) => includes_hash(&d.to),
+            Operation::Transfer(d) => {
+                includes_hash(&d.to)
+                    || d.spender
+                        .as_ref()
+                        .map(|s| includes_hash(s))
+                        .unwrap_or(false)
+            }
+        };
+
+        if subaccount_exist {
+            TRANSACTIONS.with(|transactions_ref| {
+                let mut transactions = transactions_ref.borrow_mut();
+
+                let hash = match hash_transaction(&local_block.transaction) {
+                    Ok(h) => h,
+                    Err(err) => {
+                        ic_cdk::println!("ERROR hashing archived transaction: {}", err);
+                        "HASH-IS-NOT-AVAILABLE".to_string()
+                    }
+                };
+
+                let icp_principal = PRINCIPAL
+                    .with(|stored_ref| stored_ref.borrow().get().get_principal())
+                    .unwrap_or(MAINNET_LEDGER_CANISTER_ID);
+
+                let tx = StoredTransactions::new(
+                    block_index,
+                    local_block.transaction.clone(),
+                    hash.clone(),
+                    TokenType::ICP,
+                    icp_principal,
+                );
+
+                if !transactions.contains_key(&block_index) {
+                    let _ = transactions.insert(block_index, tx);
+                    tx_hashes.push(hash);
+                    processed = true;
+                }
+            });
+        }
+    }
+
+    if processed {
+        Ok(format!(
+            "Processed ICP block {} from archive path. Stored {} tx(s). Hashes: {:?}",
+            block_index,
+            tx_hashes.len(),
+            tx_hashes
+        ))
+    } else {
+        Ok(format!(
+            "Processed ICP block {} but found no transactions for canister subaccounts",
             block_index
-        )),
+        ))
     }
 }
 
@@ -1843,14 +1802,12 @@ struct Icrc3GetArchivesArgs {
 #[derive(CandidType, Deserialize)]
 struct Icrc3ArchiveInfo {
     canister_id: Principal,
-    block_range_start: candid::Nat,
-    block_range_end: candid::Nat,
+    start: candid::Nat,
+    end: candid::Nat,
 }
 
-#[derive(CandidType, Deserialize)]
-struct Icrc3GetArchivesResult {
-    archives: Vec<Icrc3ArchiveInfo>,
-}
+// ICRC-3 get_archives returns the vector directly, not wrapped in a record
+type Icrc3GetArchivesResult = Vec<Icrc3ArchiveInfo>;
 
 fn icrc3_block_to_block(icrc3: &Icrc3BlockWithId) -> Option<Block> {
     let mut tx_map: Option<Icrc3Value> = None;
@@ -2021,9 +1978,9 @@ async fn query_single_icrc3_block_from_archives(
     .map_err(|(_, m)| format!("icrc3_get_archives failed: {}", m))?;
 
     let mut target_archive: Option<Principal> = None;
-    for a in archives_res.archives {
-        let start = a.block_range_start.0.to_u64().unwrap_or(u64::MAX);
-        let end = a.block_range_end.0.to_u64().unwrap_or(0);
+    for a in archives_res {
+        let start = a.start.0.to_u64().unwrap_or(u64::MAX);
+        let end = a.end.0.to_u64().unwrap_or(0);
         // Most ledgers treat end as inclusive; handle both safely.
         if block_index >= start && block_index <= end {
             target_archive = Some(a.canister_id);
@@ -2062,7 +2019,6 @@ async fn process_token_archived_block(
 
     match token_type {
         TokenType::ICP => {
-            // Reuse your ICP logic (2M-block index map) as-is:
             process_archived_block(block_index).await
         }
         TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
