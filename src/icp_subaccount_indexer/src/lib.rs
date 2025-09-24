@@ -1601,6 +1601,7 @@ async fn process_archived_block(block_index: u64) -> Result<String, String> {
         }
     };
 
+    // No such block anywhere
     let ic_block = match ic_block_opt {
         Some(b) => b,
         None => {
@@ -1684,7 +1685,6 @@ async fn process_archived_block(block_index: u64) -> Result<String, String> {
         parent_hash: ic_block.parent_hash.map(|h| h.to_vec()),
     };
 
-    // ---- Your existing filtering + storage (unchanged) ----
     let mut processed = false;
     let mut tx_hashes: Vec<String> = vec![];
 
@@ -2018,88 +2018,94 @@ async fn process_token_archived_block(
     authenticate()?;
 
     match token_type {
-        TokenType::ICP => {
-            process_archived_block(block_index).await
-        }
+        TokenType::ICP => process_archived_block(block_index).await,
         TokenType::CKUSDC | TokenType::CKUSDT | TokenType::CKBTC => {
             let ledger_principal = get_token_ledger_canister_id(&token_type);
             let blocks =
                 query_single_icrc3_block_from_archives(ledger_principal, block_index).await?;
 
+            // Since we're processing a single archived block, get the first (and likely only) block
+            let block = blocks
+                .first()
+                .ok_or_else(|| "No block returned from archives".to_string())?;
+
             let mut processed_count = 0usize;
             let mut found_hashes: Vec<String> = vec![];
 
-            for block in blocks {
-                if let Some(operation) = block.transaction.operation.as_ref() {
-                    let subaccount_exist = match operation {
-                        Operation::Approve(data) => {
-                            let from = data.from.clone();
-                            if includes_hash(&from) {
-                                true
-                            } else {
-                                let spender = data.spender.clone();
-                                includes_hash(&spender)
+            if let Some(operation) = block.transaction.operation.as_ref() {
+                let subaccount_exist = match operation {
+                    Operation::Approve(data) => {
+                        let from = data.from.clone();
+                        if includes_hash(&from) {
+                            true
+                        } else {
+                            let spender = data.spender.clone();
+                            includes_hash(&spender)
+                        }
+                    }
+                    Operation::Burn(data) => {
+                        let from = data.from.clone();
+                        if includes_hash(&from) {
+                            true
+                        } else {
+                            match &data.spender {
+                                Some(spender) => includes_hash(spender),
+                                None => false,
                             }
                         }
-                        Operation::Burn(data) => {
-                            let from = data.from.clone();
-                            if includes_hash(&from) {
-                                true
-                            } else {
-                                match &data.spender {
-                                    Some(spender) => includes_hash(spender),
-                                    None => false,
-                                }
+                    }
+                    Operation::Mint(data) => {
+                        let to = data.to.clone();
+                        includes_hash(&to)
+                    }
+                    Operation::Transfer(data) => {
+                        let to = data.to.clone();
+                        if includes_hash(&to) {
+                            true
+                        } else {
+                            match &data.spender {
+                                Some(spender) => includes_hash(spender),
+                                None => false,
                             }
                         }
-                        Operation::Mint(data) => {
-                            let to = data.to.clone();
-                            includes_hash(&to)
+                    }
+                };
+
+                if subaccount_exist {
+                    let already_exists = TRANSACTIONS.with(|transactions_ref| {
+                        let mut transactions = transactions_ref.borrow_mut();
+
+                        if transactions.contains_key(&block_index) {
+                            return true;
                         }
-                        Operation::Transfer(data) => {
-                            let to = data.to.clone();
-                            if includes_hash(&to) {
-                                true
-                            } else {
-                                match &data.spender {
-                                    Some(spender) => includes_hash(spender),
-                                    None => false,
-                                }
+
+                        let hash = match hash_transaction(&block.transaction) {
+                            Ok(h) => h,
+                            Err(err) => {
+                                ic_cdk::println!("ERROR hashing ICRC-3 archived tx: {}", err);
+                                "HASH-IS-NOT-AVAILABLE".to_string()
                             }
-                        }
-                    };
+                        };
 
-                    if subaccount_exist {
-                        TRANSACTIONS.with(|transactions_ref| {
-                            let mut transactions = transactions_ref.borrow_mut();
+                        let tx = StoredTransactions::new(
+                            block_index,               // use the requested index
+                            block.transaction.clone(), // your Transaction type
+                            hash.clone(),
+                            token_type.clone(),
+                            ledger_principal,
+                        );
 
-                            let hash = match hash_transaction(&block.transaction) {
-                                Ok(h) => h,
-                                Err(err) => {
-                                    ic_cdk::println!("ERROR hashing ICRC-3 archived tx: {}", err);
-                                    "HASH-IS-NOT-AVAILABLE".to_string()
-                                }
-                            };
+                        let _ = transactions.insert(block_index, tx);
+                        found_hashes.push(hash);
+                        processed_count += 1;
+                        false
+                    });
 
-                            let tx = StoredTransactions::new(
-                                block_index,               // use the requested index
-                                block.transaction.clone(), // your Transaction type
-                                hash.clone(),
-                                token_type.clone(),
-                                ledger_principal,
-                            );
-
-                            if !transactions.contains_key(&block_index) {
-                                let _ = transactions.insert(block_index, tx);
-                                found_hashes.push(hash);
-                                processed_count += 1;
-                            } else {
-                                ic_cdk::println!(
-                                    "Transaction already exists at index {}",
-                                    block_index
-                                );
-                            }
-                        });
+                    if already_exists {
+                        return Ok(format!(
+                            "Transaction already exists at index {}",
+                            block_index
+                        ));
                     }
                 }
             }
