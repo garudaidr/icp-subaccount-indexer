@@ -176,6 +176,85 @@ This is a pnpm workspace monorepo containing:
 
 See [WORKSPACE.md](./WORKSPACE.md) for detailed monorepo documentation.
 
+## Canister Environment Configuration
+
+The project maintains four separate `canister_ids.json` files, each serving different deployment environments:
+
+### 1. `canister_ids.json` (Current Production)
+
+- **Canister ID**: `qvn3w-rqaaa-aaaam-qd4kq-cai`
+- **Environment**: Production mainnet
+- **Controller**: NEW_MAINNET_CUSTODIAN identity
+- **Purpose**: Active production deployment for live operations
+- **Usage**: Default file used by deployment scripts for mainnet deployments
+
+### 2. `test_canister_ids.json` (Shared Staging)
+
+- **Canister ID**: `uiz2m-baaaa-aaaal-qjbxq-cai`
+- **Environment**: Shared staging/testnet
+- **Controller**: STAGING_DEPLOYER identity (for upgrades), testnet_custodian (for operations)
+- **Purpose**: Team-shared environment for final testing before production
+- **Usage**: Used for coordinated testing and validation workflows
+
+### 3. `devnet_canister_ids.json` (Individual Development)
+
+- **Canister ID**: `y3hne-ryaaa-aaaag-aucea-cai`
+- **Environment**: Individual developer environment
+- **Controller**: default identity
+- **Purpose**: Personal development, debugging, and experimentation
+- **Usage**: Individual developer testing without affecting shared environments
+
+### 4. `old_mainnet_canister_ids.json` (Legacy Archive)
+
+- **Canister ID**: `g5nrt-myaaa-aaaap-qhluq-cai`
+- **Environment**: Previous production deployment (archived)
+- **Status**: Historical reference only
+- **Purpose**: Backup reference for migration and historical data
+- **Usage**: Not actively used, maintained for reference
+
+### Environment Selection Strategy
+
+The deployment and testing scripts automatically select the appropriate configuration:
+
+- **Production deployments**: Use `canister_ids.json` (current production)
+- **Team testing**: Use `test_canister_ids.json` (shared staging)
+- **Development work**: Use `devnet_canister_ids.json` (individual environment)
+- **Legacy reference**: Use `old_mainnet_canister_ids.json` (archived)
+
+### Independent Environment State
+
+Each environment maintains completely independent:
+
+- **Token balances**: ICP, ckUSDC, ckUSDT, ckBTC balances are separate
+- **Transaction history**: No shared transaction data between environments
+- **Block processing positions**: Each environment tracks its own `next_block` positions
+- **Webhook configurations**: Separate webhook URLs and settings
+- **Access control**: Different controller and custodian principals
+- **Cycle balances**: Independent cycle management per environment
+
+### Environment Switching
+
+To work with a specific environment, copy the appropriate file:
+
+```bash
+# Switch to staging environment
+cp test_canister_ids.json canister_ids.json
+
+# Switch to development environment
+cp devnet_canister_ids.json canister_ids.json
+
+# Switch back to production
+cp old_mainnet_canister_ids.json canister_ids.json  # If needed for reference
+# Production uses the default canister_ids.json
+```
+
+**⚠️ Important**: Always verify which environment you're working with before making changes, especially when dealing with production funds or testing.
+
+For detailed debugging and management procedures for each environment, see:
+
+- [Canister Debugging Guide](./docs/CANISTER_DEBUGGING_GUIDE.md)
+- [Testing Guide](./docs/TESTING_GUIDE.md)
+
 ## Usage
 
 ### Quick Start

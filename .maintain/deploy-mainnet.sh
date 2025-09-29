@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Deploy or Upgrade ICSI Canister on Mainnet
-# Usage: ./scripts/deploy-mainnet.sh [deploy|upgrade]
+# Usage: ./.maintain/deploy-mainnet.sh [deploy|upgrade]
 
 set -e
 
@@ -14,9 +14,11 @@ NC='\033[0m' # No Color
 # Default values
 MODE=${1:-deploy}
 NETWORK="ic"
-POLLING_INTERVAL=15
-BLOCK_BATCH_SIZE=10
+POLLING_INTERVAL=500  # Initial interval (500 seconds = ~8 minutes) adjust as needed
+BLOCK_BATCH_SIZE=0    # Initial nonce
 ICP_LEDGER_CANISTER="ryjl3-tyaaa-aaaaa-aaaba-cai"
+REQUIRED_CYCLES=800000000000  # 800B cycles for large WASM deployment
+REQUIRED_ICP=0.5      # Minimum ICP needed for deployment
 
 echo -e "${GREEN}ICSI Canister Mainnet Deployment/Upgrade Script${NC}"
 echo -e "${YELLOW}Mode: $MODE${NC}"
@@ -28,31 +30,50 @@ if ! command -v dfx &> /dev/null; then
     exit 1
 fi
 
-# Check if custodian identity exists
-if ! dfx identity list | grep -q "custodian"; then
-    echo -e "${YELLOW}Creating custodian identity...${NC}"
-    dfx identity new custodian
+# Check if CUSTODIAN identity exists
+if ! dfx identity list | grep -q "CUSTODIAN"; then
+    echo -e "${YELLOW}Creating CUSTODIAN identity...${NC}"
+    dfx identity new CUSTODIAN
 fi
 
-# Get custodian principal
-dfx identity use custodian
+# Use CUSTODIAN identity for both deployment and custodian role
+dfx identity use CUSTODIAN
 CUSTODIAN_PRINCIPAL=$(dfx identity get-principal)
-echo -e "${GREEN}Custodian Principal: $CUSTODIAN_PRINCIPAL${NC}"
+echo -e "${GREEN}CUSTODIAN Principal: $CUSTODIAN_PRINCIPAL${NC}"
 
-# Switch back to default identity for deployment
-dfx identity use default
+# Set environment variable to suppress security warnings
+export DFX_WARNING=-mainnet_plaintext_identity
+
+# Check ICP balance
+echo -e "${YELLOW}Checking ICP balance...${NC}"
+ICP_BALANCE=$(dfx ledger --network $NETWORK balance | awk '{print $1}')
+if (( $(echo "$ICP_BALANCE < $REQUIRED_ICP" | bc -l) )); then
+    echo -e "${RED}Error: Insufficient ICP balance. Need at least $REQUIRED_ICP ICP, have $ICP_BALANCE ICP${NC}"
+    echo -e "${YELLOW}Please fund your CUSTODIAN identity: $CUSTODIAN_PRINCIPAL${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}ICP Balance: $ICP_BALANCE ICP${NC}"
 
 # Build the canister
 echo -e "${YELLOW}Building canister...${NC}"
-dfx build icp_subaccount_indexer --network $NETWORK
+pnpm run build:canister
 
 if [ "$MODE" = "deploy" ]; then
     echo -e "${YELLOW}Deploying new canister to mainnet...${NC}"
     
-    # Deploy with initialization arguments
-    dfx deploy icp_subaccount_indexer \
+    # Convert ICP to cycles
+    echo -e "${YELLOW}Converting $REQUIRED_ICP ICP to cycles...${NC}"
+    dfx cycles convert --amount=$REQUIRED_ICP --network $NETWORK
+    
+    # Create canister with sufficient cycles
+    echo -e "${YELLOW}Creating canister with $REQUIRED_CYCLES cycles...${NC}"
+    dfx canister create icp_subaccount_indexer --network $NETWORK --with-cycles $REQUIRED_CYCLES
+    
+    # Deploy with initialization arguments  
+    echo -e "${YELLOW}Deploying canister code...${NC}"
+    echo "yes" | dfx deploy icp_subaccount_indexer \
         --network $NETWORK \
-        --no-wallet \
         --argument "(variant { Mainnet }, $POLLING_INTERVAL : nat64, $BLOCK_BATCH_SIZE : nat32, \"$ICP_LEDGER_CANISTER\", \"$CUSTODIAN_PRINCIPAL\")"
     
     echo -e "${GREEN}Deployment complete!${NC}"
@@ -63,18 +84,23 @@ elif [ "$MODE" = "upgrade" ]; then
     # Get canister ID from canister_ids.json
     CANISTER_ID=$(jq -r '.icp_subaccount_indexer.ic' canister_ids.json)
     
-    if [ -z "$CANISTER_ID" ] || [ "$CANISTER_ID" = "null" ]; then
+    if [ -z "$CANISTER_ID" ] || [ "$CANISTER_ID" = "null" ] || [ "$CANISTER_ID" = "" ]; then
         echo -e "${RED}Error: Canister ID not found in canister_ids.json${NC}"
         exit 1
     fi
     
     echo -e "${YELLOW}Upgrading canister: $CANISTER_ID${NC}"
     
-    # Upgrade the canister
-    dfx canister install icp_subaccount_indexer \
+    # Check canister status and cycles
+    echo -e "${YELLOW}Checking canister status...${NC}"
+    dfx canister status $CANISTER_ID --network $NETWORK
+    
+    # Upgrade the canister with explicit arguments
+    echo -e "${YELLOW}Upgrading canister code...${NC}"
+    echo "yes" | dfx canister install $CANISTER_ID \
         --network $NETWORK \
         --mode upgrade \
-        --no-wallet
+        --argument "(variant { Mainnet }, $POLLING_INTERVAL : nat64, $BLOCK_BATCH_SIZE : nat32, \"$ICP_LEDGER_CANISTER\", \"$CUSTODIAN_PRINCIPAL\")"
     
     echo -e "${GREEN}Upgrade complete!${NC}"
     
@@ -86,7 +112,11 @@ fi
 # Get canister info
 CANISTER_ID=$(dfx canister id icp_subaccount_indexer --network $NETWORK)
 echo -e "${GREEN}Canister ID: $CANISTER_ID${NC}"
-echo -e "${GREEN}Canister URL: https://$CANISTER_ID.raw.ic0.app${NC}"
+echo -e "${GREEN}Candid Interface: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=$CANISTER_ID${NC}"
+
+# Show final canister status
+echo -e "${YELLOW}Final canister status:${NC}"
+dfx canister status $CANISTER_ID --network $NETWORK
 
 # Save deployment info
 echo -e "${YELLOW}Saving deployment info...${NC}"

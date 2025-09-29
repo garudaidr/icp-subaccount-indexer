@@ -12,18 +12,23 @@ Deploy or upgrade the ICSI canister on the Internet Computer mainnet.
 
 ```bash
 # Deploy a new canister
-./scripts/deploy-mainnet.sh deploy
+./.maintain/deploy-mainnet.sh deploy
 
 # Upgrade an existing canister
-./scripts/deploy-mainnet.sh upgrade
+./.maintain/deploy-mainnet.sh upgrade
 ```
 
 **Features:**
 
-- Automatically creates a custodian identity if it doesn't exist
-- Builds the canister before deployment
+- Automatically creates a CUSTODIAN identity if it doesn't exist
+- Uses CUSTODIAN identity for both deployment and canister custodian role
+- Checks ICP balance before deployment (minimum 0.5 ICP required)
+- Converts ICP to cycles and creates canister with sufficient cycles (800B)
+- Uses production settings (500-second polling interval)
+- Builds the canister before deployment using `pnpm run build:canister`
 - Saves deployment information to `deployment-info.json`
 - Supports both initial deployment and upgrades
+- Shows final canister status and Candid interface URL
 
 ### 2. Test Scripts (in packages/icsi-lib/test/scripts/)
 
@@ -34,8 +39,8 @@ Generates a new test wallet with mnemonic and addresses.
 **Usage:**
 
 ```bash
-cd packages/icsi-lib
-pnpm run generate:wallet
+# From root directory
+pnpm run lib:generate:wallet
 ```
 
 **Features:**
@@ -44,57 +49,57 @@ pnpm run generate:wallet
 - Creates principal ID and account identifier
 - Saves wallet info to `.env.test` and `test-wallet-info.json`
 
-#### testICPDeposit.ts
+#### testICPDeposit.sh
 
 Tests ICP deposits to the ICSI canister with balance validation.
 
 **Usage:**
 
 ```bash
-cd packages/icsi-lib
-pnpm run test:icp-deposit
+# From root directory
+pnpm run lib:test:icp
 ```
 
 **Features:**
 
-- Validates sender has sufficient ICP balance (0.1 ICP + fee)
-- Sends 0.1 ICP to a deposit address
+- Validates sender has sufficient ICP balance (0.001 ICP + fee)
+- Sends 0.001 ICP to a deposit address
 - Monitors the transaction indexing
 - Displays balance and transaction details
 
-#### testUSDCDeposit.ts
+#### testUSDCDeposit.sh
 
-Tests USDC (CKUSDC) deposits to the ICSI canister.
+Tests USDC (ckUSDC) deposits to the ICSI canister.
 
 **Usage:**
 
 ```bash
-cd packages/icsi-lib
-pnpm run test:usdc-deposit
+# From root directory
+pnpm run lib:test:usdc
 ```
 
 **Features:**
 
-- Validates sender has sufficient CKUSDC balance
-- Sends 0.1 CKUSDC to a deposit address
+- Validates sender has sufficient ckUSDC balance
+- Sends 0.1 ckUSDC to a deposit address (with 0.01 ckUSDC fee)
 - Monitors the transaction indexing
 - Displays balance and transaction details
 
-#### testUSDTDeposit.ts
+#### testUSDTDeposit.sh
 
-Tests USDT (CKUSDT) deposits to the ICSI canister.
+Tests USDT (ckUSDT) deposits to the ICSI canister.
 
 **Usage:**
 
 ```bash
-cd packages/icsi-lib
-pnpm run test:usdt-deposit
+# From root directory
+pnpm run lib:test:usdt
 ```
 
 **Features:**
 
-- Validates sender has sufficient CKUSDT balance
-- Sends 0.1 CKUSDT to a deposit address
+- Validates sender has sufficient ckUSDT balance
+- Sends 0.1 ckUSDT to a deposit address (with 0.01 ckUSDT fee)
 - Monitors the transaction indexing
 - Displays balance and transaction details
 
@@ -105,11 +110,11 @@ Tests webhook functionality for deposit notifications.
 **Usage:**
 
 ```bash
-cd packages/icsi-lib
-pnpm run test:webhook
+# From root directory
+pnpm run lib:test:webhook
 
 # To keep the webhook URL configured after stopping:
-pnpm run test:webhook -- --keep-webhook
+pnpm run lib:test:webhook -- --keep-webhook
 ```
 
 **Features:**
@@ -122,46 +127,55 @@ pnpm run test:webhook -- --keep-webhook
 
 ## Setup
 
-1. Copy the environment template:
+### Prerequisites
+
+1. **Install dependencies:**
 
    ```bash
-   cp .env.template .env
-   ```
-
-2. Fill in your values in `.env`:
-
-   - `SEED_PHRASE`: Your 12-word mnemonic seed phrase
-   - `USER_VAULT_CANISTER_ID`: Your ICSI canister ID
-
-3. Install dependencies:
-   ```bash
-   cd packages/icsi-lib
+   # From root directory
    pnpm install
    ```
+
+2. **Fund your CUSTODIAN identity** (for deployment):
+
+   - The script will create a CUSTODIAN identity if it doesn't exist
+   - Fund this identity with at least 0.5 ICP for deployment
+   - The script will show you the principal to fund
+
+3. **Generate test wallet** (for testing):
+   ```bash
+   pnpm run lib:generate:wallet
+   ```
+   This creates a `.env.test` file with test wallet credentials.
 
 ## Testing Workflow
 
 1. **Deploy/Upgrade Canister:**
 
    ```bash
-   ./scripts/deploy-mainnet.sh deploy
+   ./.maintain/deploy-mainnet.sh deploy
    ```
 
 2. **Start Webhook Listener:**
 
    ```bash
-   cd packages/icsi-lib
-   pnpm run test:webhook
+   pnpm run lib:test:webhook
    ```
 
-3. **In another terminal, send USDC:**
+3. **In another terminal, test deposits:**
 
    ```bash
-   cd packages/icsi-lib
-   pnpm run test:usdc-deposit
+   # Test ICP deposits
+   pnpm run lib:test:icp
+
+   # Test ckUSDC deposits
+   pnpm run lib:test:usdc
+
+   # Test ckUSDT deposits
+   pnpm run lib:test:usdt
    ```
 
-4. **Monitor the webhook terminal** to see the deposit notification
+4. **Monitor the webhook terminal** to see the deposit notifications
 
 ## Important Notes
 
@@ -169,9 +183,10 @@ pnpm run test:webhook -- --keep-webhook
 
 All deposit test scripts include balance validation to prevent common errors:
 
-- **ICP**: Requires at least 0.1 ICP + 0.0001 ICP fee
-- **CKUSDC**: Requires at least 0.1 CKUSDC + fee
-- **CKUSDT**: Requires at least 0.1 CKUSDT + fee
+- **ICP**: Requires at least 0.001 ICP + 0.0001 ICP fee
+- **ckUSDC**: Requires at least 0.1 ckUSDC + 0.01 ckUSDC fee
+- **ckUSDT**: Requires at least 0.1 ckUSDT + 0.01 ckUSDT fee
+- **ckBTC**: Requires at least 0.0001 ckBTC + 10 satoshi fee
 
 The scripts will check your balance before attempting transfers and provide clear error messages if insufficient funds are detected.
 
