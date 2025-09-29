@@ -178,15 +178,14 @@ See [WORKSPACE.md](./WORKSPACE.md) for detailed monorepo documentation.
 
 ## Canister Environment Configuration
 
-The project maintains four separate `canister_ids.json` files, each serving different deployment environments:
+The project maintains **five** `canister_ids.json` files for different deployment environments:
 
-### 1. `canister_ids.json` (Current Production)
+### 1. `canister_ids.json` (Template/Active Configuration)
 
-- **Canister ID**: `qvn3w-rqaaa-aaaam-qd4kq-cai`
-- **Environment**: Production mainnet
-- **Controller**: NEW_MAINNET_CUSTODIAN identity
-- **Purpose**: Active production deployment for live operations
-- **Usage**: Default file used by deployment scripts for mainnet deployments
+- **Canister ID**: `""` (empty - populated based on environment)
+- **Purpose**: Template file that gets populated with the appropriate canister ID
+- **Usage**: Active configuration file used by DFX and deployment scripts
+- **Note**: This file should be copied from one of the environment-specific files below
 
 ### 2. `test_canister_ids.json` (Shared Staging)
 
@@ -212,14 +211,22 @@ The project maintains four separate `canister_ids.json` files, each serving diff
 - **Purpose**: Backup reference for migration and historical data
 - **Usage**: Not actively used, maintained for reference
 
+### 5. Production Mainnet (NEW_MAINNET_CUSTODIAN)
+
+- **Canister ID**: `qvn3w-rqaaa-aaaam-qd4kq-cai`
+- **Environment**: Current production mainnet
+- **Controller**: NEW_MAINNET_CUSTODIAN identity
+- **Purpose**: Active production deployment for live operations
+- **File**: Copy this ID to `canister_ids.json` when deploying to production
+
 ### Environment Selection Strategy
 
-The deployment and testing scripts automatically select the appropriate configuration:
+The deployment and testing scripts use the active `canister_ids.json` file. To switch environments, copy the appropriate environment-specific file:
 
-- **Production deployments**: Use `canister_ids.json` (current production)
-- **Team testing**: Use `test_canister_ids.json` (shared staging)
-- **Development work**: Use `devnet_canister_ids.json` (individual environment)
-- **Legacy reference**: Use `old_mainnet_canister_ids.json` (archived)
+- **Production deployments**: Copy production canister ID to `canister_ids.json`
+- **Team testing**: Copy `test_canister_ids.json` to `canister_ids.json`
+- **Development work**: Copy `devnet_canister_ids.json` to `canister_ids.json`
+- **Legacy reference**: Copy `old_mainnet_canister_ids.json` to `canister_ids.json` (if needed)
 
 ### Independent Environment State
 
@@ -234,7 +241,7 @@ Each environment maintains completely independent:
 
 ### Environment Switching
 
-To work with a specific environment, copy the appropriate file:
+To work with a specific environment, copy the appropriate file to `canister_ids.json`:
 
 ```bash
 # Switch to staging environment
@@ -243,9 +250,14 @@ cp test_canister_ids.json canister_ids.json
 # Switch to development environment
 cp devnet_canister_ids.json canister_ids.json
 
-# Switch back to production
-cp old_mainnet_canister_ids.json canister_ids.json  # If needed for reference
-# Production uses the default canister_ids.json
+# Switch to legacy archive (for reference)
+cp old_mainnet_canister_ids.json canister_ids.json
+
+# Switch to production mainnet (NEW_MAINNET_CUSTODIAN)
+echo '{"icp_subaccount_indexer": {"ic": "qvn3w-rqaaa-aaaam-qd4kq-cai"}}' > canister_ids.json
+
+# Always verify which environment you're targeting
+cat canister_ids.json
 ```
 
 **⚠️ Important**: Always verify which environment you're working with before making changes, especially when dealing with production funds or testing.
