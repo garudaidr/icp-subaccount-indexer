@@ -423,6 +423,7 @@ pnpm run lib:test:webhook
 pnpm run lib:test:icp    # Test ICP deposits (0.001 ICP)
 pnpm run lib:test:usdc   # Test ckUSDC deposits (0.1 ckUSDC)
 pnpm run lib:test:usdt   # Test ckUSDT deposits (0.1 ckUSDT)
+pnpm run lib:test:btc    # Test ckBTC deposits (0.0001 ckBTC)
 ```
 
 **Key Testing Features:**

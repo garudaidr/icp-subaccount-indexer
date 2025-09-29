@@ -73,6 +73,13 @@ console.log('Recent transactions:', transactions);
 | **ICP**    | Native | `ryjl3-tyaaa-aaaaa-aaaba-cai` | Hex AccountIdentifier |
 | **ckUSDC** | ICRC-1 | `xevnm-gaaaa-aaaar-qafnq-cai` | ICRC-1 Textual        |
 | **ckUSDT** | ICRC-1 | `cngnf-vqaaa-aaaar-qag4q-cai` | ICRC-1 Textual        |
+| **ckBTC**  | ICRC-1 | `mxzaz-hqaaa-aaaar-qaada-cai` | ICRC-1 Textual        |
+
+## Documentation
+
+- **[Getting Started Guide](./docs/GETTING_STARTED.md)** - Quick setup and basic usage
+- **[Complete API Reference](./docs/API.md)** - Detailed function documentation with auth requirements
+- **[Examples](./docs/EXAMPLES.md)** - Examples from basic usage to production patterns
 
 ## API Reference
 
@@ -184,6 +191,7 @@ import { Tokens } from '@jagad/icsi';
 Tokens.ICP; // { ICP: null }
 Tokens.CKUSDC; // { CKUSDC: null }
 Tokens.CKUSDT; // { CKUSDT: null }
+Tokens.CKBTC; // { CKBTC: null }
 ```
 
 ## Authentication

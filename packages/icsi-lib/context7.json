@@ -1,0 +1,17 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "ICSI Library - @jagad/icsi",
+  "description": "Internet Computer Subaccount Indexer Library - TypeScript SDK for ICP multi-token subaccount management, transaction tracking, and automated sweeping with webhook support",
+  "folders": ["src", "test/scripts", "test/integration"],
+  "excludeFolders": ["node_modules", "dist", "test/scripts/legacy"],
+  "excludeFiles": ["CHANGELOG.md", "jest.config.js"],
+  "rules": [
+    "Use HttpAgent from @dfinity/agent for all canister calls",
+    "Always handle Result types with 'Ok' and 'Err' patterns",
+    "Use Tokens.ICP, Tokens.CKUSDC, Tokens.CKUSDT, Tokens.CKBTC for token types",
+    "Import functions from '@jagad/icsi' package",
+    "Use bigint for amounts and intervals",
+    "Handle authentication with createHostAgentAndIdentityFromSeed or createHostAgentAndIdentityFromPrivateKey"
+  ],
+  "previousVersions": []
+}

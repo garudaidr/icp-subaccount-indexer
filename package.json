@@ -28,6 +28,7 @@
     "lib:test:icp": "pnpm --filter @jagad/icsi test:icp-deposit",
     "lib:test:usdc": "pnpm --filter @jagad/icsi test:usdc-deposit",
     "lib:test:usdt": "pnpm --filter @jagad/icsi test:usdt-deposit",
+    "lib:test:btc": "pnpm --filter @jagad/icsi test:btc-deposit",
     "lib:test:webhook": "pnpm --filter @jagad/icsi test:webhook"
   },
   "dependencies": {

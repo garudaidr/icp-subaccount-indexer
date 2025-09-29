@@ -57,7 +57,16 @@
     "payment-processing",
     "transaction-tracking",
     "webhook",
-    "sweeping"
+    "sweeping",
+    "typescript",
+    "sdk",
+    "api",
+    "client",
+    "wallet",
+    "deposit",
+    "ledger",
+    "defi",
+    "fintech"
   ],
   "author": {
     "name": "Jagad",
