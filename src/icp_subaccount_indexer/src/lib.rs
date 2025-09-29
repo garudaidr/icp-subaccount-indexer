@@ -213,6 +213,7 @@ async fn set_webhook_url(webhook_url: String) -> Result<String, Error> {
 
 #[query]
 fn get_webhook_url() -> Result<String, String> {
+    authenticate()?;
     Ok(WEBHOOK_URL.with(|webhook_url_ref| webhook_url_ref.borrow().get().to_string()))
 }
 
