@@ -529,4 +529,13 @@ MIT License - see [LICENSE.md](LICENSE.md) for details.
 
 ---
 
+## Context7 MCP
+
+ICSI-Lib is available in Context7 Model Context Protocol at:  
+**https://context7.com/garudaidr/icp-subaccount-indexer**
+
+This provides developers with AI-powered access to ICSI-Lib documentation and examples.
+
+---
+
 Built with ❤️ for the Internet Computer ecosystem

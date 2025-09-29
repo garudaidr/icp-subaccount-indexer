@@ -551,6 +551,13 @@ The following are some of the research documents during specification design:
 - [Subaccount Derivation Mechanism](./docs/SUBACCOUNT_DERIVATION_MECHANISM.md)
 - [Sweeping Mechanism](./docs/SWEEPING_SUBACCOUNTS_TO_USERVAULT_MAIN_PRINCIPAL.md)
 
+## Context7 MCP
+
+ICSI is available in Context7 Model Context Protocol at:  
+**https://context7.com/garudaidr/icp-subaccount-indexer**
+
+This provides developers with AI-powered access to ICSI documentation and examples.
+
 ## License
 
 [MIT](./LICENSE.md) © [Jagad](https://t.me/jagadofficial)
