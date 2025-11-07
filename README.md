@@ -210,14 +210,22 @@ The project maintains **five** `canister_ids.json` files for different deploymen
 - **Status**: Historical reference only
 - **Purpose**: Backup reference for migration and historical data
 - **Usage**: Not actively used, maintained for reference
+- **Controllers** (as of verification):
+  - `e3mmv-5qaaa-aaaah-aadma-cai` (Black hole canister - version 0.0.0)
+  - `fgu3n-zl522-yxi3v-t4cie-ay33r-pc425-t6ua7-u6ygs-s7e63-d6aex-4ae`
+  - `ndmaj-wyg44-p2rfh-grnup-pgseg-4eliy-dqaui-ijnbl-fja3x-mhguz-wae`
+- **Note**: Black hole added as additional controller (not sole controller), maintaining transparency while retaining upgrade capability
 
 ### 5. Production Mainnet (NEW_MAINNET_CUSTODIAN)
 
 - **Canister ID**: `qvn3w-rqaaa-aaaam-qd4kq-cai`
 - **Environment**: Current production mainnet
-- **Controller**: NEW_MAINNET_CUSTODIAN identity
+- **Controllers** (as of November 2025):
+  - `e3mmv-5qaaa-aaaah-aadma-cai` (Black hole canister - version 0.0.0)
+  - `h74q4-sfve2-7tqhf-ucha6-yameo-l73ks-r3knw-bolek-gwp3j-mjzss-sqe` (Custodian identity)
 - **Purpose**: Active production deployment for live operations
 - **File**: Copy this ID to `canister_ids.json` when deploying to production
+- **Black Hole Configuration**: Added as additional controller (November 7, 2025) for public transparency while maintaining upgrade capability
 
 ### Environment Selection Strategy
 
@@ -464,13 +472,42 @@ dfx canister call e3mmv-5qaaa-aaaah-aadma-cai canister_status \
 - **Testing**: Always test thoroughly before setting black hole as sole controller
 - **Irreversible**: Setting black hole as sole controller is permanent and cannot be undone
 
-**Our Legacy Mainnet Canister:**
+**Our Mainnet Canisters with Black Hole:**
 
-Our old mainnet canister (`g5nrt-myaaa-aaaap-qhluq-cai`) has been set to use the black hole canister as its sole controller, making it permanently immutable. You can verify this with:
+Both ICSI mainnet canisters have been configured with the black hole canister as an **additional controller** (not sole controller):
+
+**Current Production Canister** (`qvn3w-rqaaa-aaaam-qd4kq-cai`):
+
+- Added black hole on November 7, 2025
+- Controllers: Black hole + custodian identity
+- Status: Active production, retains upgrade capability
+
+**Legacy Archive Canister** (`g5nrt-myaaa-aaaap-qhluq-cai`):
+
+- Black hole added as additional controller (historical)
+- Controllers: Black hole + two custodian identities
+- Status: Archived, retains upgrade capability
+
+You can verify the controllers of any canister with:
 
 ```bash
+# Current production canister
+dfx canister info qvn3w-rqaaa-aaaam-qd4kq-cai --network ic
+
+# Legacy archive canister
 dfx canister info g5nrt-myaaa-aaaap-qhluq-cai --network ic
 ```
+
+**Why Additional Controller Instead of Sole Controller?**
+
+We chose to add black hole as an **additional controller** rather than the sole controller because:
+
+1. **Transparency**: Enables public monitoring of canister status and cycles
+2. **Flexibility**: Retains ability to upgrade and fix bugs if needed
+3. **Trust**: Anyone can verify canister health and module hash
+4. **Safety**: Not permanently locked - can still respond to security issues
+
+This approach balances transparency with operational flexibility for production canisters.
 
 ### Testing
 
@@ -534,6 +571,36 @@ See [Testing Guide](./docs/TESTING_GUIDE.md) for complete documentation includin
 See [Testing Guide](./docs/TESTING_GUIDE.md#test-script-architecture) for details.
 
 ## Essential Canister Management Commands
+
+### Mainnet Canister Controllers Reference
+
+**Current Production Canister** (`qvn3w-rqaaa-aaaam-qd4kq-cai`):
+
+```bash
+# Verify controllers
+dfx canister info qvn3w-rqaaa-aaaam-qd4kq-cai --network ic
+# Controllers:
+#   - e3mmv-5qaaa-aaaah-aadma-cai (Black hole - version 0.0.0)
+#   - h74q4-sfve2-7tqhf-ucha6-yameo-l73ks-r3knw-bolek-gwp3j-mjzss-sqe (Custodian identity)
+
+# Query public canister status (anyone can do this)
+dfx canister call e3mmv-5qaaa-aaaah-aadma-cai canister_status \
+    "(record {canister_id = principal \"qvn3w-rqaaa-aaaam-qd4kq-cai\"})" \
+    --network ic
+```
+
+**Legacy Archive Canister** (`g5nrt-myaaa-aaaap-qhluq-cai`):
+
+```bash
+# Verify controllers
+dfx canister info g5nrt-myaaa-aaaap-qhluq-cai --network ic
+# Controllers:
+#   - e3mmv-5qaaa-aaaah-aadma-cai (Black hole - version 0.0.0)
+#   - fgu3n-zl522-yxi3v-t4cie-ay33r-pc425-t6ua7-u6ygs-s7e63-d6aex-4ae
+#   - ndmaj-wyg44-p2rfh-grnup-pgseg-4eliy-dqaui-ijnbl-fja3x-mhguz-wae
+```
+
+**Note**: Both canisters use black hole as an **additional controller** for transparency while retaining upgrade capability.
 
 ### Quick Health Check
 
