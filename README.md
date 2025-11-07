@@ -402,6 +402,76 @@ dfx canister call <CANISTER_ID> get_token_next_block_query '(variant { CKBTC })'
 - Start blocks ~50-100 before current to catch recent transactions
 - Polling intervals: 60s for normal use, 500s for maximum cycle conservation
 
+#### Optional: Making Your Canister Immutable with Black Hole
+
+Once your canister is deployed and configured, you can optionally set a [black hole canister](https://github.com/garudaidr/ic-blackhole) as a controller to make your canister immutable and enable public monitoring.
+
+**What is a Black Hole Canister?**
+
+A black hole canister is an immutable canister that, when set as a controller of your canister, provides the following benefits:
+
+- **Immutability**: Makes your canister non-upgradable, guaranteeing code cannot be changed
+- **Public Status**: Allows anyone to query `canister_status` to monitor health and cycles balance
+- **Transparency**: Provides programmatic access to canister information (cycles, module hash, etc.)
+- **Trust**: Users can verify your canister is truly immutable and unchanged
+
+For more details, see the [ic-blackhole repository](https://github.com/garudaidr/ic-blackhole) (available as a submodule at `packages/ic-blackhole/`).
+
+**Black Hole Canister ID (Version 0.0.0):**
+
+```
+e3mmv-5qaaa-aaaah-aadma-cai
+```
+
+**How to Add Black Hole as Controller:**
+
+⚠️ **WARNING**: Be extremely cautious with these steps. Setting the black hole as the **sole** controller will permanently remove your ability to upgrade or modify the canister!
+
+```bash
+# Step 1: Add black hole as an additional controller (recommended first step)
+# This keeps your control while enabling public monitoring
+dfx canister update-settings \
+    --network ic \
+    --add-controller e3mmv-5qaaa-aaaah-aadma-cai \
+    <CANISTER_ID>
+
+# Step 2 (OPTIONAL): Set black hole as SOLE controller (permanent!)
+# Only do this when you're absolutely certain the canister is production-ready
+# This will REMOVE YOUR ABILITY to upgrade or modify the canister forever!
+dfx canister update-settings \
+    --network ic \
+    --set-controller e3mmv-5qaaa-aaaah-aadma-cai \
+    <CANISTER_ID>
+```
+
+**Verifying Black Hole Setup:**
+
+```bash
+# Check controllers
+dfx canister info <CANISTER_ID> --network ic
+
+# Query public canister status (anyone can do this now)
+dfx canister call e3mmv-5qaaa-aaaah-aadma-cai canister_status \
+    "(record {canister_id = principal \"<CANISTER_ID>\"})" \
+    --network ic
+```
+
+**Important Considerations:**
+
+- **Cycle Management**: With public status, anyone can see your cycles balance and consumption rate
+- **Security**: Attackers may use cycle information to launch targeted attacks
+- **Mitigation**: Use automatic cycle top-up services (e.g., [Tip Jar](https://tipjar.rocks))
+- **Testing**: Always test thoroughly before setting black hole as sole controller
+- **Irreversible**: Setting black hole as sole controller is permanent and cannot be undone
+
+**Our Legacy Mainnet Canister:**
+
+Our old mainnet canister (`g5nrt-myaaa-aaaap-qhluq-cai`) has been set to use the black hole canister as its sole controller, making it permanently immutable. You can verify this with:
+
+```bash
+dfx canister info g5nrt-myaaa-aaaap-qhluq-cai --network ic
+```
+
 ### Testing
 
 #### Quick Testing Guide
