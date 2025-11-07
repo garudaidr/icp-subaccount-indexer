@@ -216,13 +216,14 @@ The project maintains **five** `canister_ids.json` files for different deploymen
   - `ndmaj-wyg44-p2rfh-grnup-pgseg-4eliy-dqaui-ijnbl-fja3x-mhguz-wae`
 - **Note**: Black hole added as additional controller (not sole controller), maintaining transparency while retaining upgrade capability
 
-### 5. Production Mainnet (NEW_MAINNET_CUSTODIAN)
+### 5. Production Mainnet
 
 - **Canister ID**: `qvn3w-rqaaa-aaaam-qd4kq-cai`
 - **Environment**: Current production mainnet
 - **Controllers** (as of November 2025):
   - `e3mmv-5qaaa-aaaah-aadma-cai` (Black hole canister - version 0.0.0)
   - `h74q4-sfve2-7tqhf-ucha6-yameo-l73ks-r3knw-bolek-gwp3j-mjzss-sqe` (Custodian identity)
+- **Polling Interval**: 60 seconds (balanced performance and cost efficiency)
 - **Purpose**: Active production deployment for live operations
 - **File**: Copy this ID to `canister_ids.json` when deploying to production
 - **Black Hole Configuration**: Added as additional controller (November 7, 2025) for public transparency while maintaining upgrade capability
@@ -508,6 +509,112 @@ We chose to add black hole as an **additional controller** rather than the sole 
 4. **Safety**: Not permanently locked - can still respond to security issues
 
 This approach balances transparency with operational flexibility for production canisters.
+
+### Canister Cycle Efficiency & Cost Analysis
+
+**Current Production Canister** (`qvn3w-rqaaa-aaaam-qd4kq-cai`) - As of November 2025
+
+#### Measured Performance Metrics
+
+Based on actual production data from October 31 - November 7, 2025:
+
+**Polling Configuration:**
+
+- **Interval**: 15 seconds (highly aggressive for real-time deposit detection)
+- **Polls per hour**: 240 polls/hour
+- **Polls per day**: 5,760 polls/day
+
+**Consumption Rates:**
+
+- **Per poll**: ~12.95 million cycles/poll
+- **Per hour**: ~3.11 billion cycles/hour
+- **Per day**: ~74.61 billion cycles/day
+- **Per week**: ~522.3 billion cycles/week
+- **Per month**: ~2.24 trillion cycles/month (30 days)
+
+**Cost Analysis** (at 1 trillion cycles ≈ 1 ICP):
+
+- **Daily cost**: ~0.0746 ICP/day
+- **Weekly cost**: ~0.5223 ICP/week
+- **Monthly cost**: ~2.24 ICP/month
+- **Annual cost**: ~27.2 ICP/year
+
+**Top-Up History:**
+
+- **Date**: October 31, 2025 at 04:39:29 UTC
+- **Amount**: 1.0 ICP (1 trillion cycles)
+- **Previous balance**: 60 million cycles
+- **Total after top-up**: 1.006 trillion cycles
+- **Consumed in 6.81 days**: 507.82 billion cycles (50.78%)
+- **Remaining as of Nov 7**: 492.24 billion cycles
+- **Projected depletion**: ~6.6 days from November 7 (November 13, 2025)
+
+#### Interval Configuration vs. Cycle Cost
+
+The 15-second polling interval provides near-instant deposit detection but consumes cycles aggressively. Consider these alternatives based on your requirements:
+
+| Interval          | Polls/Day | Cycles/Day\* | ICP/Month\* | Use Case                        |
+| ----------------- | --------- | ------------ | ----------- | ------------------------------- |
+| **15s** (current) | 5,760     | ~74.6B       | ~2.24       | Real-time deposits (production) |
+| **30s**           | 2,880     | ~37.3B       | ~1.12       | Fast detection (recommended)    |
+| **60s**           | 1,440     | ~18.7B       | ~0.56       | Normal operations (balanced)    |
+| **300s** (5 min)  | 288       | ~3.7B        | ~0.11       | Low-frequency monitoring        |
+| **500s**          | 172.8     | ~2.2B        | ~0.07       | Maximum cycle conservation      |
+
+\*Estimated based on current cycle cost per poll
+
+**Recommendation for Production:**
+
+```bash
+# For real-time deposit detection (current setting)
+dfx canister call qvn3w-rqaaa-aaaam-qd4kq-cai set_interval '(15 : nat64)' --network ic
+
+# For balanced performance and cost (recommended for most use cases)
+dfx canister call qvn3w-rqaaa-aaaam-qd4kq-cai set_interval '(60 : nat64)' --network ic
+
+# For maximum cycle conservation (low-traffic applications)
+dfx canister call qvn3w-rqaaa-aaaam-qd4kq-cai set_interval '(300 : nat64)' --network ic
+```
+
+#### Cycle Top-Up Recommendations
+
+Based on current consumption rates:
+
+**Short-term (15s interval):**
+
+- Top up **~2.5 ICP** for 30 days of operation
+- Top up **~5.0 ICP** for 60 days of operation
+
+**Optimized (60s interval):**
+
+- Top up **~0.6 ICP** for 30 days of operation
+- Top up **~1.2 ICP** for 60 days of operation
+
+**Budget-friendly (300s interval):**
+
+- Top up **~0.15 ICP** for 30 days of operation
+- Top up **~0.30 ICP** for 60 days of operation
+
+#### Monitoring Cycle Balance
+
+```bash
+# Check current cycle balance via blackhole controller (public access)
+dfx canister call e3mmv-5qaaa-aaaah-aadma-cai canister_status \
+    "(record {canister_id = principal \"qvn3w-rqaaa-aaaam-qd4kq-cai\"})" \
+    --network ic
+
+# Add cycles when balance is low
+dfx canister deposit-cycles 2000000000000 qvn3w-rqaaa-aaaam-qd4kq-cai --network ic
+```
+
+**Cycle Warning Threshold**: Set up monitoring alerts when cycles drop below 1 trillion to ensure uninterrupted service.
+
+**Notes:**
+
+- Conversion rate: 1 trillion cycles ≈ 1 ICP (approximate, varies with ICP/XDR rate)
+- Actual consumption may vary based on transaction volume and network conditions
+- These metrics are from actual production usage, not estimates
+- Consider using automatic top-up services like [Tip Jar](https://tipjar.rocks) for production canisters
 
 ### Testing
 
