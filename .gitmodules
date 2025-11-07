@@ -1,0 +1,3 @@
+[submodule "packages/ic-blackhole"]
+	path = packages/ic-blackhole
+	url = git@github.com:garudaidr/ic-blackhole.git
